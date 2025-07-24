@@ -5,27 +5,34 @@ import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 import ForgotPasswordEmail from "../utils/forgotPasswordEmail.js";
 import sendEmail from "../utils/sendEmail.js";
+import verifyEmail from '../utils/verifyEmail.js';
 
 // User Registration
 export const register = catchAsyncErrors(async (req, res, next) => {
-  const { name, email, phone, password } = req.body;
+  const { email, phone } = req.body;
+
+  // Check if user already exists
   const userExist = await User.findOne({ email });
   if (userExist) {
     return next(new Errorhandler("Email already registered", 400));
   }
+
+  // Check if user phone already exists
+  const userPhoneExist = await User.findOne({ phone });
+  if (userPhoneExist) {
+    return next(new Errorhandler("Phone already registered", 400));
+  }
+
   try {
     // Create a new user
-    const user = await User.create({
-      name,
-      email,
-      phone,
-      password,
-    });
+    const user = await User.create(req.body);
+
+    // Send token (login the user)
     sendToken(user, 200, res);
   } catch (error) {
     // Handle any other errors
     return next(
-      new Errorhandler("Failed to create vendor account. Please try again.", 500)
+      new Errorhandler("Failed to create account. Please try again.", 500)
     );
   }
 });
@@ -53,7 +60,6 @@ export const login = catchAsyncErrors(async (req, res, next) => {
 
   sendToken(user, 200, res);
 });
-
 
 // Logout User
 export const logout = catchAsyncErrors(async (req, res, next) => {
@@ -143,7 +149,7 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
   const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
   // Save both OTP and its hashed version (hashed for token, plain for check)
-  user.resetPasswordOtp = otp; // 🔒 store plain OTP
+  user.resetPasswordOtp = otp; 
   user.resetPasswordToken = hashedOtp;
   user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // expires in 10 min
 
@@ -252,5 +258,150 @@ export const resetPassword = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler(error.message, 500));
   }
 });
+
+// Verify Email
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
+export const sendEmailVerify = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    const otp = generateOTP();
+    const currentYear = new Date().getFullYear();
+
+    // Update user or create if doesn't exist
+    const user = await User.findOneAndUpdate(
+      { email },
+      {
+        emailOtp:otp,
+        emailOtpExpiry: Date.now() + 10 * 60 * 1000,
+      },
+      { new: true, upsert: true }
+    );
+    const userName = user.name || "User"; 
+    const html = verifyEmail(otp, currentYear, userName || "User");
+
+    await sendEmail({
+      email,
+      subject: "Verify Your Email - OTP Inside",
+      html,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `OTP sent to ${email}. Please check your inbox.`,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Something went wrong while sending the OTP.',
+    });
+  }
+};
+
+// Email Verification OTP
+export const emailVerifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and OTP are required',
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    const numericOtp = parseInt(otp);
+    if (isNaN(numericOtp)) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP must be a number',
+      });
+    }
+
+    // Check OTP match
+    if (user.emailOtp !== numericOtp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Incorrect OTP',
+      });
+    }
+
+    // Check expiry
+    if (!user.emailOtpExpiry || user.emailOtpExpiry < Date.now()) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired',
+      });
+    }
+
+    // Mark as verified and clear OTP
+    user.emailVerified = true;
+    user.emailOtp = null;
+    user.emailOtpExpiry = null;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified successfully',
+    });
+  } catch (error) {
+    console.error('OTP verification error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+};
+
+
+// Get all users (Admin)
+export const getAllUsers = catchAsyncErrors(async (req, res, next) => {
+  const users = await User.find({ role: { $ne: 1 } }).select("-password").sort({ createdAt: -1 });
+
+  if (!users || users.length === 0) {
+    return next(new Errorhandler("No users found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    users,
+    message: "Users fetched successfully",
+  });
+});
+
+
+// Delete user (Admin)
+export const deleteUser = catchAsyncErrors(async (req, res, next) => {
+  try {
+    const deleteUser = await User.findByIdAndDelete(req.params.id);
+    console.log("Delete User:", deleteUser);
+  if (!deleteUser) {
+    return next(new Errorhandler("User not found", 404))
+  }
+  res.status(200).json({
+    success:true,
+    deleteUser,
+    message:"User deleted successfully"
+  })
+  } catch (error) {
+    return next(new Errorhandler(error.message, 500))
+  }
+})
+
+
 
 

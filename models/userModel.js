@@ -28,6 +28,44 @@ const userSchema = new mongoose.Schema(
     phone: {
       type: String,
       required: true,
+      unique: true,
+    },
+
+    businessName: {
+      type: String,
+      required: false,
+    },
+
+    businessAddress: {
+      type: String,
+      required: false,
+    },
+
+    gstNumber: {
+      type: String,
+      required: false,
+    },
+
+    phoneOtp: {
+      type: Number,
+    },
+
+    phoneOtpExpiry: Date,
+
+    emailOtp: {
+      type: Number,
+    },
+
+    emailOtpExpiry: Date,
+
+    phoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    emailVerified: {
+      type: Boolean,
+      default: false,
     },
 
     role: {
