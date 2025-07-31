@@ -13,6 +13,9 @@ import {
   emailVerifyOtp,
   getAllUsers,
   deleteUser,
+  updateUserMode,
+  sendOtpToPhone,
+  verifyPhoneOtp,
 } from "../controllers/authController.js";
 import { isAuthenticatedUser, isAdmin} from "../middlewares/authMiddleware.js";
 import { registerValidation, loginValidation, profileUpdateValidation, profileUpdatePasswordValidation, resetPasswordValidation } from '../helpers/authHelper.js';
@@ -30,6 +33,9 @@ router.post("/verify/otp", resetPasswordverifyOtp); // Reset password link
 router.put("/password/reset", resetPasswordValidation, resetPassword);
 router.post("/email/verify", sendEmailVerify); // Send Email verification
 router.post("/email/verify/otp", emailVerifyOtp); // Verify Email OTP
+router.post("/send/otp", isAuthenticatedUser, sendOtpToPhone); // Send OTP to phone number
+router.post("/verify/phone/otp", isAuthenticatedUser, verifyPhoneOtp); // Verify phone OTP
+router.patch("/update-mode/:id", isAuthenticatedUser, updateUserMode); // Update user mode (buyer/seller)
 router.get("/admin/all/users",  isAuthenticatedUser,isAdmin, getAllUsers); // Get all users
 router.delete("/admin/user/:id", isAuthenticatedUser, isAdmin, deleteUser); // Delete user
 

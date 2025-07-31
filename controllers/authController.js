@@ -6,6 +6,7 @@ import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 import ForgotPasswordEmail from "../utils/forgotPasswordEmail.js";
 import sendEmail from "../utils/sendEmail.js";
 import verifyEmail from '../utils/verifyEmail.js';
+import { sendOtp } from '../utils/sendOtp.js';
 
 // User Registration
 export const register = catchAsyncErrors(async (req, res, next) => {
@@ -367,6 +368,141 @@ export const emailVerifyOtp = async (req, res) => {
   }
 };
 
+// Send OTP to Phone
+export const sendOtpToPhone = async (req, res) => {
+  const { phone } = req.body;
+
+  if (!phone) {
+    return res.status(400).json({ success: false, message: 'Phone number is required' });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
+  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);  // 10 minutes expiry
+
+  try {
+    // Send OTP via Twilio
+    const sid = await sendOtp(phone, otp);
+
+    // Update or Create user with phone, OTP & expiry
+    let user = await User.findOne({ phone });
+
+    if (user) {
+      user.phoneOtp = otp;
+      user.phoneOtpExpiry = otpExpiry;
+      await user.save();
+    } else {
+      user = await User.create({
+        phone,
+        phoneOtp: otp,
+        phoneOtpExpiry: otpExpiry,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent and saved successfully',
+      sid,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send or save OTP',
+      error: err.message,
+    });
+  }
+};
+
+// Verify Phone OTP
+export const verifyPhoneOtp = async (req, res) => {
+  const { phone, otp } = req.body;
+
+  if (!phone || !otp) {
+    return res.status(400).json({ success: false, message: 'Phone and OTP are required.' });
+  }
+
+  try {
+    const user = await User.findOne({ phone });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found with this phone.' });
+    }
+
+    // check if OTP matches
+    if (user.phoneOtp !== parseInt(otp, 10)) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP.' });
+    }
+
+    // check if OTP expired
+    if (user.phoneOtpExpiry < new Date()) {
+      return res.status(400).json({ success: false, message: 'OTP has expired.' });
+    }
+
+    // Success: verify phone
+    user.phoneVerified = true;
+    user.phoneOtp = null;
+    user.phoneOtpExpiry = null;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Phone number verified successfully.',
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP.',
+      error: err.message,
+    });
+  }
+};
+
+// Update User Mode (Buyer/Seller)
+export const updateUserMode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { mode } = req.body;
+
+    // Validate mode
+    if (!["buyer", "seller"].includes(mode)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid mode. Only 'buyer' or 'seller' allowed.",
+      });
+    }
+
+    // Find and update user
+    const user = await User.findByIdAndUpdate(
+      id,
+      { mode },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User mode updated successfully",
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        mode: user.mode,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
 
 // Get all users (Admin)
 export const getAllUsers = catchAsyncErrors(async (req, res, next) => {
@@ -382,7 +518,6 @@ export const getAllUsers = catchAsyncErrors(async (req, res, next) => {
     message: "Users fetched successfully",
   });
 });
-
 
 // Delete user (Admin)
 export const deleteUser = catchAsyncErrors(async (req, res, next) => {
@@ -400,8 +535,5 @@ export const deleteUser = catchAsyncErrors(async (req, res, next) => {
   } catch (error) {
     return next(new Errorhandler(error.message, 500))
   }
-})
-
-
-
+});
 

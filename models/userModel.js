@@ -29,6 +29,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      trim: true,
     },
 
     businessName: {
@@ -71,6 +72,13 @@ const userSchema = new mongoose.Schema(
     role: {
       type: Number,
       default: 0, // 0-> Normal User, 1-> Admin, 2-> sub-Admin. 3-> Editor
+    },
+
+    mode: {
+      type: String,
+      enum: ["seller", "buyer"],
+      required: true,
+      default: "buyer",
     },
 
     resetPasswordOtp: {

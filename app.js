@@ -6,6 +6,8 @@ import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import errorMiddleware from "./middlewares/error.js";
 import authRoute from "./routes/authRoute.js";
+import contactRoute from "./routes/contactRoute.js";
+import sellerCategoryRoutes from "./routes/sellerCategoryRoutes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -42,6 +44,8 @@ app.get("/api/status", (req, res) => {
 
 // APIs end points
 app.use("/api/v1/auth", authRoute);
+app.use("/api/v1/contact", contactRoute);
+app.use("/api/v1/seller-categories", sellerCategoryRoutes);
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));
