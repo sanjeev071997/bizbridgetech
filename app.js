@@ -8,6 +8,7 @@ import errorMiddleware from "./middlewares/error.js";
 import authRoute from "./routes/authRoute.js";
 import contactRoute from "./routes/contactRoute.js";
 import sellerCategoryRoutes from "./routes/sellerCategoryRoutes.js";
+import sellerProductRoutes from "./routes/sellerProductRoute.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -46,6 +47,7 @@ app.get("/api/status", (req, res) => {
 app.use("/api/v1/auth", authRoute);
 app.use("/api/v1/contact", contactRoute);
 app.use("/api/v1/seller-categories", sellerCategoryRoutes);
+app.use("/api/v1/seller-products", sellerProductRoutes);
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));

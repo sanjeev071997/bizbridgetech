@@ -73,7 +73,7 @@ export const adminGetAllSellerCategories = catchAsyncErrors(async (req, res, nex
 
   // Only admin (role === 1) can see all categories
   if (req.user.role === 1) {
-    categories = await SellerCategory.find().populate('user', 'name email, phone'); 
+    categories = await SellerCategory.find().populate('user', 'name email phone'); 
   } else {
     // Other users only see their own categories
     categories = await SellerCategory.find({ user: req.user._id });
