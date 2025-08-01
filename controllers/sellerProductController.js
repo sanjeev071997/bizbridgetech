@@ -1,6 +1,6 @@
 import Product from "../models/sellerProductModel.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
-import Errorhandler from "../utils/errorHandler.js";
+import Errorhandler from "../utils/Errorhandler.js";
 import cloudinary from "../utils/cloudinary.js";
  
 // Function to handle base64 image uploads
