@@ -62,11 +62,64 @@ export const login = catchAsyncErrors(async (req, res, next) => {
   sendToken(user, 200, res);
 });
 
-// Logout User
+export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {
+  const { refreshToken } = req.cookies;
+
+  if (!refreshToken) {
+    return next(new Errorhandler("Refresh token not found", 401));
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return next(new Errorhandler("User not found", 404));
+    }
+
+    // generate new access token
+    const accessToken = user.getJWTToken();
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      expires: new Date(Date.now() + 15 * 60 * 1000),
+    });
+
+    res.status(200).json({
+      success: true,
+      accessToken,
+    });
+
+  } catch (error) {
+    return next(new Errorhandler("Invalid refresh token", 403));
+  }
+});
+
+
+// // Logout User
+// export const logout = catchAsyncErrors(async (req, res, next) => {
+//   res.cookie("token", null, {
+//     expires: new Date(Date.now()),
+//     httpOnly: true,
+//   });
+
+//   res.status(200).json({
+//     success: true,
+//     message: "Logged out successfully",
+//   });
+// });
 export const logout = catchAsyncErrors(async (req, res, next) => {
-  res.cookie("token", null, {
-    expires: new Date(Date.now()),
+  res.clearCookie("accessToken", {
     httpOnly: true,
+    sameSite: 'none',
+    secure: true,
+  });
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    sameSite: 'none',
+    secure: true,
   });
 
   res.status(200).json({
@@ -74,6 +127,7 @@ export const logout = catchAsyncErrors(async (req, res, next) => {
     message: "Logged out successfully",
   });
 });
+
 
 // // user profile (Get User Details)
 export const profileDetails = catchAsyncErrors(async (req, res, next) => {

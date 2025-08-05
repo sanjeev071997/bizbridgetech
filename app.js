@@ -9,6 +9,7 @@ import authRoute from "./routes/authRoute.js";
 import contactRoute from "./routes/contactRoute.js";
 import sellerCategoryRoutes from "./routes/sellerCategoryRoutes.js";
 import sellerProductRoutes from "./routes/sellerProductRoute.js";
+import buyerCategoryRoutes from "./routes/buyerCategoryRoutes.js"
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -26,7 +27,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use(cors({
   origin: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true 
 }));
@@ -48,6 +49,7 @@ app.use("/api/v1/auth", authRoute);
 app.use("/api/v1/contact", contactRoute);
 app.use("/api/v1/seller-categories", sellerCategoryRoutes);
 app.use("/api/v1/seller-products", sellerProductRoutes);
+app.use("/api/v1/buyer-categories", buyerCategoryRoutes)
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));

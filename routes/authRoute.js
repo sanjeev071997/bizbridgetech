@@ -2,6 +2,7 @@ import express from "express";
 import {
   register,
   login,
+  refreshAccessToken,
   logout,
   profileDetails,
   profileUpdate,
@@ -24,6 +25,7 @@ const router = express.Router();
 
 router.post("/register",registerValidation, register);
 router.post("/login",loginValidation, login);
+router.get("/refresh", refreshAccessToken);
 router.get("/logout", logout);
 router.get("/profile", isAuthenticatedUser, profileDetails);
 router.put("/profile/update", isAuthenticatedUser, profileUpdateValidation, profileUpdate);

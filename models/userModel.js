@@ -121,9 +121,23 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 };
 
 // Create JWT TOKEN
+// userSchema.methods.getJWTToken = function () {
+//   return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
+//     expiresIn: process.env.JWT_EXPIRE,
+//   });
+// };
+
+// Method to create access token
 userSchema.methods.getJWTToken = function () {
   return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE,
+    expiresIn: "15m", // 15 minutes
+  });
+};
+
+// Method to create refresh token
+userSchema.methods.getRefreshToken = function () {
+  return jwt.sign({ id: this._id }, process.env.REFRESH_SECRET, {
+    expiresIn: "7d", // 7 days
   });
 };
 

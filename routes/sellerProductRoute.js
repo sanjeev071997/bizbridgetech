@@ -7,6 +7,7 @@ import {
   updateProduct,
   deleteProduct,
   getAllProducts,
+  getProductByUserId,
 } from "../controllers/sellerProductController.js";
 import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
 
@@ -20,12 +21,14 @@ router.post("/", upload.single('image'), isAuthenticatedUser, addProduct);
 
 router.get("/:category", isAuthenticatedUser, getProductsByCategoryId);
 
-router.get("/:id", isAuthenticatedUser, getProductById); // Single Product 
+router.get("/get/product/:id", isAuthenticatedUser, getProductById);
 
 router.put("/:id", upload.single('image'), isAuthenticatedUser, updateProduct);
 
 router.delete("/:id", isAuthenticatedUser, deleteProduct);
 
 router.get("/", isAuthenticatedUser, getAllProducts);
+
+router.get("/get/user/product", isAuthenticatedUser, getProductByUserId)
 
 export default router;

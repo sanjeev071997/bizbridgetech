@@ -17,7 +17,7 @@ export const createSellerCategory = catchAsyncErrors(async (req, res, next) => {
 
 // Get all categories for the logged-in user
 export const getAllSellerCategories = catchAsyncErrors(async (req, res, next) => {
-  const categories = await SellerCategory.find({ user: req.user._id });
+  const categories = await SellerCategory.find({ user: req.user._id }).sort({ createdAt: -1 });
 
   res.status(200).json({ success: true, data: categories });
 });
@@ -69,13 +69,12 @@ export const deleteSellerCategory = catchAsyncErrors(async (req, res, next) => {
 
 // Admin: Get all seller categories
 export const adminGetAllSellerCategories = catchAsyncErrors(async (req, res, next) => {
-  let categories;
+  let categories;  
 
   // Only admin (role === 1) can see all categories
   if (req.user.role === 1) {
-    categories = await SellerCategory.find().populate('user', 'name email phone'); 
+    categories = await SellerCategory.find().populate('user', 'name email phone').sort({ createdAt: -1 });
   } else {
-    // Other users only see their own categories
     categories = await SellerCategory.find({ user: req.user._id });
   }
 

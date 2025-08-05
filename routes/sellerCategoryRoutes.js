@@ -16,6 +16,6 @@ router.get('/:id', isAuthenticatedUser, getSellerCategoryById);
 router.put('/:id', isAuthenticatedUser, updateSellerCategory);
 router.delete('/:id', isAuthenticatedUser, deleteSellerCategory);
 // Admin route to get all seller categories
-router.get('/admin', isAuthenticatedUser, isAdmin, adminGetAllSellerCategories);
+router.get('/admin/get', isAuthenticatedUser, isAdmin, adminGetAllSellerCategories);
 
 export default router;

@@ -64,13 +64,33 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-
 // Function to get all products
+// export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     const products = await Product.find()
+//       .populate("category", "name")
+//       .sort({ createdAt: -1 });
+//     res.status(200).json({
+//       success: true,
+//       products,
+//     });
+//   } catch (error) {
+//     console.log("Detailed Error:", error);
+//     return next(new Errorhandler("Error fetching products", 500));
+//   }
+// });
+
 export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   try {
-    const products = await Product.find()
-      .populate("category", "name")
-      .sort({ createdAt: -1 });
+    let query = Product.find().populate("category", "name").sort({ createdAt: -1 });
+
+    // Conditionally populate user details if role === 1 (admin/superadmin)
+    if (req.user.role === 1) {
+      query = query.populate("user", "name phone");
+    }
+
+    const products = await query;
+
     res.status(200).json({
       success: true,
       products,
@@ -81,19 +101,34 @@ export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
+
 // Function to delete a product
 export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
 
   try {
     const product = await Product.findById(id);
+
     if (!product) {
       return next(new Errorhandler("Product not found", 404));
     }
+
+    // Permission check: only product owner or role 1 user can delete
+    if (
+      product.user.toString() !== req.user._id.toString() &&
+      req.user.role !== 1
+    ) {
+      return next(new Errorhandler("You are not authorized to delete this product", 403));
+    }
+
+    // Delete from Cloudinary if needed
     if (product.cloudinaryId) {
       await cloudinary.uploader.destroy(product.cloudinaryId);
     }
+
+    // Delete product from DB
     await Product.findByIdAndDelete(id);
+
     res.status(200).json({
       success: true,
       message: "Product deleted successfully",
@@ -113,6 +148,13 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
     const product = await Product.findById(id);
     if (!product) {
       return next(new Errorhandler("Product not found", 404));
+    }
+    // Permission check: only product owner or role 1 user can update
+    if (
+      product.user.toString() !== req.user._id.toString() &&
+      req.user.role !== 1
+    ) {
+      return next(new Errorhandler("You are not authorized to update this product", 403));
     }
     let imageUrl = product.image;
     let cloudinaryId = product.cloudinaryId;
@@ -156,8 +198,6 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
 // Function to get a product by ID
 export const getProductById = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
-  console.log(id, "product id");
-  
   try {
     const product = await Product.findById(id).populate("category", "name");
     if (!product) {
@@ -196,3 +236,22 @@ export const getProductsByCategoryId = catchAsyncErrors(
     }
   }
 );
+
+// Function to get a product by ID
+export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
+  const  user  = req.user.id;
+  console.log(user, "saller user product id")
+  try {
+    const product = await Product.find({user:user}).populate("category", "name").populate("user", "name phone");
+    if (!product) {
+      return next(new Errorhandler("Product not found", 404));
+    }
+    res.status(200).json({
+      success: true,
+      product,
+    });
+  } catch (error) {
+    console.log("Detailed Error:", error);
+    return next(new Errorhandler("Error fetching product", 500));
+  }
+});
