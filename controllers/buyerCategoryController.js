@@ -17,7 +17,7 @@ export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
 
 // Get all categories for the logged-in user
 export const getAllBuyerCategories = catchAsyncErrors(async (req, res, next) => {
-  const categories = await BuyerCategory.find({ user: req.user._id }).sort({ createdAt: -1 });
+  const categories = await BuyerCategory.find({ user: req.user._id }).sort({ createdAt: -1 }).populate("user", "name phone")
 
   res.status(200).json({ success: true, data: categories });
 });

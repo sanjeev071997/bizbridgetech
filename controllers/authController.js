@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
 import sendToken from "../utils/jwtToken.js";
 import Errorhandler from "../utils/Errorhandler.js";
@@ -62,56 +63,34 @@ export const login = catchAsyncErrors(async (req, res, next) => {
   sendToken(user, 200, res);
 });
 
+// Refresh Access Token
 export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {
   const { refreshToken } = req.cookies;
-
-  if (!refreshToken) {
-    return next(new Errorhandler("Refresh token not found", 401));
-  }
-
+  
+  if (!refreshToken) return next(new Errorhandler("Refresh token missing", 401));
+  
   try {
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
     const user = await User.findById(decoded.id);
+    if (!user) return next(new Errorhandler("User not found", 404));
+    const newAccessToken = user.getJWTToken();
 
-    if (!user) {
-      return next(new Errorhandler("User not found", 404));
-    }
-
-    // generate new access token
-    const accessToken = user.getJWTToken();
-
-    res.cookie("accessToken", accessToken, {
+    res.cookie("token", newAccessToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      expires: new Date(Date.now() + 15 * 60 * 1000),
+      secure: true, 
+      sameSite: "None",
+      maxAge: 15 * 60 * 1000,
+      path: "/",
     });
-
-    res.status(200).json({
-      success: true,
-      accessToken,
-    });
-
-  } catch (error) {
+    return res.status(200).json({ success: true });
+  } catch {
     return next(new Errorhandler("Invalid refresh token", 403));
   }
 });
 
-
-// // Logout User
-// export const logout = catchAsyncErrors(async (req, res, next) => {
-//   res.cookie("token", null, {
-//     expires: new Date(Date.now()),
-//     httpOnly: true,
-//   });
-
-//   res.status(200).json({
-//     success: true,
-//     message: "Logged out successfully",
-//   });
-// });
+// Logout
 export const logout = catchAsyncErrors(async (req, res, next) => {
-  res.clearCookie("accessToken", {
+  res.clearCookie("token", {
     httpOnly: true,
     sameSite: 'none',
     secure: true,
@@ -128,8 +107,7 @@ export const logout = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-
-// // user profile (Get User Details)
+// user profile (Get User Details)
 export const profileDetails = catchAsyncErrors(async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).select("-password");

@@ -130,14 +130,14 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 // Method to create access token
 userSchema.methods.getJWTToken = function () {
   return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
-    expiresIn: "15m", // 15 minutes
+    expiresIn: process.env.JWT_EXPIRE_TOKEN, // 1 minutes
   });
 };
 
 // Method to create refresh token
 userSchema.methods.getRefreshToken = function () {
   return jwt.sign({ id: this._id }, process.env.REFRESH_SECRET, {
-    expiresIn: "7d", // 7 days
+    expiresIn: process.env.JWT_EXPIRE_REFRESHTOKEN
   });
 };
 

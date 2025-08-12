@@ -6,10 +6,11 @@ import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import errorMiddleware from "./middlewares/error.js";
 import authRoute from "./routes/authRoute.js";
-import contactRoute from "./routes/contactRoute.js";
+import contactRoute from "./routes/contactRoutes.js";
 import sellerCategoryRoutes from "./routes/sellerCategoryRoutes.js";
-import sellerProductRoutes from "./routes/sellerProductRoute.js";
-import buyerCategoryRoutes from "./routes/buyerCategoryRoutes.js"
+import sellerProductRoutes from "./routes/sellerProductRoutes.js";
+import buyerCategoryRoutes from "./routes/buyerCategoryRoutes.js";
+import testimonialRoutes from "./routes/testimonialRoutes.js"
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -49,7 +50,8 @@ app.use("/api/v1/auth", authRoute);
 app.use("/api/v1/contact", contactRoute);
 app.use("/api/v1/seller-categories", sellerCategoryRoutes);
 app.use("/api/v1/seller-products", sellerProductRoutes);
-app.use("/api/v1/buyer-categories", buyerCategoryRoutes)
+app.use("/api/v1/buyer-categories", buyerCategoryRoutes);
+app.use("/api/v1/testimonial", testimonialRoutes);
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));
