@@ -80,9 +80,40 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
 //   }
 // });
 
+// export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     let query = Product.find().populate("category", "name").sort({ createdAt: -1 });
+
+//     // Conditionally populate user details if role === 1 (admin/superadmin)
+//     if (req.user.role === 1) {
+//       query = query.populate("user", "name phone");
+//     }
+
+//     const products = await query;
+
+//     res.status(200).json({
+//       success: true,
+//       products,
+//     });
+//   } catch (error) {
+//     console.log("Detailed Error:", error);
+//     return next(new Errorhandler("Error fetching products", 500));
+//   }
+// });
+
 export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   try {
-    let query = Product.find().populate("category", "name").sort({ createdAt: -1 });
+    let { page = 1, limit = 10 } = req.query;
+    page = parseInt(page, 10);
+    limit = parseInt(limit, 10);
+
+    const skip = (page - 1) * limit;
+
+    let query = Product.find()
+      .populate("category", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
     // Conditionally populate user details if role === 1 (admin/superadmin)
     if (req.user.role === 1) {
@@ -90,16 +121,21 @@ export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
     }
 
     const products = await query;
+    const totalProducts = await Product.countDocuments();
 
     res.status(200).json({
       success: true,
-      products,
+      page,
+      totalPages: Math.ceil(totalProducts / limit),
+      totalProducts,
+      data: products,
     });
   } catch (error) {
     console.log("Detailed Error:", error);
     return next(new Errorhandler("Error fetching products", 500));
   }
 });
+
 
 
 // Function to delete a product

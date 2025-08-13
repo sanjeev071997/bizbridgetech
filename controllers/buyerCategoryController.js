@@ -16,11 +16,39 @@ export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Get all categories for the logged-in user
-export const getAllBuyerCategories = catchAsyncErrors(async (req, res, next) => {
-  const categories = await BuyerCategory.find({ user: req.user._id }).sort({ createdAt: -1 }).populate("user", "name phone")
+// export const getAllBuyerCategories = catchAsyncErrors(async (req, res, next) => {
+//   const categories = await BuyerCategory.find({ user: req.user._id }).sort({ createdAt: -1 }).populate("user", "name phone")
 
-  res.status(200).json({ success: true, data: categories });
+//   res.status(200).json({ success: true, data: categories });
+// });
+
+export const getAllBuyerCategories = catchAsyncErrors(async (req, res, next) => {
+  let { page = 1, limit = 10 } = req.query;
+
+  // Convert to numbers
+  page = parseInt(page);
+  limit = parseInt(limit);
+
+  // Count total documents for the logged-in user
+  const totalCategories = await BuyerCategory.countDocuments({ user: req.user._id });
+
+  // Fetch paginated data
+  const categories = await BuyerCategory.find({ user: req.user._id })
+    .sort({ createdAt: -1 })
+    .populate("user", "name phone")
+    .skip((page - 1) * limit)
+    .limit(limit);
+
+  res.status(200).json({
+    success: true,
+    total: totalCategories,
+    page,
+    limit,
+    totalPages: Math.ceil(totalCategories / limit),
+    data: categories,
+  });
 });
+
 
 // Get single category by ID
 export const getBuyerCategoryById = catchAsyncErrors(async (req, res, next) => {

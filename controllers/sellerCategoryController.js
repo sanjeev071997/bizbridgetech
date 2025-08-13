@@ -15,12 +15,35 @@ export const createSellerCategory = catchAsyncErrors(async (req, res, next) => {
   res.status(201).json({ success: true, data: category });
 });
 
-// Get all categories for the logged-in user
-export const getAllSellerCategories = catchAsyncErrors(async (req, res, next) => {
-  const categories = await SellerCategory.find({ user: req.user._id }).sort({ createdAt: -1 });
+// // Get all categories for the logged-in user
+// export const getAllSellerCategories = catchAsyncErrors(async (req, res, next) => {
+//   const categories = await SellerCategory.find({ user: req.user._id }).sort({ createdAt: -1 });
 
-  res.status(200).json({ success: true, data: categories });
+//   res.status(200).json({ success: true, data: categories });
+// });
+
+// Get all categories for the logged-in user with pagination
+export const getAllSellerCategories = catchAsyncErrors(async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  const categories = await SellerCategory.find({ user: req.user._id })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  const total = await SellerCategory.countDocuments({ user: req.user._id });
+
+  res.status(200).json({
+    success: true,
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+    data: categories
+  });
 });
+
 
 // Get single category by ID
 export const getSellerCategoryById = catchAsyncErrors(async (req, res, next) => {
