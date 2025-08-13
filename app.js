@@ -10,7 +10,8 @@ import contactRoute from "./routes/contactRoutes.js";
 import sellerCategoryRoutes from "./routes/sellerCategoryRoutes.js";
 import sellerProductRoutes from "./routes/sellerProductRoutes.js";
 import buyerCategoryRoutes from "./routes/buyerCategoryRoutes.js";
-import testimonialRoutes from "./routes/testimonialRoutes.js"
+import testimonialRoutes from "./routes/testimonialRoutes.js";
+import advertisementRoutes from "./routes/advertisementRoutes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -52,6 +53,7 @@ app.use("/api/v1/seller-categories", sellerCategoryRoutes);
 app.use("/api/v1/seller-products", sellerProductRoutes);
 app.use("/api/v1/buyer-categories", buyerCategoryRoutes);
 app.use("/api/v1/testimonial", testimonialRoutes);
+app.use("/api/v1/advertisement", advertisementRoutes);
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));
