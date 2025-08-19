@@ -8,6 +8,7 @@ import {
   deleteProduct,
   getAllProducts,
   getProductByUserId,
+  getProductsByBuyerCategoryId
 } from "../controllers/sellerProductController.js";
 import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
 
@@ -29,6 +30,8 @@ router.delete("/:id", isAuthenticatedUser, deleteProduct);
 
 router.get("/", isAuthenticatedUser, getAllProducts);
 
-router.get("/get/user/product", isAuthenticatedUser, getProductByUserId)
+router.get("/get/user/product", isAuthenticatedUser, getProductByUserId);
+
+router.get("/get/buyer/category/:buyerCategory", isAuthenticatedUser, getProductsByBuyerCategoryId);
 
 export default router;

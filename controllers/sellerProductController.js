@@ -20,7 +20,7 @@ const uploadBase64Image = async (base64Image) => {
 
 // Function to add a new product
 export const addProduct = catchAsyncErrors(async (req, res, next) => {
-  const { name, image, price, category } = req.body;
+  const { name, image, price, category, buyerCategory } = req.body;
 
   let imageUrl = "";
   let cloudinaryId = "";
@@ -49,6 +49,7 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
       cloudinaryId,
       price,
       category, 
+      buyerCategory
     });
 
     res.status(200).json({
@@ -65,42 +66,6 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Function to get all products
-// export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
-//   try {
-//     const products = await Product.find()
-//       .populate("category", "name")
-//       .sort({ createdAt: -1 });
-//     res.status(200).json({
-//       success: true,
-//       products,
-//     });
-//   } catch (error) {
-//     console.log("Detailed Error:", error);
-//     return next(new Errorhandler("Error fetching products", 500));
-//   }
-// });
-
-// export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
-//   try {
-//     let query = Product.find().populate("category", "name").sort({ createdAt: -1 });
-
-//     // Conditionally populate user details if role === 1 (admin/superadmin)
-//     if (req.user.role === 1) {
-//       query = query.populate("user", "name phone");
-//     }
-
-//     const products = await query;
-
-//     res.status(200).json({
-//       success: true,
-//       products,
-//     });
-//   } catch (error) {
-//     console.log("Detailed Error:", error);
-//     return next(new Errorhandler("Error fetching products", 500));
-//   }
-// });
-
 export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   try {
     let { page = 1, limit = 10 } = req.query;
@@ -110,12 +75,14 @@ export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     let query = Product.find()
-      .populate("category", "name")
+      .populate("category", "name gst")
+      .populate("user", "name phone")
+      .populate("buyerCategory", "name discount")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    // Conditionally populate user details if role === 1 (admin/superadmin)
+    // Conditionally populate user details if role === 1 (superadmin)
     if (req.user.role === 1) {
       query = query.populate("user", "name phone");
     }
@@ -131,7 +98,6 @@ export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
       data: products,
     });
   } catch (error) {
-    console.log("Detailed Error:", error);
     return next(new Errorhandler("Error fetching products", 500));
   }
 });
@@ -178,7 +144,7 @@ export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
 // Function to update a product
 export const updateProduct = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
-  const { name, image, price, category } = req.body;
+  const { name, image, price, category, buyerCategory } = req.body;
 
   try {
     const product = await Product.findById(id);
@@ -217,9 +183,12 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
         cloudinaryId,
         price,
         category,
+        buyerCategory
       },
       { new: true }
-    );
+    ).populate("category", "name gst")
+      .populate("user", "name phone")
+      .populate("buyerCategory", "name discount");
     res.status(200).json({
       success: true,
       message: "Product updated successfully",
@@ -235,7 +204,7 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
 export const getProductById = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
   try {
-    const product = await Product.findById(id).populate("category", "name");
+    const product = await Product.findById(id).populate("category", "name gst").populate("user", "name phone").populate("buyerCategory", "name discount");
     if (!product) {
       return next(new Errorhandler("Product not found", 404));
     }
@@ -255,7 +224,9 @@ export const getProductsByCategoryId = catchAsyncErrors(
     const { category } = req.params;
     try {
       const products = await Product.find({ category })
-        .populate("category", "name")
+        .populate("category", "name gst")
+        .populate("user", "name phone")
+        .populate("buyerCategory", "name discount")
         .sort({ createdAt: -1 });
       if (products.length === 0) {
         return next(
@@ -278,7 +249,7 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
   const  user  = req.user.id;
   console.log(user, "saller user product id")
   try {
-    const product = await Product.find({user:user}).populate("category", "name").populate("user", "name phone");
+    const product = await Product.find({user:user}).populate("category", "name gst").populate("user", "name phone").populate("buyerCategory", "name discount");
     if (!product) {
       return next(new Errorhandler("Product not found", 404));
     }
@@ -291,3 +262,29 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler("Error fetching product", 500));
   }
 });
+
+// Get Buyer Category Products
+export const getProductsByBuyerCategoryId = catchAsyncErrors(
+  async (req, res, next) => {
+    const { buyerCategory } = req.params;
+    try {
+      const products = await Product.find({ buyerCategory })
+        .populate("category", "name gst")
+        .populate("user", "name phone")
+        .populate("buyerCategory", "name discount")
+        .sort({ createdAt: -1 });
+      if (products.length === 0) {
+        return next(
+          new Errorhandler("No products found for this buyer category", 404)
+        );
+      }
+      res.status(200).json({
+        success: true,
+        products,
+      });
+    } catch (error) {
+      console.log("Detailed Error:", error);
+      return next(new Errorhandler("Error fetching products by buyer category", 500));
+    }
+  }
+);

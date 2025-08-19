@@ -17,10 +17,15 @@ const sellerProductSchema = new mongoose.Schema(
     price: {
       type: Number,
       required: true,
-    },
-    category: {
+    },  
+    category: {                                        // Product category -> SellerCategory
       type: mongoose.Schema.Types.ObjectId,
       ref: "SellerCategory",
+      required: true,
+    },
+    buyerCategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BuyerCategory",
       required: true,
     },
     user: {
