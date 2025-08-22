@@ -2,7 +2,6 @@ import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 import User from "../models/userModel.js";
 import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
-import e from "express";
 
 // Create Buyer-Seller Connection
 export const createBuyerSellerConnection = catchAsyncErrors(

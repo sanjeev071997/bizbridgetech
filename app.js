@@ -18,7 +18,8 @@ import PaymentOption from "./routes/paymentOptionRoutes.js";
 import SchemeRoutes from "./routes/schemeRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import buyerSellerConnectionRoutes from "./routes/buyerSellerConnectionRoutes.js";
-import chatRoutes from "./routes/chatRoutes.js"
+import chatRoutes from "./routes/chatRoutes.js";
+import cartRoutes from "./routes/cartRoutes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -75,6 +76,7 @@ app.use("/api/v1/schemes", SchemeRoutes);
 app.use("/api/v1/support", supportRoutes);
 app.use("/api/v1/buyer-seller-connections", buyerSellerConnectionRoutes);
 app.use("/api/v1/chat", chatRoutes);
+app.use("/api/v1/cart", cartRoutes);
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));
@@ -85,40 +87,7 @@ app.get("*", (req, res) => {
 // Error middleware
 app.use(errorMiddleware);
 
-// Socket.IO events
-// io.on("connection", (socket) => {
-//   console.log("New client connected:", socket.id);
-
-//   socket.on("disconnect", () => {
-//     console.log("Client disconnected:", socket.id);
-//   });
-// });
-
-// Socket.IO events (only ONE connection listener)
-// io.on("connection", (socket) => {
-//   console.log("User connected:", socket.id);
-
-//   // Join private room (based on userId)
-//   socket.on("joinRoom", (userId) => {
-//     socket.join(userId.toString());
-//     console.log(`User ${userId} joined their private room`);
-//   });
-
-//   // Typing indicator
-//   socket.on("typing", ({ toUserId, fromUserId }) => {
-//     io.to(toUserId.toString()).emit("typing", { fromUserId });
-//   });
-
-//   socket.on("stopTyping", ({ toUserId, fromUserId }) => {
-//     io.to(toUserId.toString()).emit("stopTyping", { fromUserId });
-//   });
-
-//   socket.on("disconnect", () => {
-//     console.log("User disconnected:", socket.id);
-//   });
-// });
-
-// ✅ socket connection
+// socket connection
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
@@ -133,7 +102,7 @@ io.on("connection", (socket) => {
     const newMsg = new ChatMessage(data);
     await newMsg.save();
 
-    // ✅ emit to receiver in same room
+    // emit to receiver in same room
     io.to(data.connectionId).emit("receiveMessage", newMsg);
   });
 
@@ -141,9 +110,6 @@ io.on("connection", (socket) => {
     console.log("User disconnected:", socket.id);
   });
 });
-
-
-
 
 // Start server with Socket.IO attached
 server.listen(port, () => {
