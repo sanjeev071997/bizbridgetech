@@ -1,9 +1,8 @@
 import CompanyFeed from "../models/companyfeedsModel.js";
 import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 import cloudinary from "../utils/cloudinary.js";
-import ErrorHandler from "../utils/errorhandler.js";
+import ErrorHandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
-import Errorhandler from "../utils/errorhandler.js";
 
 // Function to handle base64 image uploads
 const uploadBase64Image = async (base64Image) => {
