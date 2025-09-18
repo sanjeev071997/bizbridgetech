@@ -1,13 +1,16 @@
 import express from "express";
-import { createOrder, getMyOrders, getSellerOrders, updateOrderStatus, deleteOrder } from "../controllers/orderController.js";
+import { createOrder, getBuyerOrders, getSellerOrders, updateOrderStatus, updateProcessStep, deleteOrder } from "../controllers/orderController.js";
 import { isAuthenticatedUser } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/", isAuthenticatedUser, createOrder);
-router.get("/my-orders", isAuthenticatedUser, getMyOrders);
+router.post("/create", isAuthenticatedUser, createOrder);
+router.get("/buyer-orders", isAuthenticatedUser, getBuyerOrders);
 router.get("/seller-orders", isAuthenticatedUser, getSellerOrders);
-router.put("/:id", isAuthenticatedUser, updateOrderStatus);
-router.delete("/:id", isAuthenticatedUser, deleteOrder);
+router.put("/:id", isAuthenticatedUser, updateOrderStatus); // seller order status update
+router.patch("/:orderId/process-step", isAuthenticatedUser, updateProcessStep)
+
+
+router.delete("/:id", isAuthenticatedUser, deleteOrder); // Todo api check in postman 
 
 export default router;

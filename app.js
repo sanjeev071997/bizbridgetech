@@ -20,7 +20,11 @@ import supportRoutes from "./routes/supportRoutes.js";
 import buyerSellerConnectionRoutes from "./routes/buyerSellerConnectionRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
-import orderRoutes from "./routes/orderRoutes.js"
+import orderRoutes from "./routes/orderRoutes.js";
+import companyFeedRoutes from "./routes/companyfeedsRoutes.js";
+import invoiceRoutes from "./routes/invoiceRoutes.js";
+import brandsRoutes from "./routes/brandsRoutes.js";
+import { startInterestCron } from "./utils/invoiceInterestCron.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -78,7 +82,10 @@ app.use("/api/v1/support", supportRoutes);
 app.use("/api/v1/buyer-seller-connections", buyerSellerConnectionRoutes);
 app.use("/api/v1/chat", chatRoutes);
 app.use("/api/v1/cart", cartRoutes);
-app.use("/api/v1/order", orderRoutes)
+app.use("/api/v1/order", orderRoutes);
+app.use("/api/v1/company/feed", companyFeedRoutes);
+app.use("/api/v1/invoices", invoiceRoutes);
+app.use("/api/v1/brands", brandsRoutes);
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));
@@ -112,6 +119,8 @@ io.on("connection", (socket) => {
     console.log("User disconnected:", socket.id);
   });
 });
+
+  startInterestCron();     // daily per-day interest
 
 // Start server with Socket.IO attached
 server.listen(port, () => {

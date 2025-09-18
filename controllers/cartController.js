@@ -189,16 +189,55 @@ import Cart from "../models/cartModel.js";
 import SellerProduct from "../models/sellerProductModel.js";
 
 // Add to Cart
+// export const addCart = async (req, res) => {
+//   try {
+//     const { userId, productId, quantity, paymentOption } = req.body;
+
+//     const product = await SellerProduct.findById(productId);
+//     if (!product) return res.status(404).json({ message: "Product not found" });
+
+//     let cart = await Cart.findOne({ user: userId });
+//     if (!cart) {
+//       cart = new Cart({ user: userId, items: [] });
+//     }
+
+//     const existingItem = cart.items.find(
+//       (i) => i.product.toString() === productId
+//     );
+
+//     if (existingItem) {
+//       existingItem.quantity += quantity;
+//     } else {
+//       cart.items.push({
+//         product: productId,
+//         quantity,
+//         mrp: product.mrp,
+//         paymentOption
+//       });
+//     }
+
+//     await cart.calculateTotals();
+//     await cart.save();
+
+//     res.json({ success: true, cart });
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
 export const addCart = async (req, res) => {
   try {
-    const { userId, productId, quantity } = req.body;
+    const { userId, productId, quantity, paymentOption } = req.body;
 
     const product = await SellerProduct.findById(productId);
     if (!product) return res.status(404).json({ message: "Product not found" });
 
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
-      cart = new Cart({ user: userId, items: [] });
+      cart = new Cart({ user: userId, items: [], paymentOption });
+    } else {
+      // update payment option each time if provided
+      if (paymentOption) cart.paymentOption = paymentOption;
     }
 
     const existingItem = cart.items.find(
@@ -223,6 +262,7 @@ export const addCart = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 // Update Cart (quantity)
 export const updateCart = async (req, res) => {
@@ -250,24 +290,62 @@ export const updateCart = async (req, res) => {
   }
 };
 
+// // Update Payment Option
+// export const paymentOptionUpdate = async (req, res) => {
+//   try {
+//     const { userId, paymentOptionId } = req.body;
+
+//     let cart = await Cart.findOne({ user: userId });
+//     if (!cart) return res.status(404).json({ message: "Cart not found" });
+
+//     cart.paymentOption = paymentOptionId;
+
+//     await cart.calculateTotals();
+//     await cart.save();
+
+//     res.json({ success: true, cart });
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
 // Update Payment Option
 export const paymentOptionUpdate = async (req, res) => {
   try {
     const { userId, paymentOptionId } = req.body;
 
-    let cart = await Cart.findOne({ user: userId });
-    if (!cart) return res.status(404).json({ message: "Cart not found" });
+    if (!userId || !paymentOptionId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "userId and paymentOptionId are required" });
+    }
 
+    let cart = await Cart.findOne({ user: userId }).populate("items.product");
+    if (!cart) {
+      return res.status(404).json({ success: false, message: "Cart not found" });
+    }
+
+    // update payment option
     cart.paymentOption = paymentOptionId;
 
-    await cart.calculateTotals();
+    // recalculate totals
+    if (cart.calculateTotals) {
+      await cart.calculateTotals();
+    }
+
     await cart.save();
 
-    res.json({ success: true, cart });
+    res.status(200).json({
+      success: true,
+      message: "Payment option updated successfully",
+      cart,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Error in paymentOptionUpdate:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 // Get Cart
 // export const getCart = async (req, res) => {

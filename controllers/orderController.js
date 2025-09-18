@@ -1,138 +1,79 @@
+import mongoose from "mongoose";
 import Order from "../models/orderModel.js";
 import Cart from "../models/cartModel.js";
 import Product from "../models/sellerProductModel.js"; // SellerProduct
 import ErrorHandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 
-
 // 🟢 Create Order
-export const createOrder = catchAsyncErrors(async (req, res, next) => {
-  const { productId, quantity, paymentOption } = req.body;
+export const createOrder = async (req, res) => {
+  try {
+    const cart = await Cart.findOne({ user: req.user.id })
+      .populate("items.product")
+      .populate("user");
 
-  // Product check
-  const product = await Product.findById(productId).populate("buyerCategory", "discount");
-  if (!product) {
-    return next(new ErrorHandler("Product not found", 404));
+    if (!cart) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Cart not found" });
+    }
+
+    // Default process flow
+    const defaultSteps = [
+      { step: "Enquiry Received", completed: true, completedAt: new Date() },
+      { step: "Proforma Invoice" },
+      { step: "Proforma Accepted" },
+      { step: "Payment Received" },
+      { step: "Invoice Uploaded" },
+      { step: "Dispatch" },
+      { step: "Delivered" },
+    ];
+
+    // Create order
+    const newOrder = await Order.create({
+      buyer: cart.user._id,
+      items: cart.items.map((i) => ({
+        product: i.product._id,
+        name: i.product.name,
+        image: i.product.image,
+        price: i.product.price,
+        mrp: i.mrp,
+        quantity: i.quantity,
+        discountPrice: i.discountPrice,
+        gstAmount: i.gstAmount,
+        finalPrice: i.finalPrice,
+        // Save sellerId from product
+        seller: i.product.user,
+      })),
+      subTotal: cart.subTotal,
+      discountFromPayment: cart.discountFromPayment,
+      total: cart.total,
+      paymentOption: cart.paymentOption?._id,
+      processFlow: defaultSteps,
+    });
+
+    const order = await Order.findById(newOrder._id)
+      .populate("buyer", "name mode")
+      .populate({
+        path: "items.seller",
+        select: "name mode",
+      });
+    // (Optional) Empty cart after order
+    await Cart.findByIdAndDelete(cart._id);
+
+    res.status(201).json({ success: true, message: "Order created", order });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
+};
 
-  // Stock check
-  if (product.stock < quantity) {
-    return next(new ErrorHandler("Insufficient stock available", 400));
-  }
-
-  // Discount handling
-  let discount = 0;
-  if (product.buyerCategory?.discount) {
-    discount = Number(product.buyerCategory.discount);
-  }
-
-  let price = product.mrp;
-  if (discount > 0) {
-    price = price - (price * discount / 100);
-  }
-
-  const totalAmount = price * quantity;
-
-  // Create order
-  const order = await Order.create({
-    productId,
-    quantity,
-    amount: totalAmount,
-    paymentOption,
-    buyer: req.user._id,  // logged-in user
-  });
-
-  // Reduce stock
-  product.stock -= quantity;
-  await product.save();
-
-  res.status(201).json({
-    success: true,
-    message: "Order placed successfully",
-    order,
-  });
-});
-// 🟢 Create Order
-// export const createOrder = catchAsyncErrors(async (req, res, next) => {
-//   const { productId, quantity, paymentOption } = req.body;
-
-//   // Product check
-//   const product = await Product.findById(productId).populate("buyerCategory", "discount");
-//   if (!product) {
-//     return next(new ErrorHandler("Product not found", 404));
-//   }
-
-//   // Stock check
-//   if (product.stock < quantity) {
-//     return next(new ErrorHandler("Insufficient stock available", 400));
-//   }
-
-//   // Discount handling
-//   let discount = 0;
-//   if (product.buyerCategory?.discount) {
-//     discount = Number(product.buyerCategory.discount);
-//   }
-
-//   let price = product.mrp;
-//   if (discount > 0) {
-//     price = price - (price * discount / 100);
-//   }
-
-//   const totalAmount = price * quantity;
-
-//   // Create order
-//   const order = await Order.create({
-//     productId,
-//     quantity,
-//     amount: totalAmount,
-//     paymentOption,
-//     buyer: req.user._id,  // logged-in user
-//   });
-
-//   // Reduce stock
-//   product.stock -= quantity;
-//   await product.save();
-
-//   // 🟢 Remove product from cart
-//   await Cart.findOneAndUpdate(
-//     { user: req.user._id },
-//     { $pull: { items: { product: productId } } },  // product remove from cart
-//     { new: true }
-//   );
-
-//   res.status(201).json({
-//     success: true,
-//     message: "Order placed successfully",
-//     order,
-//   });
-// });
-
-
-// // 🟢 Get Buyer Orders
-// export const getMyOrders = catchAsyncErrors(async (req, res, next) => {
-//   const orders = await Order.find({ buyer: req.user._id })
-//     .populate("productId", "name image mrp price user")
-//     .populate("paymentOption", "paymentType")
-//     .populate("buyer", "name phone mode")
-
-//     .sort({ date: -1 });
-
-//   res.status(200).json({
-//     success: true,
-//     orders,
-//   });
-// });
-
-// 🟢 Get Buyer Orders
-export const getMyOrders = catchAsyncErrors(async (req, res, next) => {
+// Get Buyer Orders
+export const getBuyerOrders = catchAsyncErrors(async (req, res, next) => {
   const orders = await Order.find({ buyer: req.user._id })
     .populate({
-      path: "productId",
-      select: "name image user",   // product fields
-      populate: {
-        path: "user",                        // product ka user
-        select: "name phone mode",          // jo fields chahiye
-      },
+      path: "items.seller",
+      select: "name phone mode", 
     })
     .populate("paymentOption", "paymentType")
     .populate("buyer", "name phone mode")
@@ -144,22 +85,42 @@ export const getMyOrders = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-
 // 🟢 Get Seller Orders
 export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
   const orders = await Order.find()
-    .populate({
-      path: "productId",
-      match: { user: req.user._id }, // seller ke products
-      select: "name price user",
-    //   populate: { path: "user", select: "name phone mode" },
-    })
     .populate("buyer", "name phone mode")
     .populate("paymentOption", "paymentType")
-    .sort({ date: -1 });
+    .populate("items.seller", "name phone mode") // seller info
+    .sort({ createdAt: -1 });
 
-  // filter null (jo products seller ke nahi hai unke orders skip)
-  const sellerOrders = orders.filter(order => order.productId);
+  // filter items current seller 
+  const sellerOrders = orders
+    .map((order) => {
+      const sellerItems = order.items.filter(
+        (item) =>
+          item.seller && item.seller._id.toString() === req.user._id.toString()
+      );
+
+      if (sellerItems.length > 0) {
+        return {
+          ...order._doc,
+          items: sellerItems.map((item) => ({
+            _id: item._id,
+            name: item.name,
+            image: item.image,
+            price: item.price,
+            mrp: item.mrp,
+            quantity: item.quantity,
+            discountPrice: item.discountPrice,
+            gstAmount: item.gstAmount,
+            finalPrice: item.finalPrice,
+            seller: item.seller, // populated seller info
+          })),
+        };
+      }
+      return null;
+    })
+    .filter((o) => o !== null);
 
   res.status(200).json({
     success: true,
@@ -168,17 +129,32 @@ export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
 });
 
 
-// 🟢 Update Order Status
+// 🟢 Update Order Status 
 export const updateOrderStatus = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { seller, orderStatus } = req.body;
 
   const order = await Order.findById(id);
   if (!order) {
     return next(new ErrorHandler("Order not found", 404));
   }
 
-  order.status = status;
+  // Check if seller matches any item in this order
+  const sellerOwnsItem = order.items.some(
+    (item) => item.seller.toString() === seller
+  );
+
+  if (!sellerOwnsItem) {
+    return next(
+      new ErrorHandler(
+        "You cannot update order status for items that are not yours",
+        403
+      )
+    );
+  }
+
+  // Update only if seller owns at least one item
+  order.orderStatus = orderStatus;
   await order.save();
 
   res.status(200).json({
@@ -188,8 +164,45 @@ export const updateOrderStatus = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
+// 🟢 Update Order Process Step (Seller Restricted)
+export const updateProcessStep = catchAsyncErrors(async (req, res, next) => {
+  const { orderId } = req.params;
+  const { step, itemId } = req.body; 
+  const sellerId = req.user._id; // logged in seller
 
-// 🟢 Delete Order (Admin or Buyer can cancel)
+  if (!mongoose.Types.ObjectId.isValid(orderId))
+    return next(new ErrorHandler("Invalid Order ID", 400));
+
+  const order = await Order.findById(orderId).populate("items.product");
+  if (!order) return next(new ErrorHandler("Order not found", 404));
+
+  // Find the item in order belonging to this seller
+  const item = order.items.find(
+    (i) =>
+      i.seller.toString() === sellerId.toString()
+  );
+
+  if (!item) return next(new ErrorHandler("You cannot update this item", 403));
+
+  // Find the step in processFlow
+  const stepIndex = order.processFlow.findIndex((s) => s.step === step);
+  if (stepIndex === -1) return next(new ErrorHandler("Step not found", 404));
+
+  // Mark step as completed
+  order.processFlow[stepIndex].completed = true;
+  order.processFlow[stepIndex].completedAt = new Date();
+
+  await order.save();
+
+  res.status(200).json({
+    success: true,
+    message: `Step '${step}' updated successfully for your item`,
+    processFlow: order.processFlow,
+  });
+});
+
+
+// Delete Order (Admin or Buyer can cancel)
 export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
 

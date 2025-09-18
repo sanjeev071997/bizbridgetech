@@ -4,6 +4,8 @@ import SellerCategory from "../models/sellercategoriesModel.js";
 import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 import cloudinary from "../utils/cloudinary.js";
+import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
+
 
 // Function to handle base64 image uploads
 const uploadBase64Image = async (base64Image) => {
@@ -72,33 +74,255 @@ export const createAdvertisement = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Function to get all advertisements
+// export const getAllAdvertisements = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     let advertisements = await Advertisement.find()
+//       .populate("user", "name phone"); 
+
+//     // Populate category manually for only ObjectIds
+//     advertisements = await Promise.all(
+//       advertisements.map(async (ad) => {
+//         const categoryIds = ad.category.filter(c => mongoose.Types.ObjectId.isValid(c));
+
+//         let populatedCategories = [];
+//         if (categoryIds.length > 0) {
+//           populatedCategories = await SellerCategory.find(
+//             { _id: { $in: categoryIds } },
+//             "name"
+//           );
+//         }
+
+//         return {
+//           ...ad.toObject(),
+//           category: [
+//             ...populatedCategories,
+//             ...ad.category.filter(c => c === "All") 
+//           ]
+//         };
+//       })
+//     );
+
+//     if (advertisements.length === 0) {
+//       return next(new Errorhandler("No advertisements found", 404));
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       data: advertisements,
+//     });
+//   } catch (error) {
+//     return next(new Errorhandler("Error fetching advertisements", 500));
+//   }
+// });
+
+// Function to get all advertisements
+// export const getAllAdvertisements = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     // Step 1: Get all ads with user populated
+//     let advertisements = await Advertisement.find()
+//       .populate("user", "name phone");
+
+//     // Step 2: Get buyer-seller connections for current user
+//     const buyerConnections = await BuyerSellerConnection.find({ buyer: req.user._id })
+//       .select("seller status");
+
+//     const connectionMap = {};
+//     buyerConnections.forEach(conn => {
+//       connectionMap[conn.seller.toString()] = conn.status;
+//     });
+
+//     // Step 3: Filter advertisements
+//     advertisements = advertisements.filter(ad => {
+//       const sellerId = ad.user?._id?.toString();
+//       if (!sellerId) return false;
+
+//       // If no connection exists -> allow
+//       if (!connectionMap[sellerId]) return true;
+
+//       // If connection exists -> allow only when status is "Accepted"
+//       return connectionMap[sellerId] === "Accepted";
+//     });
+
+//     // Step 4: Populate categories correctly
+//     advertisements = await Promise.all(
+//       advertisements.map(async (ad) => {
+//         const categoryIds = ad.category.filter(c => mongoose.Types.ObjectId.isValid(c));
+
+//         let populatedCategories = [];
+//         if (categoryIds.length > 0) {
+//           populatedCategories = await SellerCategory.find(
+//             { _id: { $in: categoryIds }, user: ad.user._id }, // ensure category belongs to that seller
+//             "name"
+//           );
+//         }
+
+//         // ✅ only categories belonging to seller OR "All"
+//         const sellerCategories = populatedCategories.map(c => c.name);
+
+//         const finalCategories = ad.category.filter(c =>
+//           c === "All" || sellerCategories.includes(c)
+//         );
+
+//         return {
+//           ...ad.toObject(),
+//           category: finalCategories
+//         };
+//       })
+//     );
+
+//     if (advertisements.length === 0) {
+//       return next(new Errorhandler("No advertisements found", 404));
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       data: advertisements,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return next(new Errorhandler("Error fetching advertisements", 500));
+//   }
+// });
+
+// export const getAllAdvertisements = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     // Step 1: Get all ads with user populated
+//     let advertisements = await Advertisement.find()
+//       .populate("user", "name phone");
+
+//     // Step 2: Get buyer-seller connections for current user
+//     const buyerConnections = await BuyerSellerConnection.find({ buyer: req.user._id })
+//       .select("seller status");
+
+//     const connectionMap = {};
+//     buyerConnections.forEach(conn => {
+//       connectionMap[conn.seller.toString()] = conn.status;
+//     });
+
+//     // Step 3: Filter advertisements
+//     advertisements = advertisements.filter(ad => {
+//       const sellerId = ad.user?._id?.toString();
+//       if (!sellerId) return false;
+
+//       // ❌ Skip self advertisements
+//       if (sellerId === req.user._id.toString()) return false;
+
+//       // ❌ Skip if connection exists with status = "Accepted"
+//       if (connectionMap[sellerId] === "Accepted") return false;
+
+//       // ✅ If no connection OR connection exists but status != "Accepted" → allow
+//       return true;
+//     });
+
+//     // Step 4: Filter advertisements by SellerCategory name check
+//     advertisements = await Promise.all(
+//       advertisements.map(async (ad) => {
+//         // Seller ke categories nikalo
+//         const sellerCategories = await SellerCategory.find(
+//           { user: ad.user._id },
+//           "name"
+//         );
+
+//         const sellerCategoryNames = sellerCategories.map(c => c.name);
+
+//         // Filter ad.category by matching names
+//         const finalCategories = ad.category.filter(c =>
+//           c === "All" || sellerCategoryNames.includes(c)
+//         );
+
+//         // Agar seller ke paas us ad ki category match nahi hoti → skip ad
+//         if (finalCategories.length === 0) return null;
+
+//         return {
+//           ...ad.toObject(),
+//           category: finalCategories
+//         };
+//       })
+//     );
+
+//     // Null hatao (skip wale ads remove)
+//     advertisements = advertisements.filter(ad => ad !== null);
+
+//     if (advertisements.length === 0) {
+//       return next(new Errorhandler("No advertisements found", 404));
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       data: advertisements,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return next(new Errorhandler("Error fetching advertisements", 500));
+//   }
+// });
+
+
 export const getAllAdvertisements = catchAsyncErrors(async (req, res, next) => {
   try {
+    // Step 1: Get all ads with user populated
     let advertisements = await Advertisement.find()
-      .populate("user", "name phone"); 
+      .populate("user", "name phone");
 
-    // Populate category manually for only ObjectIds
+    // Step 2: Get buyer-seller connections for current user
+    const buyerConnections = await BuyerSellerConnection.find({ buyer: req.user._id })
+      .select("seller status");
+
+    const connectionMap = {};
+    buyerConnections.forEach(conn => {
+      connectionMap[conn.seller.toString()] = conn.status;
+    });
+
+    // Step 3: Filter advertisements
+    advertisements = advertisements.filter(ad => {
+      const sellerId = ad.user?._id?.toString();
+      if (!sellerId) return false;
+
+      // ❌ Skip self advertisements
+      if (sellerId === req.user._id.toString()) return false;
+
+      // ❌ Skip if connection exists with status = "Accepted"
+      if (connectionMap[sellerId] === "Accepted") return false;
+
+      // ✅ Allow if no connection OR connection not Accepted
+      return true;
+    });
+
+    // Step 4: Filter advertisements by SellerCategory (id check)
     advertisements = await Promise.all(
       advertisements.map(async (ad) => {
-        const categoryIds = ad.category.filter(c => mongoose.Types.ObjectId.isValid(c));
+        // Seller ke categories lao
+        const sellerCategories = await SellerCategory.find(
+          { user: ad.user._id },
+          "name"
+        );
 
-        let populatedCategories = [];
-        if (categoryIds.length > 0) {
-          populatedCategories = await SellerCategory.find(
-            { _id: { $in: categoryIds } },
-            "name"
-          );
-        }
+        const sellerCategoryIds = sellerCategories.map(c => c._id.toString());
+
+        // Debugging log (remove later if not needed)
+        console.log("=== DEBUG START ===");
+        console.log("Advertisement.category:", ad.category);
+        console.log("Seller categories ids:", sellerCategoryIds);
+        console.log("Seller categories names:", sellerCategories.map(c => c.name));
+        console.log("Connection status:", connectionMap[ad.user._id.toString()]);
+        console.log("=== DEBUG END ===");
+
+        // Match categories: only ids or "All"
+        const finalCategories = ad.category.filter(c =>
+          c.toString() === "All" || sellerCategoryIds.includes(c.toString())
+        );
+
+        if (finalCategories.length === 0) return null;
 
         return {
           ...ad.toObject(),
-          category: [
-            ...populatedCategories,
-            ...ad.category.filter(c => c === "All") 
-          ]
+          category: finalCategories
         };
       })
     );
+
+    // Remove skipped ads
+    advertisements = advertisements.filter(ad => ad !== null);
 
     if (advertisements.length === 0) {
       return next(new Errorhandler("No advertisements found", 404));
@@ -109,9 +333,12 @@ export const getAllAdvertisements = catchAsyncErrors(async (req, res, next) => {
       data: advertisements,
     });
   } catch (error) {
+    console.error(error);
     return next(new Errorhandler("Error fetching advertisements", 500));
   }
 });
+
+
 
 // Function to delete an advertisement
 export const deleteAdvertisement = catchAsyncErrors(async (req, res, next) => {

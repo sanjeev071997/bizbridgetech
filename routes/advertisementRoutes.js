@@ -18,7 +18,7 @@ const router = express.Router();
 
 router.post("/create", upload.single('image'), isAuthenticatedUser, createAdvertisement); // Create advertisement
 
-router.get("/all",isAuthenticatedUser,isAdmin, getAllAdvertisements); // Get all advertisements
+router.get("/all",isAuthenticatedUser, getAllAdvertisements); // Get all advertisements
 
 router.get("/:id", isAuthenticatedUser, getAdvertisementById); // Get advertisement by ID
 
