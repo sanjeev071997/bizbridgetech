@@ -26,7 +26,8 @@ import invoiceRoutes from "./routes/invoiceRoutes.js";
 import brandsRoutes from "./routes/brandsRoutes.js";
 import { startInterestCron } from "./utils/invoiceInterestCron.js";
 import swaggerUi from "swagger-ui-express";
-import swaggerDocument from "./swagger.json" assert { type: "json" };
+import fs from "fs";
+// import swaggerDocument from "./swagger.json" assert { type: "json" };
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -89,7 +90,12 @@ app.use("/api/v1/company/feed", companyFeedRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/brands", brandsRoutes);
 
+// app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// swagger.json file read karo
+const swaggerDocument = JSON.parse(fs.readFileSync("./swagger.json", "utf-8"));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));
