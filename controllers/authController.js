@@ -40,25 +40,85 @@ export const register = catchAsyncErrors(async (req, res, next) => {
 });
 
 // user login
+// export const login = catchAsyncErrors(async (req, res, next) => {
+//   const { email, password } = req.body;
+
+//   // Use regex to check if input is email or phone
+//   const isEmail = email.includes("@"); 
+
+//   // Find user by email or phone
+//   const user = await User.findOne(
+//     isEmail ? { email } : { phone: email }
+//   ).select("+password");
+
+//   if (!user) {
+//     return next(new Errorhandler("Invalid email/phone or password", 401));
+//   }
+
+//   const isPasswordMatched = await user.comparePassword(password);
+//   if (!isPasswordMatched) {
+//     return next(new Errorhandler("Invalid email/phone or password", 401));
+//   }
+
+//   sendToken(user, 200, res);
+// });
+
+// // Refresh Access Token
+// export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {
+//   const { refreshToken } = req.cookies;
+  
+//   if (!refreshToken) return next(new Errorhandler("Refresh token missing", 401));
+  
+//   try {
+//     const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+//     const user = await User.findById(decoded.id);
+//     if (!user) return next(new Errorhandler("User not found", 404));
+//     const newAccessToken = user.getJWTToken();
+
+//     res.cookie("token", newAccessToken, {
+//       httpOnly: true,
+//       secure: true, 
+//       sameSite: "None",
+//       maxAge: 15 * 60 * 1000,
+//       path: "/",
+//     });
+//     return res.status(200).json({ success: true });
+//   } catch {
+//     return next(new Errorhandler("Invalid refresh token", 403));
+//   }
+// });
+
+// // Logout
+// export const logout = catchAsyncErrors(async (req, res, next) => {
+//   res.clearCookie("token", {
+//     httpOnly: true,
+//     sameSite: 'none',
+//     secure: true,
+//   });
+//   res.clearCookie("refreshToken", {
+//     httpOnly: true,
+//     sameSite: 'none',
+//     secure: true,
+//   });
+
+//   res.status(200).json({
+//     success: true,
+//     message: "Logged out successfully",
+//   });
+// });
+
+// user login
 export const login = catchAsyncErrors(async (req, res, next) => {
   const { email, password } = req.body;
-
-  // Use regex to check if input is email or phone
   const isEmail = email.includes("@"); 
 
-  // Find user by email or phone
   const user = await User.findOne(
     isEmail ? { email } : { phone: email }
   ).select("+password");
 
-  if (!user) {
-    return next(new Errorhandler("Invalid email/phone or password", 401));
-  }
-
+  if (!user) return next(new Errorhandler("Invalid email/phone or password", 401));
   const isPasswordMatched = await user.comparePassword(password);
-  if (!isPasswordMatched) {
-    return next(new Errorhandler("Invalid email/phone or password", 401));
-  }
+  if (!isPasswordMatched) return next(new Errorhandler("Invalid email/phone or password", 401));
 
   sendToken(user, 200, res);
 });
@@ -73,33 +133,34 @@ export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
     const user = await User.findById(decoded.id);
     if (!user) return next(new Errorhandler("User not found", 404));
+
+    // Generate new access token
     const newAccessToken = user.getJWTToken();
 
+    // Set new access token cookie
     res.cookie("token", newAccessToken, {
       httpOnly: true,
-      secure: true, 
+      secure: true,
       sameSite: "None",
-      maxAge: 15 * 60 * 1000,
+      maxAge: 15 * 60 * 1000, // 15 min
       path: "/",
     });
-    return res.status(200).json({ success: true });
-  } catch {
+
+    // Send token in response too
+    return res.status(200).json({
+      success: true,
+      token: newAccessToken,
+      expiresIn: 15 * 60,
+    });
+  } catch (err) {
     return next(new Errorhandler("Invalid refresh token", 403));
   }
 });
 
 // Logout
 export const logout = catchAsyncErrors(async (req, res, next) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    sameSite: 'none',
-    secure: true,
-  });
-  res.clearCookie("refreshToken", {
-    httpOnly: true,
-    sameSite: 'none',
-    secure: true,
-  });
+  res.clearCookie("token", { httpOnly: true, sameSite: 'none', secure: true });
+  res.clearCookie("refreshToken", { httpOnly: true, sameSite: 'none', secure: true });
 
   res.status(200).json({
     success: true,
@@ -258,9 +319,6 @@ export const resetPassword = catchAsyncErrors(async (req, res, next) => {
       .createHash("sha256")
       .update(token)
       .digest("hex");
-
-    console.log("Token from body:", token);
-    console.log("Hashed token:", resetPasswordToken);
 
     // Find user by hashed token and check expiry
     const user = await User.findOne({

@@ -185,8 +185,6 @@ export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-
-
 // Function to delete a product
 export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;

@@ -24,6 +24,26 @@ export const isAuthenticatedUser = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
+// export const isAuthenticatedUser = catchAsyncErrors(async (req, res, next) => {
+//   let token =
+//     req.cookies.token ||
+//     (req.headers.authorization && req.headers.authorization.split(" ")[1]);
+
+//   if (!token) {
+//     return next(new Errorhandler("You must Log In...", 400));
+//   }
+
+//   try {
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     const user = await User.findById(decoded.id);
+//     if (!user) return next(new Errorhandler("User not found", 404));
+//     req.user = user;
+//     next();
+//   } catch (err) {
+//     return next(new Errorhandler("Session expired. Please refresh token.", 401));
+//   }
+// });
+
 
 // Admin 
 export const isAdmin = catchAsyncErrors (async(req, res, next) => {
