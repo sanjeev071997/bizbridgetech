@@ -5,7 +5,7 @@ import Product from "../models/sellerProductModel.js"; // SellerProduct
 import ErrorHandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 
-// 🟢 Create Order
+// Create Order
 export const createOrder = async (req, res) => {
   try {
     const cart = await Cart.findOne({ user: req.user.id })

@@ -250,7 +250,7 @@
       }
     },
     "/api/v1/auth/refresh": {
-      "get": {
+      "post": {
         "summary": "Refresh Token",
         "requestBody": {
           "content": {

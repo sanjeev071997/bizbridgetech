@@ -10,7 +10,6 @@ router.get("/seller-orders", isAuthenticatedUser, getSellerOrders);
 router.put("/:id", isAuthenticatedUser, updateOrderStatus); // seller order status update
 router.patch("/:orderId/process-step", isAuthenticatedUser, updateProcessStep)
 
-
 router.delete("/:id", isAuthenticatedUser, deleteOrder); // Todo api check in postman 
 
 export default router;
