@@ -2,12 +2,14 @@ import express from "express";
 import multer from 'multer';
 import {
   addProduct,
-  getProductsByCategoryId,
-  getProductById,
+  updateProductCategoryAndVisibility,
   updateProduct,
   deleteProduct,
-  getAllProducts,
   getProductByUserId,
+  getAllProducts,
+  getBuyerProducts,
+  // getProductsByCategoryId,
+  // getProductById,
   getProductsByBuyerCategoryId
 } from "../controllers/sellerProductController.js";
 import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
@@ -20,18 +22,26 @@ const router = express.Router();
 
 router.post("/", upload.single('image'), isAuthenticatedUser, addProduct);
 
-router.get("/:category", isAuthenticatedUser, getProductsByCategoryId);
-
-router.get("/get/product/:id", isAuthenticatedUser, getProductById);
+router.put("/update-buyer-category-visibility", isAuthenticatedUser, updateProductCategoryAndVisibility); // seller dashboard ye api product k buyer category and visibility update krne k liye h
 
 router.put("/:id", upload.single('image'), isAuthenticatedUser, updateProduct);
 
 router.delete("/:id", isAuthenticatedUser, deleteProduct);
 
-router.get("/", isAuthenticatedUser, getAllProducts);
+router.get("/get/user/product", isAuthenticatedUser, getProductByUserId); //seller k apne product hoge   // seller can see their own products
 
-router.get("/get/user/product", isAuthenticatedUser, getProductByUserId);
+router.get("/get/buyer/products", isAuthenticatedUser, getBuyerProducts); // buyer dashboard me ye apis call hoge // buyer can see products assigned to them
 
-router.get("/get/buyer/category/:buyerCategory", isAuthenticatedUser, getProductsByBuyerCategoryId);
+router.get("/get/:buyerCategory", isAuthenticatedUser, getProductsByBuyerCategoryId); // seller dashbaord me buyerCategory k onclick pr data is se aagye    // buyer can see products assigned to their category
+
+// Admin routes
+router.get("/", isAuthenticatedUser, isAdmin, getAllProducts);  // admin can see all products
+
+
+
+// router.get("/:category", isAuthenticatedUser, getProductsByCategoryId);
+
+// router.get("/get/product/:id", isAuthenticatedUser, getProductById);
+
 
 export default router;

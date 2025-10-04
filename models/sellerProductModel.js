@@ -14,10 +14,6 @@ const sellerProductSchema = new mongoose.Schema(
       type: String,
       required: false,
     },
-    price: {
-      type: Number,
-      required: true,
-    },
     mrp: {
       type: Number,
       required: true,
@@ -27,22 +23,44 @@ const sellerProductSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    description: {
+      type: String,
+      required: false,
+    },
+    specifications: {
+      type: Object,
+      required: false,
+    },
     category: {
       // Product category -> SellerCategory
       type: mongoose.Schema.Types.ObjectId,
       ref: "SellerCategory",
       required: true,
     },
-    buyerCategory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "BuyerCategory",
-      required: true,
-    },
+
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "users",
       required: true,
     },
+
+    productVisibility: [
+      {
+        buyerCategory: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "BuyerCategory",
+          required: true,
+        },
+        visible: {
+          type: Boolean,
+          default: true,
+        },
+        price: {
+          type: Number,
+          required: true,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -1,9 +1,11 @@
+import mongoose from "mongoose";
 import Product from "../models/sellerProductModel.js";
+import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 import Errorhandler from "../utils/Errorhandler.js";
 import cloudinary from "../utils/cloudinary.js";
 import BuyerCategory from "../models/buyerCategoriesModel.js";
- 
+
 // Function to handle base64 image uploads
 const uploadBase64Image = async (base64Image) => {
   try {
@@ -19,71 +21,10 @@ const uploadBase64Image = async (base64Image) => {
   }
 };
 
-// // Function to add a new product
-// export const addProduct = catchAsyncErrors(async (req, res, next) => {
-//   const { name, image, mrp, category, stock, buyerCategory } = req.body;
-
-//   let imageUrl = "";
-//   let cloudinaryId = "";
-
-//   try {
-//     // Image upload handling
-//     if (image && image.startsWith("data:image")) {
-//       const result = await uploadBase64Image(image);
-//       imageUrl = result.image; 
-//       cloudinaryId = result.cloudinaryId;
-//     } else if (image) {
-//       const result = await cloudinary.uploader.upload(image, {
-//         folder: "SallerProducts",
-//       });
-//       imageUrl = result.secure_url;
-//       cloudinaryId = result.public_id;
-//     }
-
-//     if (!imageUrl) {
-//       return next(new Errorhandler("Image upload failed", 400));
-//     }
-
-//     // discount calculate
-//     let discount = 0;
-//     if (buyerCategory && buyerCategory.discount) {
-//       discount = buyerCategory.discount; // मान लो discount % में आ रहा है
-//     }
-
-//     let price = mrp;
-//     if (discount > 0) {
-//       price = mrp - (mrp * discount / 100); // discounted price
-//     }
-
-//     // Product create
-//     const newProduct = await Product.create({
-//       user: req.user._id,
-//       name,
-//       image: imageUrl,
-//       cloudinaryId,
-//       mrp,
-//       price,   // final price after discount
-//       category,
-//       stock,
-//       buyerCategory
-//     });
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Product added successfully",
-//       product: newProduct,
-//     });
-//   } catch (error) {
-//     console.log("Detailed Error:", error);
-//     return next(
-//       new Errorhandler("Error processing product upload or creation", 500)
-//     );
-//   }
-// });
-
 // Function to add a new product
 export const addProduct = catchAsyncErrors(async (req, res, next) => {
-  const { name, image, mrp, category, stock, buyerCategory } = req.body;
+  const { name, image, mrp, category, stock, description, specifications } =
+    req.body;
 
   let imageUrl = "";
   let cloudinaryId = "";
@@ -92,7 +33,7 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
     // Image upload handling
     if (image && image.startsWith("data:image")) {
       const result = await uploadBase64Image(image);
-      imageUrl = result.image; 
+      imageUrl = result.image;
       cloudinaryId = result.cloudinaryId;
     } else if (image) {
       const result = await cloudinary.uploader.upload(image, {
@@ -106,20 +47,8 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
       return next(new Errorhandler("Image upload failed", 400));
     }
 
-    // get buyerCategory discount from DB
-    let discount = 0;
-    if (buyerCategory) {
-      const buyerCatData = await BuyerCategory.findById(buyerCategory).select("discount");
-      if (buyerCatData && buyerCatData.discount) {
-        discount = buyerCatData.discount; // percentage
-      }
-    }
-
-    // price calculation
-    let price = mrp;
-    if (discount > 0) {
-      price = mrp - (mrp * discount / 100);
-    }
+    // price calculation (no buyerCategory discount now)
+    // let price = mrp;
 
     // Product create
     const newProduct = await Product.create({
@@ -128,10 +57,11 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
       image: imageUrl,
       cloudinaryId,
       mrp,
-      price,   // final price after discount
+      // price,   // final price = mrp
       category,
       stock,
-      buyerCategory
+      description,
+      specifications,
     });
 
     res.status(200).json({
@@ -147,43 +77,62 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
+// Update product discount & visible
+export const updateProductCategoryAndVisibility = catchAsyncErrors(
+  async (req, res, next) => {
+    const { buyerCategory, visible, productId } = req.body;
 
-// Function to get all products
-export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
-  try {
-    let { page = 1, limit = 10 } = req.query;
-    page = parseInt(page, 10);
-    limit = parseInt(limit, 10);
+    try {
+      const product = await Product.findById(productId);
+      if (!product) {
+        return next(new Errorhandler("Product not found", 404));
+      }
 
-    const skip = (page - 1) * limit;
+      // validate buyerCategory
+      if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
+        return next(new Errorhandler("Invalid buyerCategory ID", 400));
+      }
+      const buyerCatData = await BuyerCategory.findById(buyerCategory).select(
+        "discount"
+      );
+      if (!buyerCatData) {
+        return next(new Errorhandler("BuyerCategory not found", 404));
+      }
 
-    let query = Product.find()
-      .populate("category", "name gst")
-      .populate("user", "name phone")
-      .populate("buyerCategory", "name discount")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+      // discount calculate
+      let price = product.mrp;
+      if (buyerCatData.discount > 0) {
+        price = product.mrp - (product.mrp * buyerCatData.discount) / 100;
+      }
 
-    // Conditionally populate user details if role === 1 (superadmin)
-    if (req.user.role === 1) {
-      query = query.populate("user", "name phone");
+      // check if this buyerCategory already exists in productVisibility
+      const existingVisibility = product.productVisibility.find(
+        (v) => v.buyerCategory.toString() === buyerCategory.toString()
+      );
+
+      if (existingVisibility) {
+        existingVisibility.visible = visible; // update
+      } else {
+        product.productVisibility.push({
+          buyerCategory,
+          visible: visible,
+        });
+      }
+
+      product.price = price; // update latest price for this category
+      await product.save();
+
+      res.status(200).json({
+        success: true,
+        message: "Product updated successfully for buyerCategory visibility",
+        product,
+      });
+    } catch (error) {
+      console.log("Detailed Error:", error);
+      return next(new Errorhandler("Error updating product", 500));
     }
-
-    const products = await query;
-    const totalProducts = await Product.countDocuments();
-
-    res.status(200).json({
-      success: true,
-      page,
-      totalPages: Math.ceil(totalProducts / limit),
-      totalProducts,
-      data: products,
-    });
-  } catch (error) {
-    return next(new Errorhandler("Error fetching products", 500));
   }
-});
+);
 
 // Function to delete a product
 export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
@@ -201,7 +150,9 @@ export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
       product.user.toString() !== req.user._id.toString() &&
       req.user.role !== 1
     ) {
-      return next(new Errorhandler("You are not authorized to delete this product", 403));
+      return next(
+        new Errorhandler("You are not authorized to delete this product", 403)
+      );
     }
 
     // Delete from Cloudinary if needed
@@ -222,28 +173,43 @@ export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-// // Function to update a product
+// Function to update a product
 // export const updateProduct = catchAsyncErrors(async (req, res, next) => {
 //   const { id } = req.params;
-//   const { name, image, mrp, price, category,stock, buyerCategory } = req.body;
+//   const {
+//     image,
+//     name,
+//     category,
+//     mrp,
+//     price,
+//     stock,
+//     description,
+//     specifications,
+//     buyerCategory,
+//   } = req.body;
 
 //   try {
 //     const product = await Product.findById(id);
 //     if (!product) {
 //       return next(new Errorhandler("Product not found", 404));
 //     }
+
 //     // Permission check: only product owner or role 1 user can update
 //     if (
 //       product.user.toString() !== req.user._id.toString() &&
 //       req.user.role !== 1
 //     ) {
-//       return next(new Errorhandler("You are not authorized to update this product", 403));
+//       return next(
+//         new Errorhandler("You are not authorized to update this product", 403)
+//       );
 //     }
+
+//     // Handle image update
 //     let imageUrl = product.image;
 //     let cloudinaryId = product.cloudinaryId;
 //     if (image && image.startsWith("data:image")) {
 //       const result = await uploadBase64Image(image);
-//       imageUrl = result.url;
+//       imageUrl = result.image;
 //       cloudinaryId = result.cloudinaryId;
 //     } else if (image) {
 //       if (product.cloudinaryId) {
@@ -255,23 +221,28 @@ export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
 //       imageUrl = result.secure_url;
 //       cloudinaryId = result.public_id;
 //     }
+
+//     // Update product
 //     const updatedProduct = await Product.findByIdAndUpdate(
 //       id,
 //       {
-//         // user: req.user._id,
 //         name,
 //         image: imageUrl,
 //         cloudinaryId,
 //         mrp,
+//         buyerCategory,
 //         price,
 //         category,
 //         stock,
-//         buyerCategory
+//         description,
+//         specifications,
 //       },
 //       { new: true }
-//     ).populate("category", "name gst")
+//     )
+//       .populate("category", "name gst")
 //       .populate("user", "name phone")
 //       .populate("buyerCategory", "name discount");
+
 //     res.status(200).json({
 //       success: true,
 //       message: "Product updated successfully",
@@ -282,18 +253,31 @@ export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
 //     return next(new Errorhandler("Error updating product", 500));
 //   }
 // });
-// Function to update a product
+
 export const updateProduct = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
-  const { name, image, mrp, category, stock, buyerCategory } = req.body;
+  const {
+    image,
+    name,
+    category,
+    mrp,
+    stock,
+    description,
+    specifications,
+    buyerCategory, // optional - ek nayi buyerCategory add karne ke liye
+    price,         // agar manually dena ho
+  } = req.body;
 
   try {
-    const product = await Product.findById(id);
+    const product = await Product.findById(id).populate(
+      "productVisibility.buyerCategory",
+      "name discount"
+    );
     if (!product) {
       return next(new Errorhandler("Product not found", 404));
     }
 
-    // Permission check: only product owner or role 1 user can update
+    // Permission check
     if (
       product.user.toString() !== req.user._id.toString() &&
       req.user.role !== 1
@@ -307,10 +291,13 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
     let imageUrl = product.image;
     let cloudinaryId = product.cloudinaryId;
     if (image && image.startsWith("data:image")) {
+      if (product.cloudinaryId) {
+        await cloudinary.uploader.destroy(product.cloudinaryId);
+      }
       const result = await uploadBase64Image(image);
       imageUrl = result.image;
       cloudinaryId = result.cloudinaryId;
-    } else if (image) {
+    } else if (image && image !== product.image) {
       if (product.cloudinaryId) {
         await cloudinary.uploader.destroy(product.cloudinaryId);
       }
@@ -321,38 +308,63 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
       cloudinaryId = result.public_id;
     }
 
-    // Discount calculation from buyerCategory DB
-    let discount = 0;
+    // Update base product fields
+    const oldMrp = product.mrp;
+    product.name = name || product.name;
+    product.image = imageUrl;
+    product.cloudinaryId = cloudinaryId;
+    product.mrp = mrp || product.mrp;
+    product.category = category || product.category;
+    product.stock = stock || product.stock;
+    product.description = description || product.description;
+    product.specifications = specifications || product.specifications;
+
+    // ✅ Agar buyerCategory diya gaya hai to add/update
     if (buyerCategory) {
-      const buyerCatData = await BuyerCategory.findById(buyerCategory).select("discount");
-      if (buyerCatData && buyerCatData.discount) {
-        discount = buyerCatData.discount;
+      const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
+      if (!buyerCategoryDoc) {
+        return next(new Errorhandler("Buyer category not found", 404));
+      }
+
+      const discount = parseFloat(buyerCategoryDoc.discount) || 0;
+      let finalPrice = mrp
+        ? mrp - (mrp * discount) / 100
+        : product.mrp - (product.mrp * discount) / 100;
+
+      // agar price explicitly diya hai to override
+      if (price) {
+        finalPrice = price;
+      }
+
+      const alreadyExists = product.productVisibility.find(
+        (v) => v.buyerCategory._id.toString() === buyerCategoryDoc._id.toString()
+      );
+
+      if (!alreadyExists) {
+        product.productVisibility.push({
+          buyerCategory: buyerCategoryDoc._id,
+          visible: true,
+          price: finalPrice,
+        });
+      } else {
+        alreadyExists.price = finalPrice;
+        alreadyExists.visible = true;
       }
     }
 
-    let price = mrp || product.mrp;
-    if (discount > 0) {
-      price = price - (price * discount / 100);
+    // ✅ Agar MRP change hua hai → sari buyerCategories ke price recalc karo
+    if (mrp && mrp !== oldMrp) {
+      for (let visibility of product.productVisibility) {
+        if (visibility.buyerCategory && visibility.buyerCategory.discount != null) {
+          const discount = parseFloat(visibility.buyerCategory.discount) || 0;
+          visibility.price = mrp - (mrp * discount) / 100;
+        }
+      }
     }
 
-    // Update product
-    const updatedProduct = await Product.findByIdAndUpdate(
-      id,
-      {
-        name,
-        image: imageUrl,
-        cloudinaryId,
-        mrp,
-        price, // final discounted price
-        category,
-        stock,
-        buyerCategory
-      },
-      { new: true }
-    )
-      .populate("category", "name gst")
-      .populate("user", "name phone")
-      .populate("buyerCategory", "name discount");
+    const updatedProduct = await product.save();
+
+    await updatedProduct.populate("productVisibility.buyerCategory", "name discount");
 
     res.status(200).json({
       success: true,
@@ -366,12 +378,18 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
 });
 
 
-
-// Function to get a product by ID
-export const getProductById = catchAsyncErrors(async (req, res, next) => {
-  const { id } = req.params;
+// Function to get a product by ID for Seller own products
+export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
+  const user = req.user.id;
   try {
-    const product = await Product.findById(id).populate("category", "name gst").populate("user", "name phone").populate("buyerCategory", "name discount");
+    const product = await Product.find({ user: user })
+      .populate("category", "name gst")
+      .populate("user", "name phone businessName")
+      .populate({
+        path: "productVisibility.buyerCategory",
+        select: "name discount",
+      })
+      .sort({ createdAt: -1 });
     if (!product) {
       return next(new Errorhandler("Product not found", 404));
     }
@@ -385,48 +403,254 @@ export const getProductById = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-// Function to get products by category ID
-export const getProductsByCategoryId = catchAsyncErrors(
-  async (req, res, next) => {
-    const { category } = req.params;
-    try {
-      const products = await Product.find({ category })
-        .populate("category", "name gst")
-        .populate("user", "name phone")
-        .populate("buyerCategory", "name discount")
-        .sort({ createdAt: -1 });
-      if (products.length === 0) {
-        return next(
-          new Errorhandler("No products found for this category", 404)
-        );
-      }
-      res.status(200).json({
-        success: true,
-        products,
-      });
-    } catch (error) {
-      console.log("Detailed Error:", error);
-      return next(new Errorhandler("Error fetching products by category", 500));
-    }
-  }
-);
+// Function to get a products for Buyer view with discount & visibility logic
+// export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     const buyerId = req.user._id;
 
-// Function to get a product by ID
-export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
-  const  user  = req.user.id;
-  console.log(user, "saller user product id")
+//     // Step 1: BuyerSellerConnection check
+//     const connection = await BuyerSellerConnection.findOne({
+//       buyer: buyerId,
+//       status: "Accepted",
+//     }).populate("buyerCategory", "name discount");
+
+//     if (!connection) {
+//       return res.status(200).json({
+//         success: true,
+//         products: [],
+//         message: "No accepted seller connection found for this buyer",
+//       });
+//     }
+
+//     const buyerCategoryId = connection.buyerCategory._id;
+//     const discount = parseFloat(connection.buyerCategory.discount) || 0;
+//     const sellerId = connection.seller;
+
+//     // Step 2: Fetch products for this seller with productVisibility logic
+//     let products = await Product.find({
+//       user: sellerId,
+//       $or: [
+//         { productVisibility: { $exists: false } },
+//         { productVisibility: { $size: 0 } },
+//         {
+//           productVisibility: {
+//             $not: {
+//               $elemMatch: {
+//                 buyerCategory: buyerCategoryId,
+//                 visible: false,
+//               },
+//             },
+//           },
+//         },
+//       ],
+//     })
+//       .populate("category", "name gst")
+//       .populate("user", "name phone")
+//       .populate("productVisibility.buyerCategory", "name discount")
+//       .sort({ createdAt: -1 });
+
+//     // Step 3: Apply discount & save price in productVisibility
+//     for (let product of products) {
+//       let priceAfterDiscount = product.mrp;
+//       if (discount > 0) {
+//         priceAfterDiscount =
+//           priceAfterDiscount - (priceAfterDiscount * discount) / 100;
+//       }
+
+//       // Check if productVisibility for this buyerCategory already exists
+//       const visibilityIndex = product.productVisibility.findIndex(
+//         (v) => v.buyerCategory.toString() === buyerCategoryId.toString()
+//       );
+
+//       if (visibilityIndex !== -1) {
+//         // update existing visibility price
+//         product.productVisibility[visibilityIndex].price = priceAfterDiscount;
+//       } else {
+//         // push new visibility entry
+//         product.productVisibility.push({
+//           buyerCategory: buyerCategoryId,
+//           visible: true,
+//           price: priceAfterDiscount,
+//         });
+//       }
+
+//       // save updated product
+//       await product.save();
+//     }
+
+//     // Step 4: Format response with appliedDiscount
+//     products = products.map((product) => ({
+//       ...product._doc,
+//       appliedDiscount: discount,
+//     }));
+
+//     res.status(200).json({
+//       success: true,
+//       products,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return next(new Errorhandler("Error fetching buyer products", 500));
+//   }
+// });
+
+export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
   try {
-    const product = await Product.find({user:user}).populate("category", "name gst").populate("user", "name phone").populate("buyerCategory", "name discount");
-    if (!product) {
-      return next(new Errorhandler("Product not found", 404));
+    const buyerId = req.user._id;
+
+    // Step 1: Buyer-Seller Connection
+    const connection = await BuyerSellerConnection.findOne({
+      buyer: buyerId,
+      status: "Accepted",
+    }).populate("buyerCategory", "name discount");
+
+    if (!connection) {
+      return res.status(200).json({
+        success: true,
+        products: [],
+        message: "No accepted seller connection found for this buyer",
+      });
     }
+
+    const buyerCategoryId = connection.buyerCategory._id.toString();
+    const discount = parseFloat(connection.buyerCategory.discount) || 0;
+    const sellerId = connection.seller;
+
+    // Step 2: Fetch seller's products (lightweight lean query)
+    const products = await Product.find({
+      user: sellerId,
+      $or: [
+        { productVisibility: { $exists: false } },
+        { productVisibility: { $size: 0 } },
+        {
+          productVisibility: {
+            $not: {
+              $elemMatch: {
+                buyerCategory: buyerCategoryId,
+                visible: false,
+              },
+            },
+          },
+        },
+      ],
+    })
+      .populate("category", "name gst")
+      .populate("user", "name phone businessName")
+      .sort({ createdAt: -1 })
+      .lean(); // <---- no mongoose doc = faster + safer compare
+
+    const bulkOps = [];
+
+    for (const product of products) {
+      const visArray = product.productVisibility || [];
+
+      // convert buyerCategory to string for safe comparison
+      const hasExisting = visArray.some((v) => {
+        const catId =
+          typeof v.buyerCategory === "object"
+            ? v.buyerCategory._id?.toString()
+            : v.buyerCategory?.toString();
+        return catId === buyerCategoryId;
+      });
+
+      // skip if already exists
+      if (hasExisting) continue;
+
+      // calculate discount price only once
+      const priceAfterDiscount =
+        product.mrp - (product.mrp * discount) / 100;
+
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: product._id },
+          update: {
+            $push: {
+              productVisibility: {
+                buyerCategory: buyerCategoryId,
+                visible: true,
+                price: priceAfterDiscount,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // Step 3: bulk update only for missing ones
+    if (bulkOps.length > 0) {
+      await Product.bulkWrite(bulkOps);
+    }
+
+    // Step 4: Re-fetch products for correct visibility
+    const updatedProducts = await Product.find({ user: sellerId })
+      .populate("category", "name gst")
+      .populate("user", "name phone businessName")
+      .populate("productVisibility.buyerCategory", "name discount")
+      .sort({ createdAt: -1 });
+
+    // Step 5: Prepare final data
+    const finalProducts = updatedProducts.map((product) => {
+      const matchedVis = product.productVisibility.find((v) => {
+        const catId =
+          typeof v.buyerCategory === "object"
+            ? v.buyerCategory._id?.toString()
+            : v.buyerCategory?.toString();
+        return catId === buyerCategoryId;
+      });
+
+      return {
+        ...product._doc,
+        appliedDiscount: discount,
+        finalPrice: matchedVis?.price || product.mrp,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      product,
+      products: finalProducts,
     });
   } catch (error) {
-    console.log("Detailed Error:", error);
-    return next(new Errorhandler("Error fetching product", 500));
+    console.error(error);
+    return next(new Errorhandler("Error fetching buyer products", 500));
+  }
+});
+
+
+// Function to get all products Admin view
+export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
+  try {
+    let { page = 1, limit = 10 } = req.query;
+    page = parseInt(page, 10);
+    limit = parseInt(limit, 10);
+    const skip = (page - 1) * limit;
+    let query = Product.find()
+      .populate("category", "name gst")
+      .populate("user", "name phone businessName")
+      .populate({
+        path: "productVisibility.buyerCategory",
+        select: "name discount",
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Conditionally populate user details if role === 1 (superadmin)
+    if (req.user.role === 1) {
+      query = query.populate("user", "name phone businessName");
+    }
+
+    const products = await query;
+    const totalProducts = await Product.countDocuments();
+
+    res.status(200).json({
+      success: true,
+      page,
+      totalPages: Math.ceil(totalProducts / limit),
+      totalProducts,
+      data: products,
+    });
+  } catch (error) {
+    return next(new Errorhandler("Error fetching products", 500));
   }
 });
 
@@ -434,24 +658,165 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
 export const getProductsByBuyerCategoryId = catchAsyncErrors(
   async (req, res, next) => {
     const { buyerCategory } = req.params;
+    const loginUserId = req.user?._id;
+
+    if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
+      return next(new Errorhandler("Invalid buyer category ID", 400));
+    }
+
     try {
-      const products = await Product.find({ buyerCategory })
-        .populate("category", "name gst")
-        .populate("user", "name phone")
-        .populate("buyerCategory", "name discount")
-        .sort({ createdAt: -1 });
-      if (products.length === 0) {
-        return next(
-          new Errorhandler("No products found for this buyer category", 404)
-        );
+      const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
+      if (!buyerCategoryDoc) {
+        return next(new Errorhandler("Buyer category not found", 404));
       }
-      res.status(200).json({
-        success: true,
-        products,
+
+      const discount = parseFloat(buyerCategoryDoc.discount) || 0;
+      const buyerCatOid = new mongoose.Types.ObjectId(buyerCategory); 
+
+      // Fetch products (lean for faster read)
+      const products = await Product.find({ user: loginUserId })
+        .select("_id mrp name image productVisibility category")
+        .lean(); // plain objects - faster
+
+      if (!products.length) {
+        return next(new Errorhandler("No products found", 404));
+      }
+
+      const bulkOps = [];
+
+      // Prepare bulk operations: push only if buyerCategory not present (atomic)
+      for (const p of products) {
+        const vis = p.productVisibility || [];
+
+        const exists = vis.some((v) => {
+          // v.buyerCategory could be ObjectId or populated object — normalize to string
+          const catId =
+            v && v.buyerCategory
+              ? (v.buyerCategory._id ? v.buyerCategory._id.toString() : v.buyerCategory.toString())
+              : null;
+          return catId === buyerCategory;
+        });
+
+        if (!exists) {
+          const priceAfterDiscount =
+            discount > 0 ? p.mrp - (p.mrp * discount) / 100 : p.mrp;
+
+          bulkOps.push({
+            updateOne: {
+              // atomic condition: only push when no existing buyerCategory
+              filter: { _id: p._id, "productVisibility.buyerCategory": { $ne: buyerCatOid } },
+              update: {
+                $push: {
+                  productVisibility: {
+                    buyerCategory: buyerCatOid,
+                    visible: true,
+                    price: priceAfterDiscount,
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+
+      // Execute bulk writes (only when needed)
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
+      }
+
+      // Re-fetch products (populated) to return actual DB values
+      const updatedProducts = await Product.find({ user: loginUserId })
+        .populate("productVisibility.buyerCategory", "name discount")
+        .populate("category", "name gst")
+        .sort({ createdAt: -1 });
+
+      const filteredProducts = updatedProducts.map((product) => {
+        const matched = product.productVisibility.find((v) => {
+          const catId =
+            v.buyerCategory && v.buyerCategory._id
+              ? v.buyerCategory._id.toString()
+              : v.buyerCategory?.toString?.();
+          return catId === buyerCategory;
+        });
+
+        return {
+          _id: product._id,
+          name: product.name,
+          mrp: product.mrp,
+          image: product.image,
+          category: product.category,
+          buyerCategory: matched
+            ? {
+                id: matched.buyerCategory._id,
+                name: matched.buyerCategory.name,
+                discount: matched.buyerCategory.discount,
+                price: matched.price,
+              }
+            : {
+                id: buyerCategoryDoc._id,
+                name: buyerCategoryDoc.name,
+                discount: buyerCategoryDoc.discount,
+                price: product.mrp,
+              },
+        };
       });
+
+      return res.status(200).json({ success: true, products: filteredProducts });
     } catch (error) {
-      console.log("Detailed Error:", error);
+      console.error("Detailed Error:", error);
       return next(new Errorhandler("Error fetching products by buyer category", 500));
     }
   }
 );
+
+// Function to get products by category ID
+// export const getProductsByCategoryId = catchAsyncErrors(
+//   async (req, res, next) => {
+//     const { category } = req.params;
+//     try {
+//       const products = await Product.find({ category })
+//         .populate("category", "name gst")
+//         .populate("user", "name phone")
+//       .populate({
+//         path: "productVisibility.buyerCategory",
+//         select: "name discount",
+//       })
+//         .sort({ createdAt: -1 });
+//       if (products.length === 0) {
+//         return next(
+//           new Errorhandler("No products found for this category", 404)
+//         );
+//       }
+//       res.status(200).json({
+//         success: true,
+//         products,
+//       });
+//     } catch (error) {
+//       console.log("Detailed Error:", error);
+//       return next(new Errorhandler("Error fetching products by category", 500));
+//     }
+//   }
+// );
+
+// Function to get a product by ID
+// export const getProductById = catchAsyncErrors(async (req, res, next) => {
+//   const { id } = req.params;
+//   try {
+//     const product = await Product.findById(id).populate("category", "name gst").populate("user", "name phone")
+//     .populate({
+//         path: "productVisibility.buyerCategory",
+//         select: "name discount",
+//       })
+//     if (!product) {
+//       return next(new Errorhandler("Product not found", 404));
+//     }
+//     res.status(200).json({
+//       success: true,
+//       product,
+//     });
+//   } catch (error) {
+//     console.log("Detailed Error:", error);
+//     return next(new Errorhandler("Error fetching product", 500));
+//   }
+// });
+

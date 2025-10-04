@@ -11,7 +11,7 @@ import { sendOtp } from '../utils/sendOtp.js';
 
 // User Registration
 export const register = catchAsyncErrors(async (req, res, next) => {
-  const { email, phone } = req.body;
+  const {email, phone, } = req.body;
 
   // Check if user already exists
   const userExist = await User.findOne({ email });
