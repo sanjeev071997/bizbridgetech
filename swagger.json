@@ -2,40 +2,33 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Bizbridge",
-    "version": "1.0.0",
-    "description": "Converted from Postman Collection to Swagger"
+    "version": "1.0.0"
   },
-  "servers": [
-    {
-      "url": "https://bizbridgetech.onrender.com/api/v1"
-    }
-  ],
   "paths": {
-    "/auth/login": {
+    "/api/v1/auth/login": {
       "post": {
         "summary": "login",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
-                "example": "{\n    // \"email\":\"sachinsaini19970@gmail.com\",\n    // \"email\": \"sachinsaini19970+1@gmail.com\",\n    \"email\": \"bizbridge.sanjeev@gmail.com\",\n    \"password\": \"Sachin@19970\"\n}"
+                "email": "sachinsaini19970@gmail.com",
+                "password": "Sachin@19970"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/password/reset": {
+    "/api/v1/auth/password/reset": {
       "put": {
         "summary": "password/reset",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -48,16 +41,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/register": {
+    "/api/v1/auth/register": {
       "post": {
         "summary": "register",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -71,53 +63,57 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/profile/update": {
+    "/api/v1/auth/profile/update": {
       "put": {
         "summary": "profile/update",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
-                "id": "68dba4fd939aa9e4b1f0f1ed",
-                "name": "Bizbridge.sanjeev",
-                "email": "bizbridge.sanjeev@gmail.com",
-                "phone": "+917568333000",
-                "businessName": "Bizbridge Tech",
+                "id": "68820824c5ce1615db4fc636",
+                "name": "sanjeev",
+                "email": "sachinsaini19970+12@gmail.com",
+                "phone": "+917734904014",
+                "businessName": "bizbridgetech",
                 "businessAddress": "Jaipur",
-                "gstNumber": "GST09823"
+                "gstNumber": "GST1234"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/profile": {
+    "/api/v1/auth/profile": {
       "get": {
         "summary": "profile",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/password/forgot": {
+    "/api/v1/auth/password/forgot": {
       "post": {
         "summary": "password/forgot",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -128,16 +124,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/verify/otp": {
+    "/api/v1/auth/verify/otp": {
       "post": {
         "summary": "verify/otp",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -150,16 +145,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/email/verify": {
+    "/api/v1/auth/email/verify": {
       "post": {
         "summary": "email/verify",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -170,16 +164,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/profile/update/password": {
+    "/api/v1/auth/profile/update/password": {
       "put": {
         "summary": "profile/update/password",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -192,16 +185,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/email/verify/otp": {
+    "/api/v1/auth/email/verify/otp": {
       "post": {
         "summary": "email/verify/otp",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -213,16 +205,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/verify/phone/otp": {
+    "/api/v1/auth/verify/phone/otp": {
       "post": {
         "summary": "verify/phone/otp",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -234,16 +225,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/send/otp": {
+    "/api/v1/auth/send/otp": {
       "post": {
         "summary": "send phone otp",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -254,27 +244,32 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/auth/refresh": {
+    "/api/v1/auth/refresh": {
       "post": {
         "summary": "Refresh Token",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-categories": {
+    "/api/v1/seller-categories": {
       "post": {
         "summary": "create",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -286,25 +281,30 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "get": {
         "summary": "Get All Seller Categories",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-categories/68887dfb548b1c8d316409b5": {
+    "/api/v1/seller-categories/68887dfb548b1c8d316409b5": {
       "put": {
         "summary": "update seller-categories",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -316,35 +316,39 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "delete": {
         "summary": "delete seller-categories",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products": {
+    "/api/v1/seller-products": {
       "post": {
-        "summary": "create seller-products",
+        "summary": "Create New Product",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
-                "name": "Change Product Name",
-                "mrp": "1150",
-                "stock": 99,
-                "category": "68dba573939aa9e4b1f0f20b",
-                "description": "Change description test",
-                "specifications": "Change test specifications",
-                "user": "6882429b34bac99940adf0ff",
+                "name": "New Product 1",
+                "mrp": "450",
+                "stock": 200,
+                "category": "688b4eab3af8acb6e19443cf",
+                "buyerCategory": "689713c82d68b96825a7223e",
+                "user": "6881fa456e4df2dabef1ee7e",
                 "image": "data:image/png;base64,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"
               }
             }
@@ -352,36 +356,47 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "get": {
         "summary": "Get All Products",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products/688b4eab3af8acb6e19443cf": {
+    "/api/v1/seller-products/688b4eab3af8acb6e19443cf": {
       "get": {
         "summary": "Get by category Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products/68a5a851a8df7aa24354c9cc": {
+    "/api/v1/seller-products/68a5a851a8df7aa24354c9cc": {
       "put": {
         "summary": "Update by product Id",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -399,60 +414,83 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products/688b520c183edc5dfe97262c": {
+    "/api/v1/seller-products/688b520c183edc5dfe97262c": {
       "delete": {
         "summary": "Delete Product",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products/get/product/68a325173a9fc7ca1a9accad": {
+    "/api/v1/seller-products/get/product/68a325173a9fc7ca1a9accad": {
       "get": {
         "summary": "Get Product By Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products/get/user/product": {
+    "/api/v1/seller-products/get/user/product": {
       "get": {
-        "summary": "get/user/product (seller)",
-        "requestBody": {},
+        "summary": "Get User by Id",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products/get/buyer/category/689713dc2d68b96825a72246": {
+    "/api/v1/seller-products/get/buyer/category/689713dc2d68b96825a72246": {
       "get": {
         "summary": "Get Buyer Category By Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/buyer-categories": {
+    "/api/v1/buyer-categories": {
       "post": {
         "summary": "Create",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -464,34 +502,45 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "get": {
         "summary": "Get All Buyer Categories ",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/buyer-categories/688e111c712d52700f3e4243": {
+    "/api/v1/buyer-categories/688e111c712d52700f3e4243": {
       "get": {
         "summary": "Get Buyer by Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "put": {
         "summary": "Update Buyer by Id",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -503,25 +552,30 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "delete": {
         "summary": "Delete Buyer by Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/testimonial/": {
+    "/api/v1/testimonial/": {
       "post": {
         "summary": "Create a new testimonial",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -536,38 +590,49 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/testimonial/all": {
+    "/api/v1/testimonial/all": {
       "get": {
         "summary": "Get all testimonial",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/testimonial/my": {
+    "/api/v1/testimonial/my": {
       "get": {
         "summary": "get my testimonial",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/testimonial/update/6895c3592792e004e61d5d39": {
+    "/api/v1/testimonial/update/6895c3592792e004e61d5d39": {
       "put": {
         "summary": "Update testimonial",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -584,27 +649,32 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/testimonial/delete/6895c3592792e004e61d5d39": {
+    "/api/v1/testimonial/delete/6895c3592792e004e61d5d39": {
       "delete": {
         "summary": "Delete testimonial",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/advertisement/create": {
+    "/api/v1/advertisement/create": {
       "post": {
         "summary": "Create",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -617,49 +687,66 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/advertisement/category/68887ec5548b1c8d316409c5": {
+    "/api/v1/advertisement/category/68887ec5548b1c8d316409c5": {
       "get": {
         "summary": "Get Seller Categories by Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/advertisement/user/6881fa456e4df2dabef1ee7e": {
+    "/api/v1/advertisement/user/6881fa456e4df2dabef1ee7e": {
       "get": {
         "summary": "Get User by Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/advertisement/689c64ad560e6c5d23287e5f": {
+    "/api/v1/advertisement/689c64ad560e6c5d23287e5f": {
       "get": {
         "summary": "Get Advertisement Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/advertisement/update/689c64ad560e6c5d23287e5f": {
+    "/api/v1/advertisement/update/689c64ad560e6c5d23287e5f": {
       "put": {
         "summary": "Update By Id",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -672,91 +759,117 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/advertisement/delete/689c6580560e6c5d23287e68": {
+    "/api/v1/advertisement/delete/689c6580560e6c5d23287e68": {
       "delete": {
         "summary": "delete",
-        "requestBody": {},
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      }
-    },
-    "/advertisement/all": {
-      "get": {
-        "summary": "Get all advertisement",
-        "requestBody": {},
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      }
-    },
-    "/payment-options/": {
-      "post": {
-        "summary": "Create payment Options",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
-              "example": {
-                "example": "{\n  \"paymentType\": \"Cash\",\n  \"cashPayment\": {\n    \"discountPercent\": 5\n  }\n}\n\n// {\n//   \"paymentType\": \"Credit\",\n//   \"creditPayment\": {\n//     \"creditPeriodDays\": 30,\n//     \"interestRatePerYear\": 2,\n//     \"interestStartAfterDays\": 30\n//   }\n// }\n\n// {\n//   \"paymentType\": \"Both\",\n//   \"cashPayment\": {\n//     \"discountPercent\": 5\n//   },\n//   \"creditPayment\": {\n//     \"creditPeriodDays\": 30,\n//     \"interestRatePerYear\": 2,\n//     \"interestStartAfterDays\": 30\n//   }\n// }\n"
-              }
+              "example": {}
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/payment-options": {
+    "/api/v1/advertisement/all": {
+      "get": {
+        "summary": "Get all advertisement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/api/v1/payment-options/": {
+      "post": {
+        "summary": "Create payment Options",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/api/v1/payment-options": {
       "get": {
         "summary": "Get all payment-options",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/payment-options/689c830601c4a4cbf7f458e6": {
+    "/api/v1/payment-options/689c830601c4a4cbf7f458e6": {
       "get": {
         "summary": "Get payment-options by id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/payment-options/user/6881fa456e4df2dabef1ee7e": {
+    "/api/v1/payment-options/user/6881fa456e4df2dabef1ee7e": {
       "get": {
         "summary": "Get payment-options user by id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/payment-options/689c833001c4a4cbf7f458ec": {
+    "/api/v1/payment-options/689c833001c4a4cbf7f458ec": {
       "put": {
         "summary": "update payment-options by id",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -770,25 +883,30 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "delete": {
         "summary": "delete payment-options by Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/schemes/": {
+    "/api/v1/schemes/": {
       "post": {
         "summary": "Create schemes",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -801,25 +919,30 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "get": {
         "summary": "Get all schemes",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/schemes/689dc467bf3235c1d6240d53": {
+    "/api/v1/schemes/689dc467bf3235c1d6240d53": {
       "get": {
         "summary": "Get By Id",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -832,14 +955,13 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "put": {
         "summary": "Update By Id",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -852,16 +974,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/schemes/689dc467bf3235c1d6240d53/toggle": {
+    "/api/v1/schemes/689dc467bf3235c1d6240d53/toggle": {
       "patch": {
         "summary": "status toggle",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -872,27 +993,32 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/schemes/689c95f1e132eca3e0747cbc": {
+    "/api/v1/schemes/689c95f1e132eca3e0747cbc": {
       "delete": {
         "summary": "Delete By id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/support": {
+    "/api/v1/support": {
       "post": {
         "summary": "Create Support",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -904,83 +1030,81 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "get": {
         "summary": "All support",
-        "requestBody": {},
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      }
-    },
-    "/buyer-seller-connections/connection": {
-      "post": {
-        "summary": "Request Connection ",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
-              "example": {
-                "example": "{\n    \"buyerEmail\" :\"bizbridge.sanjeev@gmail.com\", \n    // \"buyerPhone\":\"+917734904014\",\n    \"buyerCategory\":\"68d3f98de1d4c6807f3cb5b6\"\n}"
-              }
+              "example": {}
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/api/v1/buyer-seller-connections/connection": {
+      "post": {
+        "summary": "Request Connection ",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
           }
         }
       },
       "get": {
         "summary": "Get all Buyer request connection",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
-              "example": {
-                "example": "{\n    // \"buyerEmail\" :\"sachinsaini19970@gmail.com\", \n    \"buyerPhone\":\"+917734904014\",\n    \"buyerCategory\":\"689713c82d68b96825a7223e\"\n}"
-              }
+              "example": {}
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/buyer-seller-connections/connection/68dcdddd73b3d886b1ed55f5/status": {
+    "/api/v1/buyer-seller-connections/connection/689dc108af0d9a0e84c91bb8/status": {
       "put": {
         "summary": "Buyer Status Accepted / Rejected",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
-                "status": "Accepted"
+                "status": "Rejected"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/chat": {
+    "/api/v1/chat": {
       "post": {
         "summary": "Send Message",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -992,38 +1116,49 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/chat/read/6881fa456e4df2dabef1ee7e": {
+    "/api/v1/chat/read/6881fa456e4df2dabef1ee7e": {
       "put": {
         "summary": "Mark all messages",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/chat/history/6881fa456e4df2dabef1ee7e": {
+    "/api/v1/chat/history/6881fa456e4df2dabef1ee7e": {
       "get": {
         "summary": "chat/history",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/cart/add": {
+    "/api/v1/cart/add": {
       "post": {
         "summary": "Add Cart",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1037,27 +1172,32 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/cart/6882429b34bac99940adf0ff": {
+    "/api/v1/cart/6882429b34bac99940adf0ff": {
       "get": {
         "summary": "Get Cart",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/cart/update": {
+    "/api/v1/cart/update": {
       "put": {
         "summary": "update cart",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1070,16 +1210,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/cart/remove": {
+    "/api/v1/cart/remove": {
       "delete": {
         "summary": "Remove Cart",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1091,16 +1230,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/cart/clear": {
+    "/api/v1/cart/clear": {
       "delete": {
         "summary": "clear cart",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1111,16 +1249,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/cart/payment": {
+    "/api/v1/cart/payment": {
       "put": {
         "summary": "update  payment options",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1132,49 +1269,66 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/order/create": {
+    "/api/v1/order/create": {
       "post": {
         "summary": "Create Order",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/order/buyer-orders": {
+    "/api/v1/order/buyer-orders": {
       "get": {
         "summary": "buyer-orders",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/order/seller-orders": {
+    "/api/v1/order/seller-orders": {
       "get": {
         "summary": "seller-orders",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/order/68aee69efa66e37d396e9192": {
+    "/api/v1/order/68aee69efa66e37d396e9192": {
       "put": {
         "summary": "seller order status update ",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1186,16 +1340,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/order/68aee69efa66e37d396e9192/process-step": {
+    "/api/v1/order/68aee69efa66e37d396e9192/process-step": {
       "patch": {
         "summary": "seller update process-step",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1206,27 +1359,32 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/invoices/68b94d6463be1c72cbdce142": {
+    "/api/v1/invoices/68b94d6463be1c72cbdce142": {
       "get": {
         "summary": "get invoice",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/invoices": {
+    "/api/v1/invoices": {
       "post": {
         "summary": "Create invoice",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1237,38 +1395,49 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/invoices/cron/run": {
+    "/api/v1/invoices/cron/run": {
       "post": {
         "summary": "invoices cron run",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/invoices/68b94d6463be1c72cbdce142/statement": {
+    "/api/v1/invoices/68b94d6463be1c72cbdce142/statement": {
       "get": {
         "summary": "invoices statement by id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/invoices/68b94d6463be1c72cbdce142/pay": {
+    "/api/v1/invoices/68b94d6463be1c72cbdce142/pay": {
       "post": {
         "summary": "Payment ",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1280,16 +1449,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/company/feed": {
+    "/api/v1/company/feed": {
       "post": {
         "summary": "Create Company Feed",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1302,34 +1470,45 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "get": {
         "summary": "Get All Company Feed",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/company/feed/68b69eb36cb197f022aab699": {
+    "/api/v1/company/feed/68b69eb36cb197f022aab699": {
       "get": {
         "summary": "Get Company Feed by Id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "put": {
         "summary": "Update Company Feed by Id ",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1342,38 +1521,49 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/company/feed/68b69eb36cb197f022aab699/like": {
+    "/api/v1/company/feed/68b69eb36cb197f022aab699/like": {
       "put": {
         "summary": "Likes company feeds by id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/company/feed/68b69eb36cb197f022aab699/unlike": {
+    "/api/v1/company/feed/68b69eb36cb197f022aab699/unlike": {
       "put": {
         "summary": "unlike company feed by id ",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/company/feed/68b69eb36cb197f022aab699/comment": {
+    "/api/v1/company/feed/68b69eb36cb197f022aab699/comment": {
       "post": {
         "summary": "add comment company feed by id ",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1384,14 +1574,13 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       },
       "put": {
         "summary": "update comment company feed by id",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1403,16 +1592,15 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/company/feed/68b69d689f357261138b96a4/comment": {
+    "/api/v1/company/feed/68b69d689f357261138b96a4/comment": {
       "delete": {
         "summary": "Delete comment company feed by id",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1423,27 +1611,32 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/company/feed/68b69d689f357261138b96a4/delete": {
+    "/api/v1/company/feed/68b69d689f357261138b96a4/delete": {
       "delete": {
         "summary": "delete company feed by id ",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/brands/create": {
+    "/api/v1/brands/create": {
       "post": {
         "summary": "Create brands",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
@@ -1454,102 +1647,82 @@
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/brands/all": {
+    "/api/v1/brands/all": {
       "get": {
         "summary": "Get All Brands",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/brands/delete/68c7d67419d9531077ec6685": {
+    "/api/v1/brands/delete/68c7d67419d9531077ec6685": {
       "delete": {
         "summary": "delete brands by id",
-        "requestBody": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products/update-buyer-category-visibility": {
-      "put": {
-        "summary": "update-buyer-category-visibility",
+    "/api/v1/auth/update-mode/6882429b34bac99940adf0ff": {
+      "patch": {
+        "summary": "update-mode",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
-                "buyerCategory": "68d3f98de1d4c6807f3cb5b6",
-                "visible": false,
-                "productId": "68df73ee8964d6427c4fc4ad"
+                "mode": "seller"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }
     },
-    "/seller-products/get/buyer/products": {
-      "get": {
-        "summary": "get/buyer/products",
-        "requestBody": {},
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      }
-    },
-    "/seller-products/get/68dba55a939aa9e4b1f0f1fb": {
-      "get": {
-        "summary": "product get by buyer category id",
-        "requestBody": {},
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      }
-    },
-    "/seller-products/68df7d736ffad6a0babbbc5c": {
-      "put": {
-        "summary": "update product by productId",
+    "/api/v1/contact/create": {
+      "post": {
+        "summary": "contact",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "example": {
-                "name": "iPhone 17 Pro Max ",
-                "image": "https://res.cloudinary.com/dnzuoib2c/image/upload/v1759477106/SallerProducts/xy3qwjp8gzarpggne6fn.png",
-                "mrp": 300000,
-                "stock": 199,
-                "description": "The iPhone 17 Pro Max features a large 6.9-inch Super Retina XDR display, the A19 Pro chip with a vapor chamber for advanced cooling and sustained performance, and an upgraded Pro camera system with 48MP rear cameras, including an improved telephoto lens. It has an aluminum unibody design, an Action button, and runs on iOS 26 with new Apple Intelligence features.",
-                "specifications": "iPhone 17 Pro Max (256GB, Deep Blue) \u00b7 \u20b9105900 \u00b7 - OR - \u00b7 \u20b93329/p.m \u00b7 MRP - \u20b9149900.00 (Get benefits up to 26000*) \u00b7 %Available Offers \u00b7 Terms & Conditions;",
-                "category": "68dba61c939aa9e4b1f0f22b",
-                "user": "68dba4fd939aa9e4b1f0f1ed",
-                "buyerCategory": "68df8b97376df6d15cfca2f2",
-                "price": "2100"
+                "name": "Sanjeev Kumar",
+                "email": "sanjeev@example.com",
+                "phone": "9876543210",
+                "message": "I want to book a demo."
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Successful response"
           }
         }
       }

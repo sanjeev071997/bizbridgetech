@@ -8,9 +8,9 @@ import {
   getProductByUserId,
   getAllProducts,
   getBuyerProducts,
+  getProductsByBuyerCategoryId
   // getProductsByCategoryId,
   // getProductById,
-  getProductsByBuyerCategoryId
 } from "../controllers/sellerProductController.js";
 import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
 
