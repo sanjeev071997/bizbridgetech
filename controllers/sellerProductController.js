@@ -305,10 +305,35 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Function to get a product by ID for Seller own products
+// export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
+//   const user = req.user.id;
+//   try {
+//     const product = await Product.find({ user: user })
+//       .populate("category", "name gst")
+//       .populate("user", "name phone businessName")
+//       .populate({
+//         path: "productVisibility.buyerCategory",
+//         select: "name discount",
+//       })
+//       .sort({ createdAt: -1 });
+//     if (!product) {
+//       return next(new Errorhandler("Product not found", 404));
+//     }
+//     res.status(200).json({
+//       success: true,
+//       product,
+//     });
+//   } catch (error) {
+//     console.log("Detailed Error:", error);
+//     return next(new Errorhandler("Error fetching product", 500));
+//   }
+// });
+
 export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
   const user = req.user.id;
+
   try {
-    const product = await Product.find({ user: user })
+    const products = await Product.find({ user })
       .populate("category", "name gst")
       .populate("user", "name phone businessName")
       .populate({
@@ -316,12 +341,44 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
         select: "name discount",
       })
       .sort({ createdAt: -1 });
-    if (!product) {
+
+    if (!products || products.length === 0) {
       return next(new Errorhandler("Product not found", 404));
     }
+
+    // Iterate through each product
+    for (const product of products) {
+      let hasChanges = false; // flag to check if any price needs DB update
+
+      product.productVisibility = product.productVisibility.map((vis) => {
+        if (!vis.buyerCategory) return vis;
+
+        const discount = parseFloat(vis.buyerCategory.discount) || 0;
+        const mrp = product.mrp || 0;
+        const calculatedPrice = Math.round(mrp - (mrp * discount) / 100);
+
+        // If stored price is different, mark for update
+        if (vis.price !== calculatedPrice) {
+          vis.price = calculatedPrice;
+          hasChanges = true;
+        }
+
+        vis.appliedDiscount = discount;
+        return vis;
+      });
+
+      // Save product if any change happened
+      if (hasChanges) {
+        await Product.updateOne(
+          { _id: product._id },
+          { $set: { productVisibility: product.productVisibility } }
+        );
+      }
+    }
+
     res.status(200).json({
       success: true,
-      product,
+      product: products,
     });
   } catch (error) {
     console.log("Detailed Error:", error);
@@ -330,265 +387,21 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Function to get a products for Buyer view with discount & visibility logic
-// export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
-//   try {
-//     const buyerId = req.user._id;
-
-//     console.log("Fetching products for buyer:", buyerId);
-
-//     // Step 1: Buyer-Seller Connection
-//     const connection = await BuyerSellerConnection.findOne({
-//       buyer: buyerId,
-//       status: "Accepted",
-//     }).populate("buyerCategory", "name discount");
-
-//     console.log("Buyer-Seller Connection:", connection);
-
-//     if (!connection) {
-//       return res.status(200).json({
-//         success: true,
-//         products: [],
-//         message: "No accepted seller connection found for this buyer",
-//       });
-//     }
-
-//     const buyerCategoryId = connection.buyerCategory._id.toString();
-//     const discount = parseFloat(connection.buyerCategory.discount) || 0;
-//     const sellerId = connection.seller;
-
-//     // Step 2: Fetch seller's products (lightweight lean query)
-//     const products = await Product.find({
-//       user: sellerId,
-//       $or: [
-//         { productVisibility: { $exists: false } },
-//         { productVisibility: { $size: 0 } },
-//         {
-//           productVisibility: {
-//             $not: {
-//               $elemMatch: {
-//                 buyerCategory: buyerCategoryId,
-//                 visible: false,
-//               },
-//             },
-//           },
-//         },
-//       ],
-//     })
-//       .populate("category", "name gst")
-//       .populate("user", "name phone businessName")
-//       .sort({ createdAt: -1 })
-//       .lean(); // <---- no mongoose doc = faster + safer compare
-
-//     const bulkOps = [];
-
-//     for (const product of products) {
-//       const visArray = product.productVisibility || [];
-
-//       // convert buyerCategory to string for safe comparison
-//       const hasExisting = visArray.some((v) => {
-//         const catId =
-//           typeof v.buyerCategory === "object"
-//             ? v.buyerCategory._id?.toString()
-//             : v.buyerCategory?.toString();
-//         return catId === buyerCategoryId;
-//       });
-
-//       // skip if already exists
-//       if (hasExisting) continue;
-
-//       // calculate discount price only once
-//       const priceAfterDiscount =
-//         product.mrp - (product.mrp * discount) / 100;
-
-//       bulkOps.push({
-//         updateOne: {
-//           filter: { _id: product._id },
-//           update: {
-//             $push: {
-//               productVisibility: {
-//                 buyerCategory: buyerCategoryId,
-//                 visible: true,
-//                 price: priceAfterDiscount,
-//               },
-//             },
-//           },
-//         },
-//       });
-//     }
-
-//     // Step 3: bulk update only for missing ones
-//     if (bulkOps.length > 0) {
-//       await Product.bulkWrite(bulkOps);
-//     }
-
-//     // Step 4: Re-fetch products for correct visibility
-//     const updatedProducts = await Product.find({ user: sellerId })
-//       .populate("category", "name gst")
-//       .populate("user", "name phone businessName")
-//       .populate("productVisibility.buyerCategory", "name discount")
-//       .sort({ createdAt: -1 });
-
-//     // Step 5: Prepare final data
-//     const finalProducts = updatedProducts.map((product) => {
-//       const matchedVis = product.productVisibility.find((v) => {
-//         const catId =
-//           typeof v.buyerCategory === "object"
-//             ? v.buyerCategory._id?.toString()
-//             : v.buyerCategory?.toString();
-//         return catId === buyerCategoryId;
-//       });
-
-//       return {
-//         ...product._doc,
-//         appliedDiscount: discount,
-//         finalPrice: matchedVis?.price || product.mrp,
-//       };
-//     });
-
-//     res.status(200).json({
-//       success: true,
-//       products: finalProducts,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     return next(new Errorhandler("Error fetching buyer products", 500));
-//   }
-// });
-
-// export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
-//   try {
-//     const buyerId = req.user._id;
-
-//     console.log("Fetching products for buyer:", buyerId);
-
-//     // Step 1: Buyer-Seller Connection
-//     const connection = await BuyerSellerConnection.findOne({
-//       buyer: buyerId,
-//       status: "Accepted",
-//     }).populate("buyerCategory", "name discount");
-
-//     console.log("Buyer-Seller Connection:", connection);
-
-//     if (!connection) {
-//       return res.status(200).json({
-//         success: true,
-//         products: [],
-//         message: "No accepted seller connection found for this buyer",
-//       });
-//     }
-
-//     const buyerCategoryId = connection.buyerCategory._id.toString();
-//     const discount = parseFloat(connection.buyerCategory.discount) || 0;
-//     const sellerId = connection.seller;
-
-//     // Step 2: Fetch seller's products
-//     const products = await Product.find({
-//       user: sellerId,
-//     })
-//       .populate("category", "name gst")
-//       .populate("user", "name phone businessName")
-//       .populate("productVisibility.buyerCategory", "name discount")
-//       .sort({ createdAt: -1 })
-//       .lean();
-
-//     const bulkOps = [];
-
-//     for (const product of products) {
-//       const visArray = product.productVisibility || [];
-
-//       // convert buyerCategory to string for safe comparison
-//       const hasExisting = visArray.some((v) => {
-//         const catId =
-//           typeof v.buyerCategory === "object"
-//             ? v.buyerCategory._id?.toString()
-//             : v.buyerCategory?.toString();
-//         return catId === buyerCategoryId;
-//       });
-
-//       // calculate discount price only once
-//       const priceAfterDiscount = product.mrp - (product.mrp * discount) / 100;
-
-//       // If no visibility record exists for this buyerCategory, add it
-//       if (!hasExisting) {
-//         bulkOps.push({
-//           updateOne: {
-//             filter: { _id: product._id },
-//             update: {
-//               $push: {
-//                 productVisibility: {
-//                   buyerCategory: buyerCategoryId,
-//                   visible: true,
-//                   price: priceAfterDiscount,
-//                 },
-//               },
-//             },
-//           },
-//         });
-//       }
-//     }
-
-//     // Step 3: Bulk update missing visibility entries
-//     if (bulkOps.length > 0) {
-//       await Product.bulkWrite(bulkOps);
-//     }
-
-//     // Step 4: Re-fetch products for correct visibility
-//     const updatedProducts = await Product.find({ user: sellerId })
-//       .populate("category", "name gst")
-//       .populate("user", "name phone businessName")
-//       .populate("productVisibility.buyerCategory", "name discount")
-//       .sort({ createdAt: -1 });
-
-//     // Step 5: Filter products for this buyer
-//     const finalProducts = updatedProducts
-//       .map((product) => {
-//         const matchedVis = product.productVisibility.find((v) => {
-//           const catId =
-//             typeof v.buyerCategory === "object"
-//               ? v.buyerCategory._id?.toString()
-//               : v.buyerCategory?.toString();
-//           return catId === buyerCategoryId;
-//         });
-
-//         // If visibility exists and is false, skip product
-//         if (!matchedVis || matchedVis.visible === false) return null;
-
-//         return {
-//           ...product._doc,
-//           appliedDiscount: discount,
-//           finalPrice: matchedVis.price || product.mrp,
-//         };
-//       })
-//       .filter(Boolean); // remove nulls
-
-//     res.status(200).json({
-//       success: true,
-//       products: finalProducts,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     return next(new Errorhandler("Error fetching buyer products", 500));
-//   }
-// });
-
 export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
   try {
     const userId = req.user._id;
     const mode = req.user.mode; // "buyer" or "seller"
 
-    
     console.log("Fetching products for user:", userId, "mode:", mode);
 
     let connections;
 
     if (mode === "buyer") {
-      // Step 1: Find accepted connection for buyer
       connections = await BuyerSellerConnection.find({
         buyer: userId,
         status: "Accepted",
       }).populate("buyerCategory", "name discount");
     } else if (mode === "seller") {
-      // Step 1: Find accepted connections for seller
       connections = await BuyerSellerConnection.find({
         seller: userId,
         status: "Accepted",
@@ -608,7 +421,7 @@ export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
       });
     }
 
-    // Step 2: Collect relevant buyerCategory ids and seller ids
+    // Step 2: Prepare category–seller–discount mapping
     const filterPairs = connections.map((conn) => ({
       buyerCategoryId: conn.buyerCategory._id.toString(),
       discount: parseFloat(conn.buyerCategory.discount) || 0,
@@ -616,7 +429,7 @@ export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
       buyerId: conn.buyer.toString(),
     }));
 
-    // Step 3: Fetch products for all relevant sellers
+    // Step 3: Fetch products for all connected sellers
     const products = await Product.find({
       user: { $in: filterPairs.map((p) => p.sellerId) },
       productVisibility: { $exists: true, $ne: [] },
@@ -627,20 +440,13 @@ export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Step 4: Filter products based on buyer/seller
     const finalProducts = [];
 
+    // Step 4: Filter each product based on connection buyerCategory
     for (const product of products) {
       for (const pair of filterPairs) {
-        // const matchedVis = product.productVisibility.find((v) => {
-        //   const catId =
-        //     typeof v.buyerCategory === "object"
-        //       ? v.buyerCategory._id?.toString()
-        //       : v.buyerCategory?.toString();
-        //   return catId === pair.buyerCategoryId && v.visible === true;
-        // });
         const matchedVis = product.productVisibility.find((v) => {
-          if (!v.buyerCategory) return false; // prevent null crash
+          if (!v.buyerCategory) return false;
           const catId =
             typeof v.buyerCategory === "object"
               ? v.buyerCategory._id?.toString()
@@ -648,26 +454,29 @@ export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
           return catId === pair.buyerCategoryId && v.visible === true;
         });
 
-        // Buyer mode: show only if connection buyer matches and seller matches product.user
         if (
           mode === "buyer" &&
           product.user._id.toString() === pair.sellerId &&
           matchedVis
         ) {
+          // Only include the matched buyerCategory visibility
+          const filteredVisibility = [matchedVis];
+
           finalProducts.push({
             ...product,
+            productVisibility: filteredVisibility,
             appliedDiscount: pair.discount,
             finalPrice: matchedVis.price || product.mrp,
           });
-          break; // no need to check other pairs
+          break;
         }
 
-        // Seller mode: show only products of this seller visible to connected buyers
         if (
           mode === "seller" &&
           product.user._id.toString() === userId.toString() &&
           matchedVis
         ) {
+          // Seller mode → can see all buyer visibilities (unchanged)
           finalProducts.push({
             ...product,
             appliedDiscount: pair.discount,
@@ -695,6 +504,247 @@ export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler("Error fetching products", 500));
   }
 });
+
+
+// export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     const userId = req.user._id;
+//     const mode = req.user.mode; // "buyer" or "seller"
+
+//     console.log("Fetching products for user:", userId, "mode:", mode);
+
+//     let connections;
+
+//     if (mode === "buyer") {
+//       connections = await BuyerSellerConnection.find({
+//         buyer: userId,
+//         status: "Accepted",
+//       }).populate("buyerCategory", "name discount");
+//     } else if (mode === "seller") {
+//       connections = await BuyerSellerConnection.find({
+//         seller: userId,
+//         status: "Accepted",
+//       }).populate("buyerCategory", "name discount");
+//     } else {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid user mode",
+//       });
+//     }
+
+//     if (!connections || connections.length === 0) {
+//       return res.status(200).json({
+//         success: true,
+//         products: [],
+//         message: "No accepted connections found for this user",
+//       });
+//     }
+
+//     // Step 2: Prepare buyerCategory–seller mapping with discount
+//     const filterPairs = connections.map((conn) => ({
+//       buyerCategoryId: conn.buyerCategory?._id?.toString(),
+//       discount: parseFloat(conn.buyerCategory?.discount) || 0,
+//       sellerId: conn.seller.toString(),
+//       buyerId: conn.buyer.toString(),
+//     }));
+
+//     // Step 3: Fetch products from all connected sellers
+//     const products = await Product.find({
+//       user: { $in: filterPairs.map((p) => p.sellerId) },
+//       productVisibility: { $exists: true, $ne: [] },
+//     })
+//       .populate("category", "name gst")
+//       .populate("user", "name phone businessName")
+//       .populate("productVisibility.buyerCategory", "name discount")
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     const finalProducts = [];
+
+//     // Step 4: Apply discounts dynamically
+//     for (const product of products) {
+//       for (const pair of filterPairs) {
+//         const matchedVis = product.productVisibility.find((v) => {
+//           if (!v.buyerCategory) return false;
+//           const catId =
+//             typeof v.buyerCategory === "object"
+//               ? v.buyerCategory._id?.toString()
+//               : v.buyerCategory?.toString();
+//           return catId === pair.buyerCategoryId && v.visible === true;
+//         });
+
+//         if (!matchedVis) continue;
+
+//         // --- Dynamic discount recalculation ---
+//         const mrp = product.mrp;
+//         const appliedDiscount = pair.discount;
+//         const calculatedPrice = Math.round(
+//           mrp - (mrp * appliedDiscount) / 100
+//         );
+
+//         // Update productVisibility price if outdated (not DB update, just response)
+//         if (matchedVis.price !== calculatedPrice) {
+//           matchedVis.price = calculatedPrice;
+//         }
+
+//         // Push filtered result
+//         if (
+//           (mode === "buyer" && product.user._id.toString() === pair.sellerId) ||
+//           (mode === "seller" && product.user._id.toString() === userId.toString())
+//         ) {
+//           finalProducts.push({
+//             ...product,
+//             productVisibility: [matchedVis],
+//             appliedDiscount,
+//             finalPrice: calculatedPrice,
+//           });
+//           break;
+//         }
+//       }
+//     }
+
+//     if (finalProducts.length === 0) {
+//       return res.status(200).json({
+//         success: true,
+//         products: [],
+//         message: "No products available for your category at the moment",
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       products: finalProducts,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return next(new Errorhandler("Error fetching products", 500));
+//   }
+// });
+
+
+// export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     const userId = req.user._id;
+//     const mode = req.user.mode; // "buyer" or "seller"
+    
+//     console.log("Fetching products for user:", userId, "mode:", mode);
+
+//     let connections;
+
+//     if (mode === "buyer") {
+//       // Step 1: Find accepted connection for buyer
+//       connections = await BuyerSellerConnection.find({
+//         buyer: userId,
+//         status: "Accepted",
+//       }).populate("buyerCategory", "name discount");
+//     } else if (mode === "seller") {
+//       // Step 1: Find accepted connections for seller
+//       connections = await BuyerSellerConnection.find({
+//         seller: userId,
+//         status: "Accepted",
+//       }).populate("buyerCategory", "name discount");
+//     } else {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid user mode",
+//       });
+//     }
+
+//     if (!connections || connections.length === 0) {
+//       return res.status(200).json({
+//         success: true,
+//         products: [],
+//         message: "No accepted connections found for this user",
+//       });
+//     }
+
+//     // Step 2: Collect relevant buyerCategory ids and seller ids
+//     const filterPairs = connections.map((conn) => ({
+//       buyerCategoryId: conn.buyerCategory._id.toString(),
+//       discount: parseFloat(conn.buyerCategory.discount) || 0,
+//       sellerId: conn.seller.toString(),
+//       buyerId: conn.buyer.toString(),
+//     }));
+
+//     // Step 3: Fetch products for all relevant sellers
+//     const products = await Product.find({
+//       user: { $in: filterPairs.map((p) => p.sellerId) },
+//       productVisibility: { $exists: true, $ne: [] },
+//     })
+//       .populate("category", "name gst")
+//       .populate("user", "name phone businessName")
+//       .populate("productVisibility.buyerCategory", "name discount")
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     // Step 4: Filter products based on buyer/seller
+//     const finalProducts = [];
+
+//     for (const product of products) {
+//       for (const pair of filterPairs) {
+//         // const matchedVis = product.productVisibility.find((v) => {
+//         //   const catId =
+//         //     typeof v.buyerCategory === "object"
+//         //       ? v.buyerCategory._id?.toString()
+//         //       : v.buyerCategory?.toString();
+//         //   return catId === pair.buyerCategoryId && v.visible === true;
+//         // });
+//         const matchedVis = product.productVisibility.find((v) => {
+//           if (!v.buyerCategory) return false; // prevent null crash
+//           const catId =
+//             typeof v.buyerCategory === "object"
+//               ? v.buyerCategory._id?.toString()
+//               : v.buyerCategory?.toString();
+//           return catId === pair.buyerCategoryId && v.visible === true;
+//         });
+
+//         // Buyer mode: show only if connection buyer matches and seller matches product.user
+//         if (
+//           mode === "buyer" &&
+//           product.user._id.toString() === pair.sellerId &&
+//           matchedVis
+//         ) {
+//           finalProducts.push({
+//             ...product,
+//             appliedDiscount: pair.discount,
+//             finalPrice: matchedVis.price || product.mrp,
+//           });
+//           break; // no need to check other pairs
+//         }
+
+//         // Seller mode: show only products of this seller visible to connected buyers
+//         if (
+//           mode === "seller" &&
+//           product.user._id.toString() === userId.toString() &&
+//           matchedVis
+//         ) {
+//           finalProducts.push({
+//             ...product,
+//             appliedDiscount: pair.discount,
+//             finalPrice: matchedVis.price || product.mrp,
+//           });
+//           break;
+//         }
+//       }
+//     }
+
+//     if (finalProducts.length === 0) {
+//       return res.status(200).json({
+//         success: true,
+//         products: [],
+//         message: "No products available for your category at the moment",
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       products: finalProducts,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return next(new Errorhandler("Error fetching products", 500));
+//   }
+// });
 
 // Function to get all products Admin view
 export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
