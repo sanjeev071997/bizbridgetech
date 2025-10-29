@@ -44,7 +44,7 @@ const router = express.Router();
 router.post("/add", isAuthenticatedUser, addCart);
 router.put("/update", isAuthenticatedUser, updateCart);
 router.put("/payment", isAuthenticatedUser, paymentOptionUpdate);
-router.get("/:userId", isAuthenticatedUser, getCart);
+router.post("/get", isAuthenticatedUser, getCart);
 router.delete("/remove", isAuthenticatedUser, removeItemFromCart);
 router.delete("/clear", isAuthenticatedUser, clearCart);
 

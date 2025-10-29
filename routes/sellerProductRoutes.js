@@ -8,7 +8,8 @@ import {
   getProductByUserId,
   getAllProducts,
   getBuyerProducts,
-  getProductsByBuyerCategoryId
+  getProductsByBuyerCategoryId,
+  getProductsByConnection,
   // getProductsByCategoryId,
   // getProductById,
 } from "../controllers/sellerProductController.js";
@@ -32,7 +33,9 @@ router.get("/get/user/product", isAuthenticatedUser, getProductByUserId); //sell
 
 router.get("/get/buyer/products", isAuthenticatedUser, getBuyerProducts); // buyer dashboard me ye apis call hoge // buyer can see products assigned to them
 
-router.get("/get/:buyerCategory", isAuthenticatedUser, getProductsByBuyerCategoryId); // seller dashbaord me buyerCategory k onclick pr data is se aagye    // buyer can see products assigned to their category
+router.get("/get/:buyerCategory", isAuthenticatedUser, getProductsByBuyerCategoryId); // seller dashbaord me buyerCategory k onclick pr data is se aagye    // buyer can see products assigned to their category 
+
+router.post("/get/products-by-connection", isAuthenticatedUser, getProductsByConnection); // new route to get products by connection
 
 // Admin routes
 router.get("/", isAuthenticatedUser, isAdmin, getAllProducts);  // admin can see all products

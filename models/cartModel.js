@@ -40,6 +40,7 @@
 //       ref: "users",
 //       required: true,
 //     },
+//     seller: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 //     items: [cartItemSchema],
 //     paymentOption: {
 //       type: mongoose.Schema.Types.ObjectId,
@@ -63,33 +64,59 @@
 // );
 
 // // 🔹 Auto calculation function
+// // round helper
+// const round2 = (num) => Math.round(num * 100) / 100;
+
+// // 🔹 Auto calculation function
 // cartSchema.methods.calculateTotals = async function () {
 //   let subTotal = 0;
 
+//   // loop through items
 //   for (let item of this.items) {
-//     // step 1: discount on product MRP
-//     const discountPercent = 35; // TODO: agar product schema me ho to wahi le lo
-//     item.discountPrice = item.mrp - (item.mrp * discountPercent) / 100;
+//     // product populate karo (buyerCategory aur category ke liye)
+//     const product = await mongoose.model("SellerProduct")
+//       .findById(item.product)
+//       .populate("productVisibilitys.buyerCategory")
+//       .populate("category");
 
-//     // step 2: gst after discount
-//     const gstPercent = 18; // TODO: agar category wise ho to wahi le lo
+//     if (!product) continue;
+
+//     console.log("Calculating for product:", product);
+
+//     // Step 1: discount from buyerCategory (agar ho)
+//     const discountPercent = product.buyerCategory?.discount
+//       ? Number(product.buyerCategory.discount)
+//       : 0;
+
+//     item.discountPrice =
+//       item.mrp - (item.mrp * discountPercent) / 100;
+
+//     // Step 2: GST from category (agar ho)
+//     const gstPercent = product.category?.gst
+//       ? Number(product.category.gst.replace("%", ""))
+//       : 0;
+
 //     item.gstAmount = (item.discountPrice * gstPercent) / 100;
 
-//     // step 3: final price per quantity
-//     item.finalPrice = (item.discountPrice + item.gstAmount) * item.quantity;
+//     // Step 3: Final price
+//     item.finalPrice =
+//       (item.discountPrice + item.gstAmount) * item.quantity;
 
 //     subTotal += item.finalPrice;
 //   }
 
 //   this.subTotal = subTotal;
 
-//   // step 4: check payment option (flexible for Cash or Both)
+//   // Step 4: Payment option discount (agar ho)
 //   let paymentDiscount = 0;
 //   if (this.paymentOption) {
-//     const option = await mongoose.model("PaymentOption").findById(this.paymentOption);
+//     const option = await mongoose
+//       .model("PaymentOption")
+//       .findById(this.paymentOption);
 
 //     if (option?.cashPayment?.discountPercent) {
-//       paymentDiscount = (subTotal * option.cashPayment.discountPercent) / 100;
+//       paymentDiscount =
+//         (subTotal * option.cashPayment.discountPercent) / 100;
 //     }
 //   }
 
@@ -99,6 +126,7 @@
 
 // const Cart = mongoose.model("Cart", cartSchema);
 // export default Cart;
+
 
 import mongoose from "mongoose";
 
@@ -142,6 +170,11 @@ const cartSchema = new mongoose.Schema(
       ref: "users",
       required: true,
     },
+    seller: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
     items: [cartItemSchema],
     paymentOption: {
       type: mongoose.Schema.Types.ObjectId,
@@ -164,64 +197,69 @@ const cartSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// 🔹 Auto calculation function
-// round helper
+// Helper to round numbers properly
 const round2 = (num) => Math.round(num * 100) / 100;
 
 // 🔹 Auto calculation function
 cartSchema.methods.calculateTotals = async function () {
   let subTotal = 0;
 
-  // loop through items
   for (let item of this.items) {
-    // product populate karo (buyerCategory aur category ke liye)
-    const product = await mongoose.model("SellerProduct")
+    // ✅ Correct populate field
+    const product = await mongoose
+      .model("SellerProduct")
       .findById(item.product)
-      .populate("buyerCategory")
+      .populate("productVisibility.buyerCategory") // ✅ FIXED HERE
       .populate("category");
 
     if (!product) continue;
 
-    // Step 1: discount from buyerCategory (agar ho)
-    const discountPercent = product.buyerCategory?.discount
-      ? Number(product.buyerCategory.discount)
-      : 0;
+    console.log("Calculating for product:", product.name);
 
-    item.discountPrice =
-      item.mrp - (item.mrp * discountPercent) / 100;
+    // ✅ Step 1: Find applicable buyerCategory-based price (if visible)
+    // Assuming one visibility entry per buyer category
+    let visibilityEntry = product.productVisibility?.find(
+      (v) => v.visible === true
+    );
 
-    // Step 2: GST from category (agar ho)
+    // Step 1: Determine base price
+    let priceAfterDiscount = visibilityEntry?.price || item.mrp;
+
+    item.discountPrice = round2(priceAfterDiscount);
+
+    // Step 2: GST from category (if exists)
     const gstPercent = product.category?.gst
       ? Number(product.category.gst.replace("%", ""))
       : 0;
 
-    item.gstAmount = (item.discountPrice * gstPercent) / 100;
+    item.gstAmount = round2((item.discountPrice * gstPercent) / 100);
 
-    // Step 3: Final price
-    item.finalPrice =
-      (item.discountPrice + item.gstAmount) * item.quantity;
+    // Step 3: Final price = (discounted + gst) * quantity
+    item.finalPrice = round2(
+      (item.discountPrice + item.gstAmount) * item.quantity
+    );
 
     subTotal += item.finalPrice;
   }
 
-  this.subTotal = subTotal;
+  this.subTotal = round2(subTotal);
 
-  // Step 4: Payment option discount (agar ho)
+  // ✅ Step 4: Apply payment option discount (if exists)
   let paymentDiscount = 0;
   if (this.paymentOption) {
-    const option = await mongoose
-      .model("PaymentOption")
-      .findById(this.paymentOption);
+    const option = await mongoose.model("PaymentOption").findById(this.paymentOption);
 
     if (option?.cashPayment?.discountPercent) {
-      paymentDiscount =
-        (subTotal * option.cashPayment.discountPercent) / 100;
+      paymentDiscount = round2(
+        (subTotal * option.cashPayment.discountPercent) / 100
+      );
     }
   }
 
-  this.discountFromPayment = paymentDiscount;
-  this.total = subTotal - paymentDiscount;
+  this.discountFromPayment = round2(paymentDiscount);
+  this.total = round2(subTotal - paymentDiscount);
 };
 
 const Cart = mongoose.model("Cart", cartSchema);
 export default Cart;
+

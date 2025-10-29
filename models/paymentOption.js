@@ -18,6 +18,12 @@ const paymentOptionSchema = new mongoose.Schema(
       discountPercent: { type: Number, min: 0, max: 100 },
     },
 
+    buyerCategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BuyerCategory",
+      required: true,
+    },
+
     creditPayment: {
       creditPeriodDays: { type: Number, min: 0 }, // e.g. 30
       interestRatePerYear: { type: Number, min: 0 }, // e.g. 2 (%)

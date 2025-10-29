@@ -82,6 +82,8 @@ export const updateProductCategoryAndVisibility = catchAsyncErrors(
   async (req, res, next) => {
     const { buyerCategory, visible, productId } = req.body;
 
+    console.log(buyerCategory, visible, productId, "buyerCategory, visible, productId")
+
     try {
       const product = await Product.findById(productId);
       if (!product) {
@@ -106,9 +108,14 @@ export const updateProductCategoryAndVisibility = catchAsyncErrors(
       }
 
       // check if this buyerCategory already exists in productVisibility
+      // const existingVisibility = product.productVisibility.find(
+      //   (v) => v.buyerCategory.toString() === buyerCategory.toString()
+      // );
+
       const existingVisibility = product.productVisibility.find(
-        (v) => v.buyerCategory.toString() === buyerCategory.toString()
-      );
+  (v) => v.buyerCategory && v.buyerCategory.toString() === buyerCategory.toString()
+);
+
 
       if (existingVisibility) {
         existingVisibility.visible = visible; // update
@@ -435,7 +442,7 @@ export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
       productVisibility: { $exists: true, $ne: [] },
     })
       .populate("category", "name gst")
-      .populate("user", "name phone businessName")
+      .populate("user", "name phone email businessName businessAddress")
       .populate("productVisibility.buyerCategory", "name discount")
       .sort({ createdAt: -1 })
       .lean();
@@ -504,6 +511,262 @@ export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler("Error fetching products", 500));
   }
 });
+
+// Get Buyer Category Products
+export const getProductsByBuyerCategoryId = catchAsyncErrors(
+  async (req, res, next) => {
+    const { buyerCategory } = req.params;
+    const loginUserId = req.user?._id;
+
+    if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
+      return next(new Errorhandler("Invalid buyer category ID", 400));
+    }
+
+    try {
+      const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
+      if (!buyerCategoryDoc) {
+        return next(new Errorhandler("Buyer category not found", 404));
+      }
+
+      const discount = parseFloat(buyerCategoryDoc.discount) || 0;
+      const buyerCatOid = new mongoose.Types.ObjectId(buyerCategory);
+
+      // Fetch products (lean for faster read)
+      const products = await Product.find({ user: loginUserId })
+        .select("_id mrp name image productVisibility category")
+        .lean(); // plain objects - faster
+
+      if (!products.length) {
+        return next(new Errorhandler("No products found", 404));
+      }
+
+      const bulkOps = [];
+
+      // Prepare bulk operations: push only if buyerCategory not present (atomic)
+      for (const p of products) {
+        const vis = p.productVisibility || [];
+
+        const exists = vis.some((v) => {
+          // v.buyerCategory could be ObjectId or populated object — normalize to string
+          const catId =
+            v && v.buyerCategory
+              ? v.buyerCategory._id
+                ? v.buyerCategory._id.toString()
+                : v.buyerCategory.toString()
+              : null;
+          return catId === buyerCategory;
+        });
+
+        if (!exists) {
+          const priceAfterDiscount =
+            discount > 0 ? p.mrp - (p.mrp * discount) / 100 : p.mrp;
+
+          bulkOps.push({
+            updateOne: {
+              // atomic condition: only push when no existing buyerCategory
+              filter: {
+                _id: p._id,
+                "productVisibility.buyerCategory": { $ne: buyerCatOid },
+              },
+              update: {
+                $push: {
+                  productVisibility: {
+                    buyerCategory: buyerCatOid,
+                    visible: true,
+                    price: priceAfterDiscount,
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+
+      // Execute bulk writes (only when needed)
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
+      }
+
+      // Re-fetch products (populated) to return actual DB values
+      const updatedProducts = await Product.find({ user: loginUserId })
+        .populate("productVisibility.buyerCategory", "name discount")
+        .populate("category", "name gst")
+        .sort({ createdAt: -1 });
+
+      const filteredProducts = updatedProducts.map((product) => {
+        const matched = product.productVisibility.find((v) => {
+          const catId =
+            v.buyerCategory && v.buyerCategory._id
+              ? v.buyerCategory._id.toString()
+              : v.buyerCategory?.toString?.();
+          return catId === buyerCategory;
+        });
+
+        return {
+          _id: product._id,
+          name: product.name,
+          mrp: product.mrp,
+          image: product.image,
+          category: product.category,
+          buyerCategory: matched
+            ? {
+                id: matched.buyerCategory._id,
+                name: matched.buyerCategory.name,
+                discount: matched.buyerCategory.discount,
+                price: matched.price,
+              }
+            : {
+                id: buyerCategoryDoc._id,
+                name: buyerCategoryDoc.name,
+                discount: buyerCategoryDoc.discount,
+                price: product.mrp,
+              },
+        };
+      });
+
+      return res
+        .status(200)
+        .json({ success: true, products: filteredProducts });
+    } catch (error) {
+      console.error("Detailed Error:", error);
+      return next(
+        new Errorhandler("Error fetching products by buyer category", 500)
+      );
+    }
+  }
+);
+
+// Get Products by Connection (new function)
+// export const getProductsByConnection = async (req, res, next) => {
+//   try {
+//     const { connectionId, otherUserId } = req.body;
+
+//     // 1️⃣ Validate input
+//     if (!connectionId || !otherUserId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "connectionId and otherUserId are required",
+//       });
+//     }
+
+//     // 2️⃣ Find connection
+//     const connection = await BuyerSellerConnection.findById({_id: connectionId});
+//     if (!connection) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Connection not found",
+//       });
+//     }
+
+//     // 3️⃣ Check if status is Accepted
+//     if (connection.status !== "Accepted") {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Connection is not accepted yet",
+//       });
+//     }
+
+//     // Extract buyerCategory
+//     const buyerCategory = connection.buyerCategory;
+
+//     // 4️⃣ Find seller's products
+//     const products = await Product.find({ user: otherUserId });
+
+//     console.log("Fetched products:", products.length);
+
+//     // 5️⃣ Filter by product visibility
+//     const filteredProducts = products.filter((product) => {
+//       // visible must be true
+//       if (!product.visible) return false;
+
+//       // check if productVisibility array has matching buyerCategory & visible true
+//       const match = product.productVisibility?.some(
+//         (pv) => pv.buyerCategory === buyerCategory && pv.visible === true
+//       );
+
+//       return match;
+//     });
+
+//     // 6️⃣ Return filtered products
+//     return res.status(200).json({
+//       success: true,
+//       message: "Products fetched successfully",
+//       buyerCategory,
+//       totalProducts: filteredProducts.length,
+//       data: filteredProducts,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching products by connection:", error);
+//     return next(new Errorhandler("Error fetching products", 500));
+//   }
+// };
+
+export const getProductsByConnection = async (req, res, next) => {
+  try {
+    const { connectionId, otherUserId } = req.body;
+
+    if (!connectionId || !otherUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "connectionId and otherUserId are required",
+      });
+    }
+
+    const connection = await BuyerSellerConnection.findById(connectionId);
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Connection not found",
+      });
+    }
+
+    if (connection.status !== "Accepted") {
+      return res.status(403).json({
+        success: false,
+        message: "Connection is not accepted yet",
+      });
+    }
+
+    const buyerCategory = connection.buyerCategory;
+
+    // Get seller products
+    const products = await Product.find({ user: otherUserId }).populate(
+      "user",
+      "name phone email businessName businessAddress"
+    ).sort({ createdAt: -1 });
+
+    // Filter products by matching buyerCategory in productVisibility
+    const filteredProducts = products
+      .map((product) => {
+        const matchingVisibility = product.productVisibility?.find(
+          (pv) => pv.buyerCategory.toString() === buyerCategory.toString() && pv.visible === true
+        );
+
+        if (!matchingVisibility) return null;
+
+        // return product but only include the matching productVisibility entry
+        return {
+          ...product.toObject(),
+          productVisibility: [matchingVisibility],
+          price: matchingVisibility.price, // optional: override product-level price
+        };
+      })
+      .filter(Boolean); // remove nulls
+
+    return res.status(200).json({
+      success: true,
+      message: "Products fetched successfully",
+      buyerCategory,
+      totalProducts: filteredProducts.length,
+      data: filteredProducts,
+    });
+  } catch (error) {
+    console.error("Error fetching products by connection:", error);
+    return next(new Errorhandler("Error fetching products", 500));
+  }
+};
+
+
 
 
 // export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
@@ -783,130 +1046,6 @@ export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler("Error fetching products", 500));
   }
 });
-
-// Get Buyer Category Products
-export const getProductsByBuyerCategoryId = catchAsyncErrors(
-  async (req, res, next) => {
-    const { buyerCategory } = req.params;
-    const loginUserId = req.user?._id;
-
-    if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
-      return next(new Errorhandler("Invalid buyer category ID", 400));
-    }
-
-    try {
-      const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
-      if (!buyerCategoryDoc) {
-        return next(new Errorhandler("Buyer category not found", 404));
-      }
-
-      const discount = parseFloat(buyerCategoryDoc.discount) || 0;
-      const buyerCatOid = new mongoose.Types.ObjectId(buyerCategory);
-
-      // Fetch products (lean for faster read)
-      const products = await Product.find({ user: loginUserId })
-        .select("_id mrp name image productVisibility category")
-        .lean(); // plain objects - faster
-
-      if (!products.length) {
-        return next(new Errorhandler("No products found", 404));
-      }
-
-      const bulkOps = [];
-
-      // Prepare bulk operations: push only if buyerCategory not present (atomic)
-      for (const p of products) {
-        const vis = p.productVisibility || [];
-
-        const exists = vis.some((v) => {
-          // v.buyerCategory could be ObjectId or populated object — normalize to string
-          const catId =
-            v && v.buyerCategory
-              ? v.buyerCategory._id
-                ? v.buyerCategory._id.toString()
-                : v.buyerCategory.toString()
-              : null;
-          return catId === buyerCategory;
-        });
-
-        if (!exists) {
-          const priceAfterDiscount =
-            discount > 0 ? p.mrp - (p.mrp * discount) / 100 : p.mrp;
-
-          bulkOps.push({
-            updateOne: {
-              // atomic condition: only push when no existing buyerCategory
-              filter: {
-                _id: p._id,
-                "productVisibility.buyerCategory": { $ne: buyerCatOid },
-              },
-              update: {
-                $push: {
-                  productVisibility: {
-                    buyerCategory: buyerCatOid,
-                    visible: true,
-                    price: priceAfterDiscount,
-                  },
-                },
-              },
-            },
-          });
-        }
-      }
-
-      // Execute bulk writes (only when needed)
-      if (bulkOps.length > 0) {
-        await Product.bulkWrite(bulkOps);
-      }
-
-      // Re-fetch products (populated) to return actual DB values
-      const updatedProducts = await Product.find({ user: loginUserId })
-        .populate("productVisibility.buyerCategory", "name discount")
-        .populate("category", "name gst")
-        .sort({ createdAt: -1 });
-
-      const filteredProducts = updatedProducts.map((product) => {
-        const matched = product.productVisibility.find((v) => {
-          const catId =
-            v.buyerCategory && v.buyerCategory._id
-              ? v.buyerCategory._id.toString()
-              : v.buyerCategory?.toString?.();
-          return catId === buyerCategory;
-        });
-
-        return {
-          _id: product._id,
-          name: product.name,
-          mrp: product.mrp,
-          image: product.image,
-          category: product.category,
-          buyerCategory: matched
-            ? {
-                id: matched.buyerCategory._id,
-                name: matched.buyerCategory.name,
-                discount: matched.buyerCategory.discount,
-                price: matched.price,
-              }
-            : {
-                id: buyerCategoryDoc._id,
-                name: buyerCategoryDoc.name,
-                discount: buyerCategoryDoc.discount,
-                price: product.mrp,
-              },
-        };
-      });
-
-      return res
-        .status(200)
-        .json({ success: true, products: filteredProducts });
-    } catch (error) {
-      console.error("Detailed Error:", error);
-      return next(
-        new Errorhandler("Error fetching products by buyer category", 500)
-      );
-    }
-  }
-);
 
 // Function to get products by category ID
 // export const getProductsByCategoryId = catchAsyncErrors(
