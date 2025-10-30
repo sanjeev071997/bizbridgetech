@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/static/css/main.a02967b6.css",
-    "main.js": "/static/js/main.8752a927.js",
+    "main.js": "/static/js/main.d9e0e5a3.js",
     "static/media/christina-wocintechchat-com-Q80LYxv_Tbs-unsplash.jpg": "/static/media/christina-wocintechchat-com-Q80LYxv_Tbs-unsplash.2439ebaa0e4678f9bc1a.jpg",
     "static/media/logo.jpg": "/static/media/logo.18a86a0084b0e445ae2f.jpg",
     "static/media/slick.svg": "/static/media/slick.2630a3e3eab21c607e21.svg",
@@ -10,10 +10,10 @@
     "static/media/slick.woff": "/static/media/slick.295183786cd8a1389865.woff",
     "index.html": "/index.html",
     "main.a02967b6.css.map": "/static/css/main.a02967b6.css.map",
-    "main.8752a927.js.map": "/static/js/main.8752a927.js.map"
+    "main.d9e0e5a3.js.map": "/static/js/main.d9e0e5a3.js.map"
   },
   "entrypoints": [
     "static/css/main.a02967b6.css",
-    "static/js/main.8752a927.js"
+    "static/js/main.d9e0e5a3.js"
   ]
 }
