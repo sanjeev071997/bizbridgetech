@@ -8,7 +8,8 @@ export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
   const {
     paymentType,
     cashPayment,
-    creditPayment
+    creditPayment,
+    buyerCategory
   } = req.body;
 
   // Validation
@@ -21,6 +22,7 @@ export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
     paymentType,
     cashPayment,
     creditPayment,
+    buyerCategory,
     user: req.user._id 
   });
 
@@ -106,3 +108,22 @@ export const getPaymentOptionByUser = catchAsyncErrors(async (req, res, next) =>
         data: paymentOptions,
     });
 }); 
+
+// get payment option by buyer category
+export const getPaymentOptionBybuyer = catchAsyncErrors(async (req, res, next) => {
+    const { buyerCategory, seller } = req.body;
+    
+     // Validation
+  if (!buyerCategory || !seller) {
+    return next(new Errorhandler("Both buyerCategory and sellerId are required", 400));
+  }
+    // Find payment options for the given buyer category
+  const paymentOptions = await PaymentOption.find({ buyerCategory, user:seller }).populate("buyerCategory", "name discount").sort({ createdAt: -1 });
+    if (!paymentOptions || paymentOptions.length === 0) {
+        return next(new Errorhandler("No payment options found for this buyer category", 404));
+    }
+    res.status(200).json({
+        success: true,
+        data: paymentOptions,
+    });
+});

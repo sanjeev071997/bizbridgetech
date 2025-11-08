@@ -179,7 +179,7 @@ const cartSchema = new mongoose.Schema(
     paymentOption: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "PaymentOption",
-      required: true,
+      required: false,
     },
     subTotal: {
       type: Number,
@@ -209,12 +209,10 @@ cartSchema.methods.calculateTotals = async function () {
     const product = await mongoose
       .model("SellerProduct")
       .findById(item.product)
-      .populate("productVisibility.buyerCategory") // ✅ FIXED HERE
+      .populate("productVisibility.buyerCategory") 
       .populate("category");
 
     if (!product) continue;
-
-    console.log("Calculating for product:", product.name);
 
     // ✅ Step 1: Find applicable buyerCategory-based price (if visible)
     // Assuming one visibility entry per buyer category

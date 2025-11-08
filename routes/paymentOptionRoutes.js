@@ -5,7 +5,8 @@ import {
   getPaymentOptionById,
   updatePaymentOption,
   deletePaymentOption,
-  getPaymentOptionByUser
+  getPaymentOptionByUser,
+  getPaymentOptionBybuyer
 } from "../controllers/paymentOptionController.js";
 import { isAuthenticatedUser } from "../middlewares/authMiddleware.js";
 
@@ -22,5 +23,8 @@ router.put("/:id", isAuthenticatedUser, updatePaymentOption);
 router.delete("/:id",isAuthenticatedUser, deletePaymentOption);
 
 router.get("/user/:id", isAuthenticatedUser, getPaymentOptionByUser);
+
+router.post("/buyer", isAuthenticatedUser, getPaymentOptionBybuyer);
+
 
 export default router;

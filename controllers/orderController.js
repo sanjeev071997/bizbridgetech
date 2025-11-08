@@ -6,17 +6,186 @@ import ErrorHandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 
 // Create Order
+// export const createOrder = async (req, res) => {
+//   try {
+//     const cart = await Cart.findOne({ user: req.user.id })
+//       .populate("items.product")
+//       .populate("user");
+
+//     if (!cart) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Cart not found" });
+//     }
+
+//     // Default process flow
+//     const defaultSteps = [
+//       { step: "Enquiry Received", completed: true, completedAt: new Date() },
+//       { step: "Proforma Invoice" },
+//       { step: "Proforma Accepted" },
+//       { step: "Payment Received" },
+//       { step: "Invoice Uploaded" },
+//       { step: "Dispatch" },
+//       { step: "Delivered" },
+//     ];
+
+//     // Create order
+//     const newOrder = await Order.create({
+//       buyer: cart.user._id,
+//       items: cart.items.map((i) => ({
+//         product: i.product._id,
+//         name: i.product.name,
+//         image: i.product.image,
+//         price: i.product.price,
+//         mrp: i.mrp,
+//         quantity: i.quantity,
+//         discountPrice: i.discountPrice,
+//         gstAmount: i.gstAmount,
+//         finalPrice: i.finalPrice,
+//         // Save sellerId from product
+//         seller: i.product.user,
+//       })),
+//       subTotal: cart.subTotal,
+//       discountFromPayment: cart.discountFromPayment,
+//       total: cart.total,
+//       paymentOption: cart.paymentOption?._id,
+//       processFlow: defaultSteps,
+//     });
+
+//     const order = await Order.findById(newOrder._id)
+//       .populate("buyer", "name mode")
+//       .populate({
+//         path: "items.seller",
+//         select: "name mode",
+//       });
+//     // (Optional) Empty cart after order
+//     await Cart.findByIdAndDelete(cart._id);
+
+//     res.status(201).json({ success: true, message: "Order created", order });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ success: false, message: "Server Error" });
+//   }
+// };
+
+// export const createOrder = async (req, res) => {
+//   try {
+//     const { seller } = req.body;
+//     if (!seller) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Seller ID is required to create order",
+//       });
+//     }
+
+//     const cart = await Cart.findOne({ user: req.user.id, seller })
+//       .populate("items.product")
+//       .populate("user");
+
+//     if (!cart || !cart.items.length) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Cart not found or empty",
+//       });
+//     }
+
+//     console.log("Cart found:", cart);
+
+//     // 🧮 Calculate subTotal and total manually
+//     let subTotal = 0;
+//     let total = 0;
+
+//     cart.items.forEach((item) => {
+//       const basePrice = item?.product?.price || item?.mrp || 0;
+//       const gstPercent = item?.product?.category?.gst || 0;
+//       const gstAmount = (basePrice * gstPercent) / 100;
+//       const priceWithGst = basePrice + gstAmount;
+
+//       subTotal += basePrice * item.quantity;
+//       total += priceWithGst * item.quantity;
+//     });
+
+//     // Default process flow
+//     const defaultSteps = [
+//       { step: "Enquiry Received", completed: true, completedAt: new Date() },
+//       { step: "Proforma Invoice" },
+//       { step: "Proforma Accepted" },
+//       { step: "Payment Received" },
+//       { step: "Invoice Uploaded" },
+//       { step: "Dispatch" },
+//       { step: "Delivered" },
+//     ];
+
+//     // 🧾 Create order
+//     const newOrder = await Order.create({
+//       buyer: cart.user._id,
+//       items: cart.items.map((i) => ({
+//         product: i.product._id,
+//         name: i.product.name,
+//         image: i.product.image,
+//         price: i.product.price || i.mrp || 0,
+//         mrp: i.mrp,
+//         quantity: i.quantity,
+//         discountPrice: i.discountPrice,
+//         gstAmount: i.gstAmount,
+//         finalPrice: i.finalPrice,
+//         seller: i.product.user,
+//       })),
+//       subTotal,
+//       discountFromPayment: cart.discountFromPayment || 0,
+//       total,
+//       paymentOption: cart.paymentOption?._id,
+//       processFlow: defaultSteps,
+//     });
+
+//     const order = await Order.findById(newOrder._id)
+//       .populate("buyer", "name mode")
+//       .populate({
+//         path: "items.seller",
+//         select: "name mode",
+//       });
+
+//     // 🧹 Empty cart after order
+//     await Cart.findByIdAndDelete(cart._id);
+
+//     res.status(201).json({
+//       success: true,
+//       message: "Order created successfully",
+//       order,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//     });
+//   }
+// };
+
 export const createOrder = async (req, res) => {
   try {
-    const cart = await Cart.findOne({ user: req.user.id })
-      .populate("items.product")
-      .populate("user");
-
-    if (!cart) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Cart not found" });
+    const { seller } = req.body;
+    if (!seller) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller ID is required to create order",
+      });
     }
+
+    // 🛒 Find cart for this user & seller
+    const cart = await Cart.findOne({ user: req.user.id, seller })
+      .populate("items.product")
+      .populate("user")
+      .populate("paymentOption");
+
+    if (!cart || !cart.items.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Cart not found or empty",
+      });
+    }
+
+    console.log("🧾 Cart found:", cart);
 
     // Default process flow
     const defaultSteps = [
@@ -29,44 +198,55 @@ export const createOrder = async (req, res) => {
       { step: "Delivered" },
     ];
 
-    // Create order
+    // 🧾 Create order using existing cart data
     const newOrder = await Order.create({
       buyer: cart.user._id,
+      seller: cart.seller,
       items: cart.items.map((i) => ({
         product: i.product._id,
         name: i.product.name,
         image: i.product.image,
-        price: i.product.price,
+        price: i.product.price || i.mrp || 0,
         mrp: i.mrp,
         quantity: i.quantity,
         discountPrice: i.discountPrice,
         gstAmount: i.gstAmount,
         finalPrice: i.finalPrice,
-        // Save sellerId from product
         seller: i.product.user,
       })),
-      subTotal: cart.subTotal,
-      discountFromPayment: cart.discountFromPayment,
-      total: cart.total,
+      subTotal: cart.subTotal || 0,
+      discountFromPayment: cart.discountFromPayment || 0,
+      total: cart.total || 0,
       paymentOption: cart.paymentOption?._id,
       processFlow: defaultSteps,
     });
 
+    // Populate to send a cleaner response
     const order = await Order.findById(newOrder._id)
       .populate("buyer", "name mode")
       .populate({
         path: "items.seller",
         select: "name mode",
       });
-    // (Optional) Empty cart after order
+
+    // 🧹 Clear cart after order creation
     await Cart.findByIdAndDelete(cart._id);
 
-    res.status(201).json({ success: true, message: "Order created", order });
+    res.status(201).json({
+      success: true,
+      message: "Order created successfully",
+      order,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    console.error("❌ createOrder error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
   }
 };
+
+
 
 // Get Buyer Orders
 export const getBuyerOrders = catchAsyncErrors(async (req, res, next) => {

@@ -1,209 +1,37 @@
-// import Cart from "../models/cartModel.js";
-// import SellerProduct from "../models/sellerProductModel.js";
-// import Errorhandler from "../utils/Errorhandler.js";
-// import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
-
-// // Add item to cart
-// export const addCart = catchAsyncErrors(async (req, res, next) => {
-//     const { productId, quantity } = req.body;
-
-//     // Product validation
-//     const product = await SellerProduct.findById(productId);
-//     if (!product) {
-//         return next(new Errorhandler("Product not found", 404));
-//     }
-
-//     // Stock validation
-//     if (product.stock < quantity) {
-//         return next(new Errorhandler("Insufficient stock", 400));
-//     }
-
-//     // Find or create user cart
-//     let cart = await Cart.findOne({ user: req.user._id });
-
-//     if (!cart) {
-//         cart = new Cart({
-//             user: req.user._id,
-//             items: [],
-//             total: 0,
-//         });
-//     }
-
-//     // Check if product already exists in cart
-//     const existingItemIndex = cart.items.findIndex(
-//         item => item.product.toString() === productId
-//     );
-
-//     if (existingItemIndex > -1) {
-//         // Update quantity if product already exists
-//         cart.items[existingItemIndex].quantity += quantity;
-//     } else {
-//         // Add new item to cart
-//         cart.items.push({
-//             product: productId,
-//             quantity,
-//             price: product.price,
-//             name: product.name,
-//             image: product.image,
-//         });
-//     }
-
-//     await cart.save();
-//     await cart.populate("items.product", "name price image stock");
-
-//     res.status(200).json({
-//         success: true,
-//         cart,
-//     });
-// });
-
-// // Get user cart
-// export const getCart = catchAsyncErrors(async (req, res, next) => {
-//   const cart = await Cart.findOne({ user: req.user._id }).populate({
-//     path: "items.product",
-//     select: "mrp stock category buyerCategory user",
-//     populate: [
-//       {
-//         path: "category",   // product ka category
-//         select: "name gst",
-//       },
-//       {
-//         path: "user",       // product ka user (seller)
-//         select: "name mode",
-//       },
-//     //   {
-//     //     path: "buyerCategory",       // product ka buyerCategory
-//     //     select: "name discount",
-//     //   },
-//     ],
-//   }).populate("user", "name mode"); // Populate user details (buyer)
-
-//   if (!cart) {
-//     return res.status(200).json({
-//       success: true,
-//       cart: { items: [], total: 0 },
-//     });
-//   }
-
-//   res.status(200).json({
-//     success: true,
-//     cart,
-//   });
-// });
-
-// // Remove item from cart
-// export const removeCartItem = catchAsyncErrors(async (req, res, next) => {
-//     const { itemId } = req.params;
-
-//     const cart = await Cart.findOne({ user: req.user._id });
-
-//     if (!cart) {
-//         return next(new Errorhandler("Cart not found", 404));
-//     }
-
-//     // Check if item exists in cart
-//     const itemIndex = cart.items.findIndex(
-//         item => item._id.toString() === itemId
-//     );
-
-//     if (itemIndex === -1) {
-//         return next(new Errorhandler("Item not found in cart", 404));
-//     }
-
-//     // Remove item from cart
-//     cart.items.splice(itemIndex, 1);
-
-//     await cart.save();
-//     await cart.populate("items.product", "name price image stock");
-
-//     res.status(200).json({
-//         success: true,
-//         cart,
-//     });
-// });
-
-// // Update item quantity in cart
-// export const updateCartItem = catchAsyncErrors(async (req, res, next) => {
-//     const { itemId } = req.params;
-//     const { quantity } = req.body;
-
-//     if (quantity < 1) {
-//         return next(new Errorhandler("Quantity must be at least 1", 400));
-//     }
-
-//     const cart = await Cart.findOne({ user: req.user._id });
-
-//     if (!cart) {
-//         return next(new Errorhandler("Cart not found", 404));
-//     }
-
-//     // Find item in cart
-//     const itemIndex = cart.items.findIndex(
-//         item => item._id.toString() === itemId
-//     );
-
-//     if (itemIndex === -1) {
-//         return next(new Errorhandler("Item not found in cart", 404));
-//     }
-
-//     // Check product stock
-//     const product = await SellerProduct.findById(cart.items[itemIndex].product);
-//     if (product.stock < quantity) {
-//         return next(new Errorhandler("Insufficient stock", 400));
-//     }
-
-//     // Update quantity
-//     cart.items[itemIndex].quantity = quantity;
-
-//     await cart.save();
-//     await cart.populate("items.product", "name price image stock");
-
-//     res.status(200).json({
-//         success: true,
-//         cart,
-//     });
-// });
-
-// // Clear entire cart
-// export const clearCart = catchAsyncErrors(async (req, res, next) => {
-//     const cart = await Cart.findOne({ user: req.user._id });
-
-//     if (!cart) {
-//         return next(new Errorhandler("Cart not found", 404));
-//     }
-
-//     // Clear all items
-//     cart.items = [];
-//     cart.total = 0;
-
-//     await cart.save();
-
-//     res.status(200).json({
-//         success: true,
-//         message: "Cart cleared successfully",
-//         cart,
-//     });
-// });
-
+import mongoose from "mongoose";
 import Cart from "../models/cartModel.js";
 import SellerProduct from "../models/sellerProductModel.js";
 import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
+import PaymentOption from "../models/paymentOption.js";
 
 // Add to Cart
 // export const addCart = async (req, res) => {
 //   try {
 //     const { userId, productId, quantity, paymentOption } = req.body;
 
-//     const product = await SellerProduct.findById(productId);
+//     // find product
+//     const product = await SellerProduct.findById(productId).populate("user");
 //     if (!product) return res.status(404).json({ message: "Product not found" });
 
-//     let cart = await Cart.findOne({ user: userId });
+//     const sellerId = product.user?._id;
+//     if (!sellerId) return res.status(400).json({ message: "Seller not found" });
+
+//     // find existing cart for this buyer-seller pair
+//     let cart = await Cart.findOne({ user: userId, seller: sellerId });
 //     if (!cart) {
-//       cart = new Cart({ user: userId, items: [] });
+//       cart = new Cart({
+//         user: userId,
+//         seller: sellerId,
+//         items: [],
+//         paymentOption,
+//       });
+//     } else if (paymentOption) {
+//       cart.paymentOption = paymentOption;
 //     }
 
+//     // check if item exists
 //     const existingItem = cart.items.find(
 //       (i) => i.product.toString() === productId
 //     );
@@ -215,13 +43,16 @@ import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 //         product: productId,
 //         quantity,
 //         mrp: product.mrp,
-//         paymentOption
 //       });
 //     }
 
-//     await cart.calculateTotals();
-//     await cart.save();
+//     // calculate totals (optional)
+//     cart.totalAmount = cart.items.reduce(
+//       (sum, i) => sum + i.mrp * i.quantity,
+//       0
+//     );
 
+//     await cart.save();
 //     res.json({ success: true, cart });
 //   } catch (error) {
 //     res.status(500).json({ message: error.message });
@@ -230,19 +61,36 @@ import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 
 // export const addCart = async (req, res) => {
 //   try {
-//     const { userId, productId, quantity, paymentOption } = req.body;
+//     const { userId, productId, quantity = 1,  } = req.body;
 
-//     const product = await SellerProduct.findById(productId);
-//     if (!product) return res.status(404).json({ message: "Product not found" });
+//     // 🔹 Find product
+//     const product = await SellerProduct.findById(productId).populate("user");
+//     if (!product)
+//       return res.status(404).json({ success: false, message: "Product not found" });
 
-//     let cart = await Cart.findOne({ user: userId });
+//     const sellerId = product.user?._id;
+//     if (!sellerId)
+//       return res.status(400).json({ success: false, message: "Seller not found" });
+
+//     // 🔹 Find or create cart for this buyer-seller pair
+//     let cart = await Cart.findOne({ user: userId, seller: sellerId });
+
 //     if (!cart) {
-//       cart = new Cart({ user: userId, items: [], paymentOption });
-//     } else {
-//       // update payment option each time if provided
-//       if (paymentOption) cart.paymentOption = paymentOption;
-//     }
+//       cart = new Cart({
+//         user: userId,
+//         seller: sellerId,
+//         items: [],
+//         // paymentOption,
+//         subTotal: 0,
+//         discountFromPayment: 0,
+//         total: 0,
+//       });
+//     } 
+//     // else if (paymentOption) {
+//     //   cart.paymentOption = paymentOption;
+//     // }
 
+//     // 🔹 Check if product already exists
 //     const existingItem = cart.items.find(
 //       (i) => i.product.toString() === productId
 //     );
@@ -257,64 +105,158 @@ import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 //       });
 //     }
 
-//     await cart.calculateTotals();
+//     // 🔹 Recalculate totals (always recalc)
+//     const subTotal = cart.items.reduce((sum, i) => sum + i.mrp * i.quantity, 0);
+
+//     // Optional: discount logic (set 0 for now)
+//     const discountFromPayment = 0;
+
+//     const total = subTotal - discountFromPayment;
+
+//     // 🔹 Update all totals before saving
+//     cart.subTotal = subTotal;
+//     cart.discountFromPayment = discountFromPayment;
+//     cart.total = total;
+
 //     await cart.save();
 
-//     res.json({ success: true, cart });
+//     res.status(200).json({
+//       success: true,
+//       message: "Cart updated successfully",
+//       cart,
+//     });
 //   } catch (error) {
-//     res.status(500).json({ message: error.message });
+//     console.error("❌ addCart error:", error);
+//     res.status(500).json({ success: false, message: error.message });
 //   }
 // };
 
+
 export const addCart = async (req, res) => {
   try {
-    const { userId, productId, quantity, paymentOption } = req.body;
+    const { userId, productId, quantity = 1 } = req.body;
 
-    // find product
-    const product = await SellerProduct.findById(productId).populate("user");
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    // 🔹 Find product
+    const product = await SellerProduct.findById(productId)
+      .populate("user")
+      .populate("category", "gst");
+
+    if (!product)
+      return res.status(404).json({ success: false, message: "Product not found" });
 
     const sellerId = product.user?._id;
-    if (!sellerId) return res.status(400).json({ message: "Seller not found" });
+    if (!sellerId)
+      return res.status(400).json({ success: false, message: "Seller not found" });
 
-    // find existing cart for this buyer-seller pair
+    // 🔹 Verify buyer-seller connection
+    const connection = await BuyerSellerConnection.findOne({
+      buyer: userId,
+      seller: sellerId,
+      status: "Accepted",
+    });
+
+    if (!connection) {
+      return res.status(403).json({
+        success: false,
+        message: "No buyer-seller connection found. Cannot add to cart.",
+      });
+    }
+
+    const buyerCategory = connection.buyerCategory;
+
+    // 🔹 Find product visibility for this buyer category
+    const visibility = product.productVisibility.find(
+      (v) => v.buyerCategory?.toString() === buyerCategory.toString()
+    );
+
+    if (!visibility) {
+      return res.status(400).json({
+        success: false,
+        message: "This product is not visible for your buyer category.",
+      });
+    }
+
+    // const basePrice = visibility.price || product.mrp;
+    const basePrice =  visibility.price;
+    const gstPercent = product.category?.gst || 0;
+    const gstAmount = (basePrice * gstPercent) / 100;
+    const finalPrice = basePrice + gstAmount;
+
+    // 🔹 Get payment option (for discount)
+    const paymentOption = await PaymentOption.findOne({
+      buyerCategory,
+      user: sellerId,
+    });
+
+    let discountPercent = 0;
+    if (paymentOption?.cashPayment?.discountPercent) {
+      discountPercent = paymentOption.cashPayment.discountPercent;
+    }
+
+    const discountFromPayment = (finalPrice * quantity * discountPercent) / 100;
+
+    // 🔹 Find or create cart
     let cart = await Cart.findOne({ user: userId, seller: sellerId });
     if (!cart) {
       cart = new Cart({
         user: userId,
         seller: sellerId,
         items: [],
-        paymentOption,
+        paymentOption: paymentOption?._id || null,
+        subTotal: 0,
+        discountFromPayment: discountFromPayment || 0,
+        total: 0,
       });
-    } else if (paymentOption) {
-      cart.paymentOption = paymentOption;
+    } else if (paymentOption?._id) {
+      cart.paymentOption = paymentOption._id;
     }
 
-    // check if item exists
+    // 🔹 Add or update item
     const existingItem = cart.items.find(
       (i) => i.product.toString() === productId
     );
 
     if (existingItem) {
       existingItem.quantity += quantity;
+      existingItem.mrp = basePrice;
+      existingItem.gstAmount = gstAmount;
+      existingItem.finalPrice = finalPrice;
     } else {
       cart.items.push({
         product: productId,
         quantity,
-        mrp: product.mrp,
+        mrp:product.mrp,
+        discountPrice: basePrice,
+        gstAmount,
+        finalPrice,
       });
     }
 
-    // calculate totals (optional)
-    cart.totalAmount = cart.items.reduce(
-      (sum, i) => sum + i.mrp * i.quantity,
+    // 🔹 Calculate cart totals
+    const subTotal = cart.items.reduce(
+      (sum, i) => sum + i.finalPrice * i.quantity,
       0
     );
 
+    const totalDiscountFromPayment =
+      (subTotal * discountPercent) / 100;
+
+    const total = subTotal - totalDiscountFromPayment;
+
+    cart.subTotal = subTotal;
+    cart.discountFromPayment = totalDiscountFromPayment;
+    cart.total = total;
+
     await cart.save();
-    res.json({ success: true, cart });
+
+    res.status(200).json({
+      success: true,
+      message: "Cart updated successfully",
+      cart,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("❌ addCart error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -324,45 +266,55 @@ export const updateCart = async (req, res) => {
   try {
     const { userId, productId, quantity } = req.body;
 
-    let cart = await Cart.findOne({ user: userId });
-    if (!cart) return res.status(404).json({ message: "Cart not found" });
-
-    const item = cart.items.find((i) => i.product.toString() === productId);
-    if (!item) return res.status(404).json({ message: "Item not in cart" });
-
-    if (quantity <= 0) {
-      cart.items = cart.items.filter((i) => i.product.toString() !== productId);
-    } else {
-      item.quantity = quantity;
+    if (!userId || !productId || quantity === undefined) {
+      return res
+        .status(400)
+        .json({ message: "userId, productId and quantity are required" });
     }
 
-    await cart.calculateTotals();
-    await cart.save();
+    // User ki saari carts dhundho
+    const carts = await Cart.find({ user: userId });
 
-    res.json({ success: true, cart });
+    if (!carts || carts.length === 0) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    let targetCart = null;
+    let targetItem = null;
+
+    // Har cart mein product ko dhundho
+    for (const cart of carts) {
+      const item = cart.items.find((i) => i.product.toString() === productId.toString());
+      if (item) {
+        targetCart = cart;
+        targetItem = item;
+        break;
+      }
+    }
+
+    if (!targetCart || !targetItem) {
+      return res.status(404).json({ message: "Item not in any cart" });
+    }
+    // Update quantity
+    if (quantity <= 0) {
+      targetCart.items = targetCart.items.filter((i) => i.product.toString() !== productId.toString());
+    } else {
+      targetItem.quantity = quantity;
+    }
+
+    await targetCart.calculateTotals();
+    await targetCart.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Cart updated successfully",
+      cart: targetCart,
+    });
   } catch (error) {
+    console.error("Error in updateCart:", error);
     res.status(500).json({ message: error.message });
   }
-};
-
-// // Update Payment Option
-// export const paymentOptionUpdate = async (req, res) => {
-//   try {
-//     const { userId, paymentOptionId } = req.body;
-
-//     let cart = await Cart.findOne({ user: userId });
-//     if (!cart) return res.status(404).json({ message: "Cart not found" });
-
-//     cart.paymentOption = paymentOptionId;
-
-//     await cart.calculateTotals();
-//     await cart.save();
-
-//     res.json({ success: true, cart });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
+}
 
 // Update Payment Option
 export const paymentOptionUpdate = async (req, res) => {
@@ -401,33 +353,18 @@ export const paymentOptionUpdate = async (req, res) => {
   }
 };
 
-
-// Get Cart
-// export const getCart = async (req, res) => {
-//   try {
-//     const { userId } = req.params;
-
-//     const cart = await Cart.findOne({ user: userId })
-//       .populate("items.product")
-//       .populate("paymentOption");
-//     if (!cart) return res.json({ message: "Cart is empty" });
-
-//     res.json({ success: true, cart });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-
-// New Code for Get Cart
+// Gat Cart
 // export const getCart = async (req, res, next) => {
 //   try {
-//     const { userId, seller, buyerCategories } = req.body;
+//     const { userId, seller, buyerCategories = [] } = req.body;
 
-//     // ✅ Ensure seller is array
+//     // ✅ Normalize arrays
 //     const sellerIds = Array.isArray(seller) ? seller : [seller];
+//     const buyerCategoryIds = Array.isArray(buyerCategories)
+//       ? buyerCategories
+//       : [buyerCategories];
 
-//     // ✅ Fetch all carts for given sellers
+//     // ✅ Fetch carts
 //     const carts = await Cart.find({
 //       user: userId,
 //       seller: { $in: sellerIds },
@@ -444,7 +381,6 @@ export const paymentOptionUpdate = async (req, res) => {
 //       })
 //       .populate("paymentOption", "paymentType cashPayment");
 
-//     // 🧠 No carts found
 //     if (!carts || carts.length === 0) {
 //       return res.json({ success: true, message: "Cart is empty", cart: [] });
 //     }
@@ -476,15 +412,7 @@ export const paymentOptionUpdate = async (req, res) => {
 //       status: "Accepted",
 //     });
 
-//     if (connections.length === 0) {
-//       return res.status(200).json({
-//         success: true,
-//         message: "No accepted buyer-seller connections found",
-//         cart: allItems,
-//       });
-//     }
-
-//     // ✅ Map products with correct buyer category and visibility
+//     // ✅ Filter + map items
 //     const updatedItems = allItems
 //       .map((item) => {
 //         const product = item.product;
@@ -494,16 +422,22 @@ export const paymentOptionUpdate = async (req, res) => {
 //         const connection = connections.find(
 //           (conn) => conn.seller.toString() === sellerId
 //         );
-
 //         if (!connection) return null;
 
-//         const buyerCategory = connection.buyerCategory;
-//         const matchedVisibility = product.productVisibility?.find(
+//         const buyerCategory = connection.buyerCategory?.toString();
+
+//         // ✅ Only keep productVisibility entries matching buyerCategories
+//         const matchedVisibilityList = product.productVisibility?.filter(
 //           (pv) =>
-//             pv.buyerCategory?.toString() === buyerCategory?.toString() &&
-//             pv.visible === true
+//             pv.visible === true &&
+//             buyerCategoryIds.includes(pv?.buyerCategory?._id?.toString())
 //         );
 
+//         if (!matchedVisibilityList || matchedVisibilityList.length === 0) {
+//           return null; // skip if no matching visibility found
+//         }
+
+//         const matchedVisibility = matchedVisibilityList[0]; // pick first match
 //         const finalPrice =
 //           matchedVisibility?.price || product.price || item.mrp || 0;
 
@@ -511,15 +445,18 @@ export const paymentOptionUpdate = async (req, res) => {
 //           ...item.toObject(),
 //           product: {
 //             ...product.toObject(),
+//             // 🧠 Keep only the matched productVisibility entry
+//             productVisibility: matchedVisibilityList,
 //             price: finalPrice,
 //             buyerCategory,
 //             visible: matchedVisibility?.visible ?? true,
+          
 //           },
 //         };
 //       })
 //       .filter(Boolean);
 
-//     // ✅ Return unified cart data
+//     // ✅ Return filtered data
 //     return res.status(200).json({
 //       success: true,
 //       message: "Cart fetched successfully",
@@ -532,11 +469,11 @@ export const paymentOptionUpdate = async (req, res) => {
 //   }
 // };
 
+
 export const getCart = async (req, res, next) => {
   try {
     const { userId, seller, buyerCategories = [] } = req.body;
 
-    // ✅ Normalize arrays
     const sellerIds = Array.isArray(seller) ? seller : [seller];
     const buyerCategoryIds = Array.isArray(buyerCategories)
       ? buyerCategories
@@ -563,8 +500,20 @@ export const getCart = async (req, res, next) => {
       return res.json({ success: true, message: "Cart is empty", cart: [] });
     }
 
-    // ✅ Combine all items from multiple carts
-    const allItems = carts.flatMap((cart) => cart.items || []);
+    // ✅ Combine all items with their parent cart’s totals
+    const allItems = [];
+    for (const cart of carts) {
+      const items = cart.items || [];
+      for (const item of items) {
+        allItems.push({
+          ...(item?.toObject ? item.toObject() : item),
+          subTotal: cart.subTotal || 0,
+          discountFromPayment: cart.discountFromPayment || 0,
+          total: cart.total || 0,
+
+        });
+      }
+    }
 
     if (allItems.length === 0) {
       return res.json({
@@ -574,7 +523,7 @@ export const getCart = async (req, res, next) => {
       });
     }
 
-    // ✅ Extract seller IDs from products
+    // ✅ Extract seller IDs safely
     const sellerIdsFromItems = [
       ...new Set(
         allItems
@@ -583,20 +532,19 @@ export const getCart = async (req, res, next) => {
       ),
     ];
 
-    // ✅ Find buyer-seller connections
+    // ✅ Get buyer-seller accepted connections
     const connections = await BuyerSellerConnection.find({
       buyer: userId,
       seller: { $in: sellerIdsFromItems },
       status: "Accepted",
     });
 
-    // ✅ Filter + map items
     const updatedItems = allItems
       .map((item) => {
-        const product = item.product;
+        const product = item?.product;
         if (!product) return null;
 
-        const sellerId = product.user?._id?.toString();
+        const sellerId = product?.user?._id?.toString();
         const connection = connections.find(
           (conn) => conn.seller.toString() === sellerId
         );
@@ -604,26 +552,24 @@ export const getCart = async (req, res, next) => {
 
         const buyerCategory = connection.buyerCategory?.toString();
 
-        // ✅ Only keep productVisibility entries matching buyerCategories
-        const matchedVisibilityList = product.productVisibility?.filter(
+        const matchedVisibilityList = product?.productVisibility?.filter(
           (pv) =>
-            pv.visible === true &&
+            pv?.visible === true &&
             buyerCategoryIds.includes(pv?.buyerCategory?._id?.toString())
         );
 
         if (!matchedVisibilityList || matchedVisibilityList.length === 0) {
-          return null; // skip if no matching visibility found
+          return null;
         }
 
-        const matchedVisibility = matchedVisibilityList[0]; // pick first match
+        const matchedVisibility = matchedVisibilityList[0];
         const finalPrice =
           matchedVisibility?.price || product.price || item.mrp || 0;
 
         return {
-          ...item.toObject(),
+          ...item,
           product: {
-            ...product.toObject(),
-            // 🧠 Keep only the matched productVisibility entry
+            ...(product?.toObject ? product.toObject() : product),
             productVisibility: matchedVisibilityList,
             price: finalPrice,
             buyerCategory,
@@ -633,68 +579,112 @@ export const getCart = async (req, res, next) => {
       })
       .filter(Boolean);
 
-    // ✅ Return filtered data
+    // // ✅ Calculate overall totals
+    // const totalDiscountFromPayment = carts.reduce(
+    //   (sum, c) => sum + (c.discountFromPayment || 0),
+    //   0
+    // );
+    // const grandTotal = carts.reduce((sum, c) => sum + (c.total || 0), 0);
+
+    // ✅ Final response
     return res.status(200).json({
       success: true,
       message: "Cart fetched successfully",
       totalItems: updatedItems.length,
+      // discountFromPayment: totalDiscountFromPayment,
+      // total: grandTotal,
       cart: updatedItems,
     });
   } catch (error) {
-    console.error("Error fetching cart:", error);
-    return next(new Errorhandler("Error fetching cart", 500));
+    console.error("❌ Error fetching cart:", error.message);
+    console.error(error.stack);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching cart",
+      error: error.message,
+    });
   }
 };
 
 
 // // Remove item
-// export const removeItemFromCart = async (req, res) => {
-//   try {
-//     const { userId, productId } = req.body;
 
-//     let cart = await Cart.findOne({ user: userId });
-//     if (!cart) return res.status(404).json({ message: "Cart not found" });
-
-//     cart.items = cart.items.filter((i) => i.product.toString() !== productId);
-
-//     await cart.calculateTotals();
-//     await cart.save();
-
-//     res.json({ success: true, cart });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// Remove item
 export const removeItemFromCart = async (req, res) => {
   try {
-    const { userId, productId } = req.body;
+    const { userId, productId, itemId } = req.body;
 
-    if (!userId || !productId) {
-      return res
-        .status(400)
-        .json({ message: "userId and productId are required" });
+    if (!userId || (!itemId && !productId)) {
+      return res.status(400).json({
+        success: false,
+        message: "userId and either itemId or productId are required",
+      });
     }
 
-    const cart = await Cart.findOneAndUpdate(
-      { user: userId },
-      { $pull: { items: { product: productId } } },
-      { new: true }
+    // Build match condition to find the correct cart
+    const matchCondition = {
+      user: userId,
+      "items": {
+        $elemMatch: itemId
+          ? { _id: itemId }
+          : { product: productId }
+      }
+    };
+
+    // Find the exact cart that contains the item
+    const cart = await Cart.findOne(matchCondition);
+    if (!cart) {
+      return res.status(404).json({
+        success: false,
+        message: "Cart or item not found",
+      });
+    }
+
+    // Remove item manually
+    cart.items = cart.items.filter(item =>
+      itemId
+        ? item._id.toString() !== itemId
+        : item.product.toString() !== productId
     );
 
-    if (!cart) return res.status(404).json({ message: "Cart not found" });
+    // If cart empty, reset totals
+    if (cart.items.length === 0) {
+      cart.subTotal = 0;
+      cart.total = 0;
+      cart.discountFromPayment = 0;
+      await cart.save();
+      return res.json({
+        success: true,
+        message: "Cart is now empty",
+        cart,
+      });
+    }
 
-    await cart.calculateTotals();
+    // Recalculate totals
+    if (typeof cart.calculateTotals === "function") {
+      await cart.calculateTotals();
+    } else {
+      const subTotal = cart.items.reduce(
+        (acc, item) => acc + (item.finalPrice || 0),
+        0
+      );
+      cart.subTotal = subTotal;
+      cart.total = subTotal - (cart.discountFromPayment || 0);
+    }
+
     await cart.save();
 
-    // res.json({ success: true, cart });
-    if (cart.items.length === 0) {
-      return res.json({ success: true, message: "Cart is now empty" });
-    }
-    res.json({ success: true, message: "Item removed successfully", cart });
+    res.json({
+      success: true,
+      message: "Item removed successfully",
+      cart,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("❌ Remove item error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
 
