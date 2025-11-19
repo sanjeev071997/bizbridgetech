@@ -27,7 +27,13 @@ const paymentOptionSchema = new mongoose.Schema(
     creditPayment: {
       creditPeriodDays: { type: Number, min: 0 }, // e.g. 30
       interestRatePerYear: { type: Number, min: 0 }, // e.g. 2 (%)
-      interestStartAfterDays: { type: Number, min: 0, default: 30 }, //default 30
+      // interestStartAfterDays: { type: Number, min: 0, default: 30 }, //default 30
+      interestStartAfterDays: {
+        type: Number,
+        default: function () {
+          return this.creditPeriodDays;
+        },
+      },
     },
   },
   { timestamps: true }

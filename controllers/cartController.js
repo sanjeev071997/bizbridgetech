@@ -7,131 +7,6 @@ import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 import PaymentOption from "../models/paymentOption.js";
 
 // Add to Cart
-// export const addCart = async (req, res) => {
-//   try {
-//     const { userId, productId, quantity, paymentOption } = req.body;
-
-//     // find product
-//     const product = await SellerProduct.findById(productId).populate("user");
-//     if (!product) return res.status(404).json({ message: "Product not found" });
-
-//     const sellerId = product.user?._id;
-//     if (!sellerId) return res.status(400).json({ message: "Seller not found" });
-
-//     // find existing cart for this buyer-seller pair
-//     let cart = await Cart.findOne({ user: userId, seller: sellerId });
-//     if (!cart) {
-//       cart = new Cart({
-//         user: userId,
-//         seller: sellerId,
-//         items: [],
-//         paymentOption,
-//       });
-//     } else if (paymentOption) {
-//       cart.paymentOption = paymentOption;
-//     }
-
-//     // check if item exists
-//     const existingItem = cart.items.find(
-//       (i) => i.product.toString() === productId
-//     );
-
-//     if (existingItem) {
-//       existingItem.quantity += quantity;
-//     } else {
-//       cart.items.push({
-//         product: productId,
-//         quantity,
-//         mrp: product.mrp,
-//       });
-//     }
-
-//     // calculate totals (optional)
-//     cart.totalAmount = cart.items.reduce(
-//       (sum, i) => sum + i.mrp * i.quantity,
-//       0
-//     );
-
-//     await cart.save();
-//     res.json({ success: true, cart });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const addCart = async (req, res) => {
-//   try {
-//     const { userId, productId, quantity = 1,  } = req.body;
-
-//     // 🔹 Find product
-//     const product = await SellerProduct.findById(productId).populate("user");
-//     if (!product)
-//       return res.status(404).json({ success: false, message: "Product not found" });
-
-//     const sellerId = product.user?._id;
-//     if (!sellerId)
-//       return res.status(400).json({ success: false, message: "Seller not found" });
-
-//     // 🔹 Find or create cart for this buyer-seller pair
-//     let cart = await Cart.findOne({ user: userId, seller: sellerId });
-
-//     if (!cart) {
-//       cart = new Cart({
-//         user: userId,
-//         seller: sellerId,
-//         items: [],
-//         // paymentOption,
-//         subTotal: 0,
-//         discountFromPayment: 0,
-//         total: 0,
-//       });
-//     } 
-//     // else if (paymentOption) {
-//     //   cart.paymentOption = paymentOption;
-//     // }
-
-//     // 🔹 Check if product already exists
-//     const existingItem = cart.items.find(
-//       (i) => i.product.toString() === productId
-//     );
-
-//     if (existingItem) {
-//       existingItem.quantity += quantity;
-//     } else {
-//       cart.items.push({
-//         product: productId,
-//         quantity,
-//         mrp: product.mrp,
-//       });
-//     }
-
-//     // 🔹 Recalculate totals (always recalc)
-//     const subTotal = cart.items.reduce((sum, i) => sum + i.mrp * i.quantity, 0);
-
-//     // Optional: discount logic (set 0 for now)
-//     const discountFromPayment = 0;
-
-//     const total = subTotal - discountFromPayment;
-
-//     // 🔹 Update all totals before saving
-//     cart.subTotal = subTotal;
-//     cart.discountFromPayment = discountFromPayment;
-//     cart.total = total;
-
-//     await cart.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Cart updated successfully",
-//       cart,
-//     });
-//   } catch (error) {
-//     console.error("❌ addCart error:", error);
-//     res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-
-
 export const addCart = async (req, res) => {
   try {
     const { userId, productId, quantity = 1 } = req.body;
@@ -142,11 +17,15 @@ export const addCart = async (req, res) => {
       .populate("category", "gst");
 
     if (!product)
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     const sellerId = product.user?._id;
     if (!sellerId)
-      return res.status(400).json({ success: false, message: "Seller not found" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Seller not found" });
 
     // 🔹 Verify buyer-seller connection
     const connection = await BuyerSellerConnection.findOne({
@@ -177,7 +56,7 @@ export const addCart = async (req, res) => {
     }
 
     // const basePrice = visibility.price || product.mrp;
-    const basePrice =  visibility.price;
+    const basePrice = visibility.price;
     const gstPercent = product.category?.gst || 0;
     const gstAmount = (basePrice * gstPercent) / 100;
     const finalPrice = basePrice + gstAmount;
@@ -225,7 +104,7 @@ export const addCart = async (req, res) => {
       cart.items.push({
         product: productId,
         quantity,
-        mrp:product.mrp,
+        mrp: product.mrp,
         discountPrice: basePrice,
         gstAmount,
         finalPrice,
@@ -238,8 +117,7 @@ export const addCart = async (req, res) => {
       0
     );
 
-    const totalDiscountFromPayment =
-      (subTotal * discountPercent) / 100;
+    const totalDiscountFromPayment = (subTotal * discountPercent) / 100;
 
     const total = subTotal - totalDiscountFromPayment;
 
@@ -259,7 +137,6 @@ export const addCart = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
 
 // Update Cart (quantity)
 export const updateCart = async (req, res) => {
@@ -284,7 +161,9 @@ export const updateCart = async (req, res) => {
 
     // Har cart mein product ko dhundho
     for (const cart of carts) {
-      const item = cart.items.find((i) => i.product.toString() === productId.toString());
+      const item = cart.items.find(
+        (i) => i.product.toString() === productId.toString()
+      );
       if (item) {
         targetCart = cart;
         targetItem = item;
@@ -297,7 +176,9 @@ export const updateCart = async (req, res) => {
     }
     // Update quantity
     if (quantity <= 0) {
-      targetCart.items = targetCart.items.filter((i) => i.product.toString() !== productId.toString());
+      targetCart.items = targetCart.items.filter(
+        (i) => i.product.toString() !== productId.toString()
+      );
     } else {
       targetItem.quantity = quantity;
     }
@@ -314,7 +195,7 @@ export const updateCart = async (req, res) => {
     console.error("Error in updateCart:", error);
     res.status(500).json({ message: error.message });
   }
-}
+};
 
 // Update Payment Option
 export const paymentOptionUpdate = async (req, res) => {
@@ -324,12 +205,17 @@ export const paymentOptionUpdate = async (req, res) => {
     if (!userId || !paymentOptionId) {
       return res
         .status(400)
-        .json({ success: false, message: "userId and paymentOptionId are required" });
+        .json({
+          success: false,
+          message: "userId and paymentOptionId are required",
+        });
     }
 
     let cart = await Cart.findOne({ user: userId }).populate("items.product");
     if (!cart) {
-      return res.status(404).json({ success: false, message: "Cart not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Cart not found" });
     }
 
     // update payment option
@@ -354,122 +240,6 @@ export const paymentOptionUpdate = async (req, res) => {
 };
 
 // Gat Cart
-// export const getCart = async (req, res, next) => {
-//   try {
-//     const { userId, seller, buyerCategories = [] } = req.body;
-
-//     // ✅ Normalize arrays
-//     const sellerIds = Array.isArray(seller) ? seller : [seller];
-//     const buyerCategoryIds = Array.isArray(buyerCategories)
-//       ? buyerCategories
-//       : [buyerCategories];
-
-//     // ✅ Fetch carts
-//     const carts = await Cart.find({
-//       user: userId,
-//       seller: { $in: sellerIds },
-//     })
-//       .populate({
-//         path: "items.product",
-//         model: "SellerProduct",
-//         select: "name image stock mrp price productVisibility user category",
-//         populate: [
-//           { path: "category", select: "gst" },
-//           { path: "user", select: "name businessName businessAddress" },
-//           { path: "productVisibility.buyerCategory", select: "discount" },
-//         ],
-//       })
-//       .populate("paymentOption", "paymentType cashPayment");
-
-//     if (!carts || carts.length === 0) {
-//       return res.json({ success: true, message: "Cart is empty", cart: [] });
-//     }
-
-//     // ✅ Combine all items from multiple carts
-//     const allItems = carts.flatMap((cart) => cart.items || []);
-
-//     if (allItems.length === 0) {
-//       return res.json({
-//         success: true,
-//         message: "Cart has no items",
-//         cart: [],
-//       });
-//     }
-
-//     // ✅ Extract seller IDs from products
-//     const sellerIdsFromItems = [
-//       ...new Set(
-//         allItems
-//           .map((item) => item?.product?.user?._id?.toString())
-//           .filter(Boolean)
-//       ),
-//     ];
-
-//     // ✅ Find buyer-seller connections
-//     const connections = await BuyerSellerConnection.find({
-//       buyer: userId,
-//       seller: { $in: sellerIdsFromItems },
-//       status: "Accepted",
-//     });
-
-//     // ✅ Filter + map items
-//     const updatedItems = allItems
-//       .map((item) => {
-//         const product = item.product;
-//         if (!product) return null;
-
-//         const sellerId = product.user?._id?.toString();
-//         const connection = connections.find(
-//           (conn) => conn.seller.toString() === sellerId
-//         );
-//         if (!connection) return null;
-
-//         const buyerCategory = connection.buyerCategory?.toString();
-
-//         // ✅ Only keep productVisibility entries matching buyerCategories
-//         const matchedVisibilityList = product.productVisibility?.filter(
-//           (pv) =>
-//             pv.visible === true &&
-//             buyerCategoryIds.includes(pv?.buyerCategory?._id?.toString())
-//         );
-
-//         if (!matchedVisibilityList || matchedVisibilityList.length === 0) {
-//           return null; // skip if no matching visibility found
-//         }
-
-//         const matchedVisibility = matchedVisibilityList[0]; // pick first match
-//         const finalPrice =
-//           matchedVisibility?.price || product.price || item.mrp || 0;
-
-//         return {
-//           ...item.toObject(),
-//           product: {
-//             ...product.toObject(),
-//             // 🧠 Keep only the matched productVisibility entry
-//             productVisibility: matchedVisibilityList,
-//             price: finalPrice,
-//             buyerCategory,
-//             visible: matchedVisibility?.visible ?? true,
-          
-//           },
-//         };
-//       })
-//       .filter(Boolean);
-
-//     // ✅ Return filtered data
-//     return res.status(200).json({
-//       success: true,
-//       message: "Cart fetched successfully",
-//       totalItems: updatedItems.length,
-//       cart: updatedItems,
-//     });
-//   } catch (error) {
-//     console.error("Error fetching cart:", error);
-//     return next(new Errorhandler("Error fetching cart", 500));
-//   }
-// };
-
-
 export const getCart = async (req, res, next) => {
   try {
     const { userId, seller, buyerCategories = [] } = req.body;
@@ -479,7 +249,7 @@ export const getCart = async (req, res, next) => {
       ? buyerCategories
       : [buyerCategories];
 
-    // ✅ Fetch carts
+    // Fetch carts
     const carts = await Cart.find({
       user: userId,
       seller: { $in: sellerIds },
@@ -500,7 +270,7 @@ export const getCart = async (req, res, next) => {
       return res.json({ success: true, message: "Cart is empty", cart: [] });
     }
 
-    // ✅ Combine all items with their parent cart’s totals
+    // Combine all items with their parent cart’s totals
     const allItems = [];
     for (const cart of carts) {
       const items = cart.items || [];
@@ -510,7 +280,6 @@ export const getCart = async (req, res, next) => {
           subTotal: cart.subTotal || 0,
           discountFromPayment: cart.discountFromPayment || 0,
           total: cart.total || 0,
-
         });
       }
     }
@@ -523,7 +292,7 @@ export const getCart = async (req, res, next) => {
       });
     }
 
-    // ✅ Extract seller IDs safely
+    // Extract seller IDs safely
     const sellerIdsFromItems = [
       ...new Set(
         allItems
@@ -532,7 +301,7 @@ export const getCart = async (req, res, next) => {
       ),
     ];
 
-    // ✅ Get buyer-seller accepted connections
+    // Get buyer-seller accepted connections
     const connections = await BuyerSellerConnection.find({
       buyer: userId,
       seller: { $in: sellerIdsFromItems },
@@ -579,25 +348,13 @@ export const getCart = async (req, res, next) => {
       })
       .filter(Boolean);
 
-    // // ✅ Calculate overall totals
-    // const totalDiscountFromPayment = carts.reduce(
-    //   (sum, c) => sum + (c.discountFromPayment || 0),
-    //   0
-    // );
-    // const grandTotal = carts.reduce((sum, c) => sum + (c.total || 0), 0);
-
-    // ✅ Final response
     return res.status(200).json({
       success: true,
       message: "Cart fetched successfully",
       totalItems: updatedItems.length,
-      // discountFromPayment: totalDiscountFromPayment,
-      // total: grandTotal,
       cart: updatedItems,
     });
   } catch (error) {
-    console.error("❌ Error fetching cart:", error.message);
-    console.error(error.stack);
     return res.status(500).json({
       success: false,
       message: "Error fetching cart",
@@ -606,9 +363,7 @@ export const getCart = async (req, res, next) => {
   }
 };
 
-
-// // Remove item
-
+// Remove item from Cart
 export const removeItemFromCart = async (req, res) => {
   try {
     const { userId, productId, itemId } = req.body;
@@ -623,11 +378,9 @@ export const removeItemFromCart = async (req, res) => {
     // Build match condition to find the correct cart
     const matchCondition = {
       user: userId,
-      "items": {
-        $elemMatch: itemId
-          ? { _id: itemId }
-          : { product: productId }
-      }
+      items: {
+        $elemMatch: itemId ? { _id: itemId } : { product: productId },
+      },
     };
 
     // Find the exact cart that contains the item
@@ -640,7 +393,7 @@ export const removeItemFromCart = async (req, res) => {
     }
 
     // Remove item manually
-    cart.items = cart.items.filter(item =>
+    cart.items = cart.items.filter((item) =>
       itemId
         ? item._id.toString() !== itemId
         : item.product.toString() !== productId
@@ -705,7 +458,7 @@ export const clearCart = async (req, res) => {
 
     await cart.save();
 
-    res.json({ success: true, message: "Cart cleared" }); 
+    res.json({ success: true, message: "Cart cleared" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

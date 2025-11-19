@@ -1,9 +1,13 @@
 import mongoose from "mongoose";
 import Order from "../models/orderModel.js";
 import Cart from "../models/cartModel.js";
-import Product from "../models/sellerProductModel.js"; // SellerProduct
-import ErrorHandler from "../utils/Errorhandler.js";
+import Invoice from "../models/invoiceModel.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
+import ErrorHandler from "../utils/Errorhandler.js";
+import { generateQRCode } from "../utils/generateQRCode.js";
+import Product from "../models/sellerProductModel.js";
+import User from "../models/userModel.js";
+import PaymentOption from "../models/paymentOption.js";
 
 // Create Order
 // export const createOrder = async (req, res) => {
@@ -172,7 +176,7 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // 🛒 Find cart for this user & seller
+    // Find cart for this user & seller
     const cart = await Cart.findOne({ user: req.user.id, seller })
       .populate("items.product")
       .populate("user")
@@ -185,20 +189,20 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    console.log("🧾 Cart found:", cart);
-
     // Default process flow
     const defaultSteps = [
-      { step: "Enquiry Received", completed: true, completedAt: new Date() },
+      // { step: "Enquiry Received", completed: true, completedAt: new Date() },
+      { step: "Enquiry Received" },
       { step: "Proforma Invoice" },
       { step: "Proforma Accepted" },
+      { step: "Payment QR Generated" },
       { step: "Payment Received" },
       { step: "Invoice Uploaded" },
       { step: "Dispatch" },
       { step: "Delivered" },
     ];
 
-    // 🧾 Create order using existing cart data
+    // Create order using existing cart data
     const newOrder = await Order.create({
       buyer: cart.user._id,
       seller: cart.seller,
@@ -229,7 +233,7 @@ export const createOrder = async (req, res) => {
         select: "name mode",
       });
 
-    // 🧹 Clear cart after order creation
+    // Clear cart after order creation
     await Cart.findByIdAndDelete(cart._id);
 
     res.status(201).json({
@@ -238,7 +242,7 @@ export const createOrder = async (req, res) => {
       order,
     });
   } catch (error) {
-    console.error("❌ createOrder error:", error);
+    console.error("createOrder error:", error);
     res.status(500).json({
       success: false,
       message: "Server Error",
@@ -246,14 +250,12 @@ export const createOrder = async (req, res) => {
   }
 };
 
-
-
 // Get Buyer Orders
 export const getBuyerOrders = catchAsyncErrors(async (req, res, next) => {
   const orders = await Order.find({ buyer: req.user._id })
     .populate({
       path: "items.seller",
-      select: "name phone mode", 
+      select: "name phone mode",
     })
     .populate("paymentOption", "paymentType")
     .populate("buyer", "name phone mode")
@@ -265,7 +267,7 @@ export const getBuyerOrders = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-// 🟢 Get Seller Orders
+// Get Seller Orders
 export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
   const orders = await Order.find()
     .populate("buyer", "name phone mode")
@@ -273,7 +275,7 @@ export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
     .populate("items.seller", "name phone mode") // seller info
     .sort({ createdAt: -1 });
 
-  // filter items current seller 
+  // filter items current seller
   const sellerOrders = orders
     .map((order) => {
       const sellerItems = order.items.filter(
@@ -308,8 +310,7 @@ export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-
-// 🟢 Update Order Status 
+// Update Order Status
 export const updateOrderStatus = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
   const { seller, orderStatus } = req.body;
@@ -344,10 +345,10 @@ export const updateOrderStatus = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-// 🟢 Update Order Process Step (Seller Restricted)
+// Update Order Process Step (Seller Restricted)
 export const updateProcessStep = catchAsyncErrors(async (req, res, next) => {
   const { orderId } = req.params;
-  const { step, itemId } = req.body; 
+  const { step, itemId } = req.body;
   const sellerId = req.user._id; // logged in seller
 
   if (!mongoose.Types.ObjectId.isValid(orderId))
@@ -358,8 +359,7 @@ export const updateProcessStep = catchAsyncErrors(async (req, res, next) => {
 
   // Find the item in order belonging to this seller
   const item = order.items.find(
-    (i) =>
-      i.seller.toString() === sellerId.toString()
+    (i) => i.seller.toString() === sellerId.toString()
   );
 
   if (!item) return next(new ErrorHandler("You cannot update this item", 403));
@@ -381,7 +381,6 @@ export const updateProcessStep = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-
 // Delete Order (Admin or Buyer can cancel)
 export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
@@ -398,3 +397,1425 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
     message: "Order deleted successfully",
   });
 });
+
+// Update order process step (buyer/seller actions)
+// export const updateOrderProcessStep = async (req, res, next) => {
+//   try {
+//     const { orderId, step, actionBy } = req.body;
+
+//     if (!mongoose.Types.ObjectId.isValid(orderId))
+//       return next(new ErrorHandler("Invalid Order ID", 400));
+
+//     const order = await Order.findById(orderId)
+//       .populate("paymentOption")
+//       .populate({
+//         path: "items.seller",
+//         select: "name email bankDetails accountName upiId",
+//         populate: {
+//           path: "bankDetails",
+//           select:
+//             "bankName accountName upiId accountNumber ifscCode branchName branchAddress",
+//         },
+//       })
+//       .populate("buyer");
+
+//     if (!order)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Order not found" });
+
+//     // Helper function for marking step complete
+//     const markStepComplete = (stepName, extraData = {}) => {
+//       let stepObj = order.processFlow.find((s) => s.step === stepName);
+//       if (!stepObj) {
+//         order.processFlow.push({
+//           step: stepName,
+//           completed: true,
+//           completedAt: new Date(),
+//           ...extraData,
+//         });
+//       } else {
+//         stepObj.completed = true;
+//         stepObj.completedAt = new Date();
+//         Object.assign(stepObj, extraData);
+//       }
+//     };
+
+//     // INVOICE CREATION FUNCTION
+//     const createInvoiceOnEnquiry = async () => {
+//       // Check if invoice already exists
+//       const existing = await Invoice.findOne({ order: order._id });
+//       if (existing) {
+//         console.log("Invoice already exists. Skipping creation.");
+//         return;
+//       }
+
+//       if (!order.paymentOption)
+//         throw new Error("Payment Option not found for this order");
+
+//       const pay = order.paymentOption;
+
+//       let invoiceData = {
+//         order: order._id,
+//         buyer: order.buyer._id,
+//         seller: order.items[0]?.seller?._id,
+//         amount: order.total,
+//         status: "Pending",
+//         bankStatement: [],
+//       };
+
+//       // If Cash → Mark invoice paid
+//       if (pay.paymentType === "Cash") {
+//         invoiceData.status = "Paid";
+//         invoiceData.paidAt = new Date();
+
+//         // Add bank statement entry
+//         invoiceData.bankStatement.push({
+//           date: new Date(),
+//           description: "Cash Payment Received",
+//           debit: 0,
+//           credit: order.total,
+//           balance: 0,
+//         });
+//       } else if (pay.paymentType === "Credit") {
+//         // Add credit related values
+//         invoiceData.creditPeriodDays = pay.creditPayment.creditPeriodDays;
+//         invoiceData.interestRatePerYear = pay.creditPayment.interestRatePerYear;
+//         invoiceData.interestStartAfterDays =
+//           pay.creditPayment.interestStartAfterDays;
+
+//         // Due date = Today + creditPeriodDays
+//         const dueDate = new Date();
+//         dueDate.setDate(dueDate.getDate() + pay.creditPayment.creditPeriodDays);
+//         invoiceData.dueDate = dueDate;
+
+//         // Interest accrual start date = dueDate + interestStartAfterDays
+//         const interestStart = new Date(dueDate);
+//         interestStart.setDate(
+//           interestStart.getDate() + pay.creditPayment.interestStartAfterDays
+//         );
+//         invoiceData.interestAccrualStartDate = interestStart;
+//       }
+
+//       // SAVE the invoice
+//       await Invoice.create(invoiceData);
+//     };
+
+//     // ---------------------------------------------
+//     // MAIN STEP LOGIC
+//     // ---------------------------------------------
+//     switch (step) {
+//       case "Enquiry Received":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can send Enquiry Received",
+//           });
+
+//         markStepComplete("Enquiry Received", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+
+//         // CREATE INVOICE IMMEDIATELY
+//         await createInvoiceOnEnquiry();
+
+//         break;
+
+//       case "Proforma Invoice":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can send Proforma Invoice",
+//           });
+
+//         markStepComplete("Proforma Invoice", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+//         break;
+
+//       // case "Proforma Accepted":
+//       //   if (actionBy !== "buyer")
+//       //     return res
+//       //       .status(403)
+//       //       .json({
+//       //         success: false,
+//       //         message: "Only buyer can accept Proforma",
+//       //       });
+
+//       //   markStepComplete("Proforma Accepted", {
+//       //     visibleTo: ["buyer", "seller"],
+//       //   });
+
+//       //   const paymentOption = order.paymentOption;
+
+//       //   if (!paymentOption)
+//       //     return res
+//       //       .status(400)
+//       //       .json({ success: false, message: "Payment option missing." });
+
+//       //   const sellerBank = order.items[0]?.seller?.bankDetails;
+//       //   if (!sellerBank?.upiId)
+//       //     return res
+//       //       .status(400)
+//       //       .json({ success: false, message: "Seller UPI ID not found." });
+
+//       //   const qrCode = await generateQRCode(sellerBank.upiId, order.total);
+
+//       //   markStepComplete("Payment QR Generated", {
+//       //     visibleTo: ["buyer", "seller"],
+//       //     qrCodeUrl: qrCode,
+//       //   });
+
+//       //   order.qrCodeData = qrCode;
+//       //   break;
+
+//       case "Proforma Accepted":
+//         if (actionBy !== "buyer")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only buyer can accept Proforma",
+//           });
+
+//         markStepComplete("Proforma Accepted", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+
+//         // ---- Fetch Full Payment Option Document ----
+//         const paymentOptionFull = await PaymentOption.findById(
+//           order.paymentOption
+//         );
+
+//         if (!paymentOptionFull)
+//           return res.status(400).json({
+//             success: false,
+//             message: "Payment option not found",
+//           });
+
+//         // -------------------------------
+//         // 🔵 CASE 1: CASH → Auto QR Generate
+//         // -------------------------------
+//         if (paymentOptionFull.paymentType === "Cash") {
+//           const sellerBank = order.items[0]?.seller?.bankDetails;
+
+//           if (!sellerBank?.upiId) {
+//             return res.status(400).json({
+//               success: false,
+//               message: "Seller UPI ID not found for QR Code",
+//             });
+//           }
+
+//           const qrCode = await generateQRCode(sellerBank.upiId, order.total);
+
+//           markStepComplete("Payment QR Generated", {
+//             visibleTo: ["buyer", "seller"],
+//             qrCodeUrl: qrCode,
+//             paymentType: "Cash",
+//           });
+
+//           order.qrCodeData = qrCode;
+//         }
+
+//         // -------------------------------
+//         // 🔵 CASE 2: CREDIT → Return Credit Details (NO QR)
+//         // -------------------------------
+//         else if (paymentOptionFull.paymentType === "Credit") {
+//           const credit = paymentOptionFull.creditPayment;
+
+//           if (!credit) {
+//             return res.status(400).json({
+//               success: false,
+//               message: "Credit payment data not found",
+//             });
+//           }
+
+//           markStepComplete("Credit Details Shared", {
+//             visibleTo: ["buyer", "seller"],
+//             paymentType: "Credit",
+//             creditDetails: {
+//               creditPeriodDays: credit.creditPeriodDays,
+//               interestRatePerYear: credit.interestRatePerYear,
+//               interestStartAfterDays: credit.interestStartAfterDays,
+//             },
+//           });
+//         }
+
+//         break;
+
+//       case "Payment Received":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can confirm payment",
+//           });
+
+//         markStepComplete("Payment Received", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+//         break;
+
+//       case "Invoice Uploaded":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can upload invoice",
+//           });
+
+//         const itemSummary = order.items.map((i) => i.productName).join(", ");
+//         const totalItems = order.items.length;
+//         const totalAmount = order.total;
+
+//         markStepComplete("Invoice Uploaded", {
+//           visibleTo: ["buyer", "seller"],
+//           invoiceSummary: { itemSummary, totalItems, totalAmount },
+//         });
+//         break;
+
+//       case "Dispatch":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can dispatch order",
+//           });
+
+//         markStepComplete("Dispatch", { visibleTo: ["buyer", "seller"] });
+//         break;
+
+//       case "Delivered":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can mark as delivered",
+//           });
+
+//         markStepComplete("Delivered", { visibleTo: ["buyer", "seller"] });
+//         break;
+
+//       default:
+//         return res
+//           .status(400)
+//           .json({ success: false, message: "Invalid step" });
+//     }
+
+//     // Save Order
+//     await order.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: `${step} marked as completed.`,
+//       data: order,
+//     });
+//   } catch (err) {
+//     console.error("Error in updateOrderProcessStep:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Server error",
+//       error: err.message,
+//     });
+//   }
+// };
+
+// Update order process step (buyer/seller actions)
+// export const updateOrderProcessStep = async (req, res, next) => {
+//   try {
+//     const { orderId, step, actionBy } = req.body;
+
+//     if (!mongoose.Types.ObjectId.isValid(orderId))
+//       return next(new ErrorHandler("Invalid Order ID", 400));
+
+//     const order = await Order.findById(orderId)
+//       .populate("paymentOption")
+//       .populate({
+//         path: "items.seller",
+//         select: "name email bankDetails accountName upiId",
+//         populate: {
+//           path: "bankDetails",
+//           select:
+//             "bankName accountName upiId accountNumber ifscCode branchName branchAddress",
+//         },
+//       })
+//       .populate("buyer");
+
+//     if (!order)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Order not found" });
+
+//     // Helper function for marking step complete
+//     const markStepComplete = (stepName, extraData = {}) => {
+//       let stepObj = order.processFlow.find((s) => s.step === stepName);
+//       if (!stepObj) {
+//         order.processFlow.push({
+//           step: stepName,
+//           completed: true,
+//           completedAt: new Date(),
+//           ...extraData,
+//         });
+//       } else {
+//         stepObj.completed = true;
+//         stepObj.completedAt = new Date();
+//         Object.assign(stepObj, extraData);
+//       }
+//     };
+
+//     // INVOICE CREATION FUNCTION
+//     const createInvoiceOnEnquiry = async () => {
+//       // Check if invoice already exists
+//       const existing = await Invoice.findOne({ order: order._id });
+//       if (existing) {
+//         console.log("Invoice already exists. Skipping creation.");
+//         return;
+//       }
+
+//       if (!order.paymentOption)
+//         throw new Error("Payment Option not found for this order");
+
+//       const pay = order.paymentOption;
+
+//       let invoiceData = {
+//         order: order._id,
+//         buyer: order.buyer._id,
+//         seller: order.items[0]?.seller?._id,
+//         amount: order.total,
+//         status: "Pending",
+//         bankStatement: [],
+//       };
+
+//       // If Cash → Mark invoice paid
+//       if (pay.paymentType === "Cash") {
+//         invoiceData.status = "Paid";
+//         invoiceData.paidAt = new Date();
+
+//         // Add bank statement entry
+//         invoiceData.bankStatement.push({
+//           date: new Date(),
+//           description: "Cash Payment Received",
+//           debit: 0,
+//           credit: order.total,
+//           balance: 0,
+//         });
+//       } else if (pay.paymentType === "Credit") {
+//         // Add credit related values
+//         invoiceData.creditPeriodDays = pay.creditPayment.creditPeriodDays;
+//         invoiceData.interestRatePerYear = pay.creditPayment.interestRatePerYear;
+//         invoiceData.interestStartAfterDays =
+//           pay.creditPayment.interestStartAfterDays;
+
+//         // Due date = Today + creditPeriodDays
+//         const dueDate = new Date();
+//         dueDate.setDate(dueDate.getDate() + pay.creditPayment.creditPeriodDays);
+//         invoiceData.dueDate = dueDate;
+
+//         // Interest accrual start date = dueDate + interestStartAfterDays
+//         const interestStart = new Date(dueDate);
+//         interestStart.setDate(
+//           interestStart.getDate() + pay.creditPayment.interestStartAfterDays
+//         );
+//         invoiceData.interestAccrualStartDate = interestStart;
+//       }
+
+//       // SAVE the invoice
+//       await Invoice.create(invoiceData);
+//     };
+
+//     // QR CODE GENERATION FUNCTION
+//     const generateQRCodeForPayment = async () => {
+//       const paymentOption = order.paymentOption;
+
+//       if (!paymentOption) {
+//         throw new Error("Payment option missing.");
+//       }
+
+//       const sellerBank = order.items[0]?.seller?.bankDetails;
+//       if (!sellerBank?.upiId) {
+//         throw new Error("Seller UPI ID not found.");
+//       }
+
+//       // Generate QR code only for Cash payments
+//       if (paymentOption.paymentType === "Cash") {
+//         const qrCode = await generateQRCode(sellerBank.upiId, order.total);
+//         return qrCode;
+//       }
+      
+//       // For Credit payments, return null (no QR code)
+//       return null;
+//     };
+
+//     // ---------------------------------------------
+//     // MAIN STEP LOGIC
+//     // ---------------------------------------------
+//     switch (step) {
+//       case "Enquiry Received":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can send Enquiry Received",
+//           });
+
+//         markStepComplete("Enquiry Received", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+
+//         // CREATE INVOICE IMMEDIATELY
+//         await createInvoiceOnEnquiry();
+
+//         break;
+
+//       case "Proforma Invoice":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can send Proforma Invoice",
+//           });
+
+//         markStepComplete("Proforma Invoice", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+//         break;
+
+//       case "Proforma Accepted":
+//         if (actionBy !== "buyer")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only buyer can accept Proforma",
+//           });
+
+//         markStepComplete("Proforma Accepted", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+
+//         const paymentOption = order.paymentOption;
+
+//         if (!paymentOption) {
+//           return res.status(400).json({ 
+//             success: false, 
+//             message: "Payment option missing." 
+//           });
+//         }
+
+//         // For Cash payments: Generate QR code
+//         if (paymentOption.paymentType === "Cash") {
+//           try {
+//             const qrCode = await generateQRCodeForPayment();
+            
+//             markStepComplete("Payment QR Generated", {
+//               visibleTo: ["buyer", "seller"],
+//               qrCodeUrl: qrCode,
+//             });
+
+//             order.qrCodeData = qrCode;
+//           } catch (qrError) {
+//             return res.status(400).json({
+//               success: false,
+//               message: `QR Code generation failed: ${qrError.message}`,
+//             });
+//           }
+//         } 
+//         // For Credit payments: Store credit details for display
+//         else if (paymentOption.paymentType === "Credit") {
+//           const creditDetails = {
+//             creditPeriodDays: paymentOption.creditPayment?.creditPeriodDays || 0,
+//             interestRatePerYear: paymentOption.creditPayment?.interestRatePerYear || 0,
+//             interestStartAfterDays: paymentOption.creditPayment?.interestStartAfterDays || 0,
+//             paymentType: "Credit"
+//           };
+
+//           markStepComplete("Payment QR Generated", {
+//             visibleTo: ["buyer", "seller"],
+//             creditDetails: creditDetails,
+//             qrCodeUrl: null, // No QR code for credit
+//             autoComplete: false,
+//           });
+
+//           order.creditPaymentDetails = creditDetails;
+//         }
+
+//         break;
+
+//       case "Payment Received":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can confirm payment",
+//           });
+
+//         markStepComplete("Payment Received", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+//         break;
+
+//       case "Invoice Uploaded":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can upload invoice",
+//           });
+
+//         const itemSummary = order.items.map((i) => i.productName).join(", ");
+//         const totalItems = order.items.length;
+//         const totalAmount = order.total;
+
+//         markStepComplete("Invoice Uploaded", {
+//           visibleTo: ["buyer", "seller"],
+//           invoiceSummary: { itemSummary, totalItems, totalAmount },
+//         });
+//         break;
+
+//       case "Dispatch":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can dispatch order",
+//           });
+
+//         markStepComplete("Dispatch", { visibleTo: ["buyer", "seller"] });
+//         break;
+
+//       case "Delivered":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can mark as delivered",
+//           });
+
+//         markStepComplete("Delivered", { visibleTo: ["buyer", "seller"] });
+//         break;
+
+//       default:
+//         return res.status(400).json({ success: false, message: "Invalid step" });
+//     }
+
+//     // Save Order
+//     await order.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: `${step} marked as completed.`,
+//       data: order,
+//     });
+//   } catch (err) {
+//     console.error("Error in updateOrderProcessStep:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Server error",
+//       error: err.message,
+//     });
+//   }
+// };
+
+// Update order process step (buyer/seller actions)
+// Update order process step (buyer/seller actions)
+// export const updateOrderProcessStep = async (req, res, next) => {
+//   try {
+//     const { orderId, step, actionBy } = req.body;
+
+//     if (!mongoose.Types.ObjectId.isValid(orderId))
+//       return next(new ErrorHandler("Invalid Order ID", 400));
+
+//     const order = await Order.findById(orderId)
+//       .populate("paymentOption")
+//       .populate({
+//         path: "items.seller",
+//         select: "name email bankDetails accountName upiId",
+//         populate: {
+//           path: "bankDetails",
+//           select:
+//             "bankName accountName upiId accountNumber ifscCode branchName branchAddress",
+//         },
+//       })
+//       .populate("buyer");
+
+//     if (!order)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Order not found" });
+
+//     // Helper function for marking step complete
+//     const markStepComplete = (stepName, extraData = {}) => {
+//       let stepObj = order.processFlow.find((s) => s.step === stepName);
+//       if (!stepObj) {
+//         order.processFlow.push({
+//           step: stepName,
+//           completed: true,
+//           completedAt: new Date(),
+//           ...extraData,
+//         });
+//       } else {
+//         stepObj.completed = true;
+//         stepObj.completedAt = new Date();
+//         Object.assign(stepObj, extraData);
+//       }
+//     };
+
+//     // Helper function for creating step without marking complete
+//     const createStepIfNotExists = (stepName, extraData = {}) => {
+//       let stepObj = order.processFlow.find((s) => s.step === stepName);
+//       if (!stepObj) {
+//         order.processFlow.push({
+//           step: stepName,
+//           completed: false,
+//           ...extraData,
+//         });
+//       } else {
+//         // Update existing step with new data
+//         Object.keys(extraData).forEach(key => {
+//           stepObj[key] = extraData[key];
+//         });
+//       }
+//     };
+
+//     // INVOICE CREATION FUNCTION
+//     const createInvoiceOnEnquiry = async () => {
+//       // Check if invoice already exists
+//       const existing = await Invoice.findOne({ order: order._id });
+//       if (existing) {
+//         console.log("Invoice already exists. Skipping creation.");
+//         return;
+//       }
+
+//       if (!order.paymentOption)
+//         throw new Error("Payment Option not found for this order");
+
+//       const pay = order.paymentOption;
+
+//       let invoiceData = {
+//         order: order._id,
+//         buyer: order.buyer._id,
+//         seller: order.items[0]?.seller?._id,
+//         amount: order.total,
+//         status: "Pending",
+//         bankStatement: [],
+//       };
+
+//       // If Cash → Mark invoice paid
+//       if (pay.paymentType === "Cash") {
+//         invoiceData.status = "Paid";
+//         invoiceData.paidAt = new Date();
+
+//         // Add bank statement entry
+//         invoiceData.bankStatement.push({
+//           date: new Date(),
+//           description: "Cash Payment Received",
+//           debit: 0,
+//           credit: order.total,
+//           balance: 0,
+//         });
+//       } else if (pay.paymentType === "Credit") {
+//         // Add credit related values
+//         invoiceData.creditPeriodDays = pay.creditPayment.creditPeriodDays;
+//         invoiceData.interestRatePerYear = pay.creditPayment.interestRatePerYear;
+//         invoiceData.interestStartAfterDays =
+//           pay.creditPayment.interestStartAfterDays;
+
+//         // Due date = Today + creditPeriodDays
+//         const dueDate = new Date();
+//         dueDate.setDate(dueDate.getDate() + pay.creditPayment.creditPeriodDays);
+//         invoiceData.dueDate = dueDate;
+
+//         // Interest accrual start date = dueDate + interestStartAfterDays
+//         const interestStart = new Date(dueDate);
+//         interestStart.setDate(
+//           interestStart.getDate() + pay.creditPayment.interestStartAfterDays
+//         );
+//         invoiceData.interestAccrualStartDate = interestStart;
+//       }
+
+//       // SAVE the invoice
+//       await Invoice.create(invoiceData);
+//     };
+
+//     // QR CODE GENERATION FUNCTION
+//     const generateQRCodeForPayment = async () => {
+//       const paymentOption = order.paymentOption;
+
+//       if (!paymentOption) {
+//         throw new Error("Payment option missing.");
+//       }
+
+//       const sellerBank = order.items[0]?.seller?.bankDetails;
+//       if (!sellerBank?.upiId) {
+//         throw new Error("Seller UPI ID not found.");
+//       }
+
+//       // Generate QR code only for Cash payments
+//       if (paymentOption.paymentType === "Cash") {
+//         const qrCode = await generateQRCode(sellerBank.upiId, order.total);
+//         return qrCode;
+//       }
+      
+//       // For Credit payments, return null (no QR code)
+//       return null;
+//     };
+
+//     // ---------------------------------------------
+//     // MAIN STEP LOGIC
+//     // ---------------------------------------------
+//     switch (step) {
+//       case "Enquiry Received":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can send Enquiry Received",
+//           });
+
+//         markStepComplete("Enquiry Received", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+
+//         // CREATE INVOICE IMMEDIATELY
+//         await createInvoiceOnEnquiry();
+
+//         break;
+
+//       case "Proforma Invoice":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can send Proforma Invoice",
+//           });
+
+//         markStepComplete("Proforma Invoice", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+//         break;
+
+//       case "Proforma Accepted":
+//         if (actionBy !== "buyer")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only buyer can accept Proforma",
+//           });
+
+//         markStepComplete("Proforma Accepted", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+
+//         const paymentOption = order.paymentOption;
+
+//         if (!paymentOption) {
+//           return res.status(400).json({ 
+//             success: false, 
+//             message: "Payment option missing." 
+//           });
+//         }
+
+//         // For Cash payments: Generate QR code and auto-complete the step
+//         if (paymentOption.paymentType === "Cash") {
+//           try {
+//             const qrCode = await generateQRCodeForPayment();
+            
+//             markStepComplete("Payment QR Generated", {
+//               visibleTo: ["buyer", "seller"],
+//               qrCodeUrl: qrCode,
+//               paymentType: "Cash"
+//             });
+
+//             order.qrCodeData = qrCode;
+//           } catch (qrError) {
+//             return res.status(400).json({
+//               success: false,
+//               message: `QR Code generation failed: ${qrError.message}`,
+//             });
+//           }
+//         } 
+//         // For Credit payments: Store credit details but DON'T auto-complete the step
+//         else if (paymentOption.paymentType === "Credit") {
+//           // Calculate due date
+//           const dueDate = new Date();
+//           dueDate.setDate(dueDate.getDate() + (paymentOption.creditPayment?.creditPeriodDays || 0));
+          
+//           const creditDetails = {
+//             creditPeriodDays: paymentOption.creditPayment?.creditPeriodDays || 0,
+//             interestRatePerYear: paymentOption.creditPayment?.interestRatePerYear || 0,
+//             interestStartAfterDays: paymentOption.creditPayment?.interestStartAfterDays || 0,
+//             paymentType: "Credit",
+//             totalAmount: order.total,
+//             dueDate: dueDate,
+//             interestStartDate: new Date(dueDate.getTime() + (paymentOption.creditPayment?.interestStartAfterDays || 0) * 24 * 60 * 60 * 1000)
+//           };
+
+//           console.log("Creating Payment QR Generated step with creditDetails:", creditDetails); // Debug log
+
+//           // Create the step but don't mark it as completed - SHARE CREDIT DETAILS
+//           createStepIfNotExists("Payment QR Generated", {
+//             visibleTo: ["buyer", "seller"],
+//             creditDetails: creditDetails, 
+//             qrCodeUrl: null, // No QR code for credit
+//             paymentType: "Credit"
+//           });
+
+//           order.creditPaymentDetails = creditDetails;
+//         }
+
+//         break;
+
+//       case "Payment QR Generated":
+//         // For Credit payments, this step needs to be manually completed
+//         if (actionBy !== "seller") {
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can complete Payment QR Generated step",
+//           });
+//         }
+
+//         // Check if this is a credit payment
+//         const paymentOptionForQR = order.paymentOption;
+//         if (paymentOptionForQR?.paymentType === "Credit") {
+//           // Get existing credit details from the step or create new
+//           const existingStep = order.processFlow.find(s => s.step === "Payment QR Generated");
+//           let creditDetails = existingStep?.creditDetails;
+          
+//           if (!creditDetails) {
+//             // If credit details don't exist, create them
+//             const dueDate = new Date();
+//             dueDate.setDate(dueDate.getDate() + (paymentOptionForQR.creditPayment?.creditPeriodDays || 0));
+            
+//             creditDetails = {
+//               creditPeriodDays: paymentOptionForQR.creditPayment?.creditPeriodDays || 0,
+//               interestRatePerYear: paymentOptionForQR.creditPayment?.interestRatePerYear || 0,
+//               interestStartAfterDays: paymentOptionForQR.creditPayment?.interestStartAfterDays || 0,
+//               paymentType: "Credit",
+//               totalAmount: order.total,
+//               dueDate: dueDate,
+//               interestStartDate: new Date(dueDate.getTime() + (paymentOptionForQR.creditPayment?.interestStartAfterDays || 0) * 24 * 60 * 60 * 1000)
+//             };
+//           }
+
+//           markStepComplete("Payment QR Generated", {
+//             visibleTo: ["buyer", "seller"],
+//             creditDetails: creditDetails, // ✅ CREDIT DETAILS SHARE KARO
+//             paymentType: "Credit"
+//           });
+//         } else {
+//           return res.status(400).json({
+//             success: false,
+//             message: "This step is only for manual completion in credit payments",
+//           });
+//         }
+//         break;
+
+//       case "Payment Received":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can confirm payment",
+//           });
+
+//         markStepComplete("Payment Received", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+//         break;
+
+//       case "Invoice Uploaded":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can upload invoice",
+//           });
+
+//         const itemSummary = order.items.map((i) => i.productName).join(", ");
+//         const totalItems = order.items.length;
+//         const totalAmount = order.total;
+
+//         markStepComplete("Invoice Uploaded", {
+//           visibleTo: ["buyer", "seller"],
+//           invoiceSummary: { itemSummary, totalItems, totalAmount },
+//         });
+//         break;
+
+//       case "Dispatch":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can dispatch order",
+//           });
+
+//         markStepComplete("Dispatch", { visibleTo: ["buyer", "seller"] });
+//         break;
+
+//       case "Delivered":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can mark as delivered",
+//           });
+
+//         markStepComplete("Delivered", { visibleTo: ["buyer", "seller"] });
+//         break;
+
+//       default:
+//         return res.status(400).json({ success: false, message: "Invalid step" });
+//     }
+
+//     // Save Order
+//     await order.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: `${step} marked as completed.`,
+//       data: order,
+//     });
+//   } catch (err) {
+//     console.error("Error in updateOrderProcessStep:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Server error",
+//       error: err.message,
+//     });
+//   }
+// };
+
+export const updateOrderProcessStep = async (req, res, next) => {
+  try {
+    const { orderId, step, actionBy } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId))
+      return next(new ErrorHandler("Invalid Order ID", 400));
+
+    const order = await Order.findById(orderId)
+      .populate("paymentOption")
+      .populate({
+        path: "items.seller",
+        select: "name email bankDetails accountName upiId",
+        populate: {
+          path: "bankDetails",
+          select:
+            "bankName accountName upiId accountNumber ifscCode branchName branchAddress",
+        },
+      })
+      .populate("buyer");
+
+    if (!order)
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+
+    // Helper function for marking step complete
+    const markStepComplete = (stepName, extraData = {}) => {
+      let stepObj = order.processFlow.find((s) => s.step === stepName);
+      if (!stepObj) {
+        order.processFlow.push({
+          step: stepName,
+          completed: true,
+          completedAt: new Date(),
+          ...extraData,
+        });
+      } else {
+        stepObj.completed = true;
+        stepObj.completedAt = new Date();
+        Object.assign(stepObj, extraData);
+      }
+    };
+
+    // Helper function for creating step without marking complete
+    const createStepIfNotExists = (stepName, extraData = {}) => {
+      let stepObj = order.processFlow.find((s) => s.step === stepName);
+      if (!stepObj) {
+        order.processFlow.push({
+          step: stepName,
+          completed: false,
+          ...extraData,
+        });
+      } else {
+        // Update existing step with new data
+        Object.keys(extraData).forEach(key => {
+          stepObj[key] = extraData[key];
+        });
+      }
+    };
+
+    // INVOICE CREATION FUNCTION
+    const createInvoiceOnEnquiry = async () => {
+      // Check if invoice already exists
+      const existing = await Invoice.findOne({ order: order._id });
+      if (existing) {
+        console.log("Invoice already exists. Skipping creation.");
+        return;
+      }
+
+      if (!order.paymentOption)
+        throw new Error("Payment Option not found for this order");
+
+      const pay = order.paymentOption;
+
+      let invoiceData = {
+        order: order._id,
+        buyer: order.buyer._id,
+        seller: order.items[0]?.seller?._id,
+        amount: order.total,
+        status: "Pending",
+        bankStatement: [],
+      };
+
+      // If Cash → Mark invoice paid
+      if (pay.paymentType === "Cash") {
+        invoiceData.status = "Paid";
+        invoiceData.paidAt = new Date();
+
+        // Add bank statement entry
+        invoiceData.bankStatement.push({
+          date: new Date(),
+          description: "Cash Payment Received",
+          debit: 0,
+          credit: order.total,
+          balance: 0,
+        });
+      } else if (pay.paymentType === "Credit") {
+        // Add credit related values
+        invoiceData.creditPeriodDays = pay.creditPayment.creditPeriodDays;
+        invoiceData.interestRatePerYear = pay.creditPayment.interestRatePerYear;
+        invoiceData.interestStartAfterDays =
+          pay.creditPayment.interestStartAfterDays;
+
+        // Due date = Today + creditPeriodDays
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + pay.creditPayment.creditPeriodDays);
+        invoiceData.dueDate = dueDate;
+
+        // Interest accrual start date = dueDate + interestStartAfterDays
+        const interestStart = new Date(dueDate);
+        interestStart.setDate(
+          interestStart.getDate() + pay.creditPayment.interestStartAfterDays
+        );
+        invoiceData.interestAccrualStartDate = interestStart;
+      }
+
+      // SAVE the invoice
+      await Invoice.create(invoiceData);
+    };
+
+    // QR CODE GENERATION FUNCTION
+    const generateQRCodeForPayment = async () => {
+      const paymentOption = order.paymentOption;
+
+      if (!paymentOption) {
+        throw new Error("Payment option missing.");
+      }
+
+      const sellerBank = order.items[0]?.seller?.bankDetails;
+      if (!sellerBank?.upiId) {
+        throw new Error("Seller UPI ID not found.");
+      }
+
+      // Generate QR code only for Cash payments
+      if (paymentOption.paymentType === "Cash") {
+        const qrCode = await generateQRCode(sellerBank.upiId, order.total);
+        return qrCode;
+      }
+      
+      // For Credit payments, return null (no QR code)
+      return null;
+    };
+
+    // ---------------------------------------------
+    // MAIN STEP LOGIC
+    // ---------------------------------------------
+    switch (step) {
+      case "Enquiry Received":
+        if (actionBy !== "seller")
+          return res.status(403).json({
+            success: false,
+            message: "Only seller can send Enquiry Received",
+          });
+
+        markStepComplete("Enquiry Received", {
+          visibleTo: ["buyer", "seller"],
+        });
+
+        // CREATE INVOICE IMMEDIATELY
+        await createInvoiceOnEnquiry();
+
+        break;
+
+      case "Proforma Invoice":
+        if (actionBy !== "seller")
+          return res.status(403).json({
+            success: false,
+            message: "Only seller can send Proforma Invoice",
+          });
+
+        markStepComplete("Proforma Invoice", {
+          visibleTo: ["buyer", "seller"],
+        });
+        break;
+
+      case "Proforma Accepted":
+        if (actionBy !== "buyer")
+          return res.status(403).json({
+            success: false,
+            message: "Only buyer can accept Proforma",
+          });
+
+        markStepComplete("Proforma Accepted", {
+          visibleTo: ["buyer", "seller"],
+        });
+
+        const paymentOption = order.paymentOption;
+
+        if (!paymentOption) {
+          return res.status(400).json({ 
+            success: false, 
+            message: "Payment option missing." 
+          });
+        }
+
+        // For Cash payments: Generate QR code and auto-complete the step
+        if (paymentOption.paymentType === "Cash") {
+          try {
+            const qrCode = await generateQRCodeForPayment();
+            
+            markStepComplete("Payment QR Generated", {
+              visibleTo: ["buyer", "seller"],
+              qrCodeUrl: qrCode,
+              paymentType: "Cash"
+            });
+
+            order.qrCodeData = qrCode;
+          } catch (qrError) {
+            return res.status(400).json({
+              success: false,
+              message: `QR Code generation failed: ${qrError.message}`,
+            });
+          }
+        } 
+        // For Credit payments: Create step but DON'T mark complete - buyer will complete it
+        else if (paymentOption.paymentType === "Credit") {
+          // Calculate due date
+          const dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + (paymentOption.creditPayment?.creditPeriodDays || 0));
+          
+          const creditDetails = {
+            creditPeriodDays: paymentOption.creditPayment?.creditPeriodDays || 0,
+            interestRatePerYear: paymentOption.creditPayment?.interestRatePerYear || 0,
+            interestStartAfterDays: paymentOption.creditPayment?.interestStartAfterDays || 0,
+            paymentType: "Credit",
+            totalAmount: order.total,
+            dueDate: dueDate,
+            interestStartDate: new Date(dueDate.getTime() + (paymentOption.creditPayment?.interestStartAfterDays || 0) * 24 * 60 * 60 * 1000)
+          };
+
+          // Create the step but don't mark it as completed - WAITING FOR BUYER TO COMPLETE
+          createStepIfNotExists("Payment QR Generated", {
+            visibleTo: ["buyer", "seller"],
+            creditDetails: creditDetails, 
+            qrCodeUrl: null, // No QR code for credit
+            paymentType: "Credit"
+          });
+
+          order.creditPaymentDetails = creditDetails;
+        }
+
+        break;
+
+      case "Payment QR Generated":
+        // For Credit payments: Buyer completes this step
+        // For Cash payments: Seller completes this step (already handled in Proforma Accepted)
+        
+        const currentPaymentOption = order.paymentOption;
+        
+        if (!currentPaymentOption) {
+          return res.status(400).json({
+            success: false,
+            message: "Payment option not found",
+          });
+        }
+
+        if (currentPaymentOption.paymentType === "Credit") {
+          // Credit payment: Buyer completes this step
+          if (actionBy !== "buyer") {
+            return res.status(403).json({
+              success: false,
+              message: "For credit payments, only buyer can complete Payment QR Generated step",
+            });
+          }
+
+          // Get existing credit details from the step
+          const existingStep = order.processFlow.find(s => s.step === "Payment QR Generated");
+          let creditDetails = existingStep?.creditDetails;
+          
+          if (!creditDetails) {
+            // If credit details don't exist, create them
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + (currentPaymentOption.creditPayment?.creditPeriodDays || 0));
+            
+            creditDetails = {
+              creditPeriodDays: currentPaymentOption.creditPayment?.creditPeriodDays || 0,
+              interestRatePerYear: currentPaymentOption.creditPayment?.interestRatePerYear || 0,
+              interestStartAfterDays: currentPaymentOption.creditPayment?.interestStartAfterDays || 0,
+              paymentType: "Credit",
+              totalAmount: order.total,
+              dueDate: dueDate,
+              interestStartDate: new Date(dueDate.getTime() + (currentPaymentOption.creditPayment?.interestStartAfterDays || 0) * 24 * 60 * 60 * 1000)
+            };
+          }
+
+          markStepComplete("Payment QR Generated", {
+            visibleTo: ["buyer", "seller"],
+            creditDetails: creditDetails,
+            qrCodeUrl: null,
+            paymentType: "Credit"
+          });
+
+        } else if (currentPaymentOption.paymentType === "Cash") {
+          // Cash payment: Seller completes this step (if not already completed in Proforma Accepted)
+          if (actionBy !== "seller") {
+            return res.status(403).json({
+              success: false,
+              message: "For cash payments, only seller can complete Payment QR Generated step",
+            });
+          }
+
+          // Check if QR code already exists
+          const existingStep = order.processFlow.find(s => s.step === "Payment QR Generated");
+          if (!existingStep || !existingStep.completed) {
+            try {
+              const qrCode = await generateQRCodeForPayment();
+              markStepComplete("Payment QR Generated", {
+                visibleTo: ["buyer", "seller"],
+                qrCodeUrl: qrCode,
+                paymentType: "Cash"
+              });
+              order.qrCodeData = qrCode;
+            } catch (qrError) {
+              return res.status(400).json({
+                success: false,
+                message: `QR Code generation failed: ${qrError.message}`,
+              });
+            }
+          }
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid payment type",
+          });
+        }
+        break;
+
+      case "Payment Received":
+        if (actionBy !== "seller")
+          return res.status(403).json({
+            success: false,
+            message: "Only seller can confirm payment",
+          });
+
+        markStepComplete("Payment Received", {
+          visibleTo: ["buyer", "seller"],
+        });
+        break;
+
+      case "Invoice Uploaded":
+        if (actionBy !== "seller")
+          return res.status(403).json({
+            success: false,
+            message: "Only seller can upload invoice",
+          });
+
+        const itemSummary = order.items.map((i) => i.productName).join(", ");
+        const totalItems = order.items.length;
+        const totalAmount = order.total;
+
+        markStepComplete("Invoice Uploaded", {
+          visibleTo: ["buyer", "seller"],
+          invoiceSummary: { itemSummary, totalItems, totalAmount },
+        });
+        break;
+
+      case "Dispatch":
+        if (actionBy !== "seller")
+          return res.status(403).json({
+            success: false,
+            message: "Only seller can dispatch order",
+          });
+
+        markStepComplete("Dispatch", { visibleTo: ["buyer", "seller"] });
+        break;
+
+      case "Delivered":
+        if (actionBy !== "seller")
+          return res.status(403).json({
+            success: false,
+            message: "Only seller can mark as delivered",
+          });
+
+        markStepComplete("Delivered", { visibleTo: ["buyer", "seller"] });
+        break;
+
+      default:
+        return res.status(400).json({ success: false, message: "Invalid step" });
+    }
+
+    // Save Order
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: `${step} marked as completed.`,
+      data: order,
+    });
+  } catch (err) {
+    console.error("Error in updateOrderProcessStep:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+export const updateOrderItem = async (req, res, next) => {
+  try {
+    const { orderId, itemId, quantity } = req.body;
+
+    if (!orderId || !itemId || !quantity) {
+      return res.status(400).json({
+        success: false,
+        message: "orderId, itemId and quantity are required",
+      });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+
+    const item = order.items.find((it) => it._id.toString() === itemId);
+    if (!item) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Item not found" });
+    }
+
+    // Restore unit price (each item cost)
+    const unitPrice = item.finalPrice / item.quantity;
+
+    // Restore unit discount (discount of only 1 unit)
+    const unitDiscount = order.discountFromPayment / item.quantity;
+
+    // Update quantity
+    item.quantity = quantity;
+
+    // Recalculate prices using unit price
+    const newFinalPrice = unitPrice * quantity;
+    item.finalPrice = newFinalPrice;
+
+    order.subTotal = newFinalPrice;
+
+    // update discount
+    const newDiscount = unitDiscount * quantity;
+    order.discountFromPayment = newDiscount;
+
+    order.total = newFinalPrice - newDiscount;
+
+    await order.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Order item updated successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("Error updating order:", error);
+    next(error);
+  }
+};

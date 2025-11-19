@@ -4,9 +4,8 @@ import PaymentOption from "../models/paymentOption.js";
 import { startOfDay, daysBetween } from "../utils/InvoiceTime.js";
 import Errorhandler from '../utils/Errorhandler.js';
 
-/**
- * Create Invoice from Order
- */
+
+// Create Invoice from Order
 export const createInvoice = async (req, res) => {
   const { orderId } = req.body;
 
@@ -59,49 +58,6 @@ export const createInvoice = async (req, res) => {
 
   res.status(201).json({ success:true, message:"Invoice created", data: invoice });
 };
-
-/**
- * Record a Payment (adds a Credit entry; closes invoice if fully paid)
- */
-// export const recordPayment = async (req, res, next) => {
-//   const { id } = req.params;                 // invoiceId
-//   const { amount, paidAt, note } = req.body; // amount > 0
-
-//   if (!amount || amount <= 0) {
-//     return res.status(400).json({ success:false, message:"Amount must be > 0" });
-//   }
-
-//   const invoice = await Invoice.findById(id);
-//   if (!invoice) return res.status(404).json({ success:false, message:"Invoice not found" });
-
-//   const lastBalance = invoice.bankStatement.at(-1)?.balance ?? invoice.amount;
-//   const tDate = paidAt ? new Date(paidAt) : new Date();
-
-//   if (isNaN(tDate)) {
-//     return next(new Errorhandler("Invalid paidAt date", 400));
-//   }
-//   const newBalance = Math.max(+(lastBalance - amount).toFixed(2), 0);
-
-//   invoice.bankStatement.push({
-//     date: tDate,
-//     description: note || "Payment received",
-//     debit: 0,
-//     credit: amount,
-//     balance: newBalance,
-//   });
-
-//   if (newBalance <= 0) {
-//     invoice.status = "Paid";
-//     invoice.paidAt = tDate;
-//   } else if (invoice.dueDate && new Date() > invoice.dueDate) {
-//     invoice.status = "Overdue";
-//   } else {
-//     invoice.status = "Pending";
-//   }
-
-//   await invoice.save();
-//   res.json({ success:true, message:"Payment recorded", data: invoice });
-// };
 
 export const recordPayment = async (req, res, next) => {
   const { id } = req.params;                 // invoiceId
@@ -260,3 +216,54 @@ export const runInterestCronNow = async (req, res) => {
   await runDailyInterestForAll(new Date());
   res.json({ success:true, message:"Daily interest run executed" });
 };
+
+
+export const sellerInvoice = async (req, res) => {
+  try {
+    const { order, seller, buyer } = req.body;
+
+    // 🛑 Validation: orderId required + seller OR buyer required
+    if (!order || (!seller && !buyer)) {
+      return res.status(400).json({
+        success: false,
+        message: "orderId and either seller or buyer is required",
+      });
+    }
+
+    // 🔍 Build dynamic query
+    const query = { order: order };
+    if (seller) query.seller = seller;
+    if (buyer) query.buyer = buyer;
+
+    // 📄 Fetch invoice
+    const invoice = await Invoice.findOne(query).populate("order").populate("buyer").populate("seller");
+
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found",
+      });
+    }
+
+    // 🧮 Calculate last balance
+    const latestBalance = invoice.bankStatement.at(-1)?.balance ?? 0;
+
+    return res.status(200).json({
+      success: true,
+      message: "Invoice fetched successfully",
+      data: {
+        invoice,
+        latestBalance,
+      },
+    });
+
+  } catch (error) {
+    console.error("sellerInvoice error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+

@@ -182,23 +182,16 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
     const userId = req.user._id;
     const mode = req.user.mode; // "buyer" or "seller"
 
-    console.log("User ID:", userId);
-    console.log("Mode:", mode);
-
     // Find all connections where user is buyer or seller
     const connectionFilter = {
       $or: [{ buyer: userId }, { seller: userId }],
     };
 
-    console.log("Connection Filter:", JSON.stringify(connectionFilter, null, 2));
-
     const connections = await BuyerSellerConnection.find(connectionFilter)
       .populate("buyer", "name email phone businessAddress")
       .populate("seller", "name email phone businessAddress")
-      .populate("buyerCategory", "name")
+      .populate("buyerCategory", "name _id discount")
       .sort({ createdAt: -1 });
-
-    console.log("Found Connections:", connections.length);
 
     if (!connections.length) {
       return res.status(200).json({
@@ -218,7 +211,7 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
         return {
           _id: conn._id,
           status: conn.status,
-          buyerCategory: conn.buyerCategory?.name || null,
+          buyerCategory: conn.buyerCategory?._id || conn.buyerCategory?.name || conn.buyerCategory?.discount || null,
           userRole: isBuyer ? "buyer" : "seller",
           otherUser: otherUser
             ? {

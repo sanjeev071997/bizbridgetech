@@ -7,15 +7,27 @@ const processStepSchema = new mongoose.Schema({
       "Enquiry Received",
       "Proforma Invoice",
       "Proforma Accepted",
+      "Payment QR Generated",
       "Payment Received",
       "Invoice Uploaded",
       "Dispatch",
-      "Delivered"
+      "Delivered",
     ],
     required: true,
   },
   completed: { type: Boolean, default: false },
-  completedAt: { type: Date }
+  completedAt: { type: Date },
+  qrCodeUrl: { type: String }, // if QR is generated at this step
+  // NEW FIELD for credit payments
+  creditDetails: {
+    creditPeriodDays: Number,
+    interestRatePerYear: Number,
+    interestStartAfterDays: Number,
+    paymentType: String, // 'Credit' or 'Debit'
+    totalAmount: Number,
+    dueDate: Date,
+    interestStartDate: Date,
+  },
 });
 
 const orderItemSchema = new mongoose.Schema({
@@ -62,6 +74,8 @@ const orderSchema = new mongoose.Schema(
     },
 
     processFlow: [processStepSchema],
+
+    qrCodeData: { type: String }, // QR code base64 or URL
   },
   { timestamps: true }
 );

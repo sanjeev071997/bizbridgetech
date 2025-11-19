@@ -2,19 +2,24 @@ import PaymentOption from '../models/paymentOption.js';
 import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 
-
-//  Create Payment Option
+// Create Payment Option
 export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
-  const {
+  let {
     paymentType,
     cashPayment,
     creditPayment,
-    buyerCategory
+    buyerCategory,
+    user,
   } = req.body;
 
   // Validation
   if (!paymentType) {
     return next(new Errorhandler("Payment type is required", 400));
+  }
+
+  //  FIX: Auto-set interestStartAfterDays
+  if (creditPayment && creditPayment.creditPeriodDays) {
+    creditPayment.interestStartAfterDays = creditPayment.creditPeriodDays;
   }
 
   // Create in DB
@@ -23,7 +28,7 @@ export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
     cashPayment,
     creditPayment,
     buyerCategory,
-    user: req.user._id 
+    user,
   });
 
   res.status(201).json({
@@ -32,6 +37,7 @@ export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
     data: newPaymentOption,
   });
 });
+
 
 //  Get All Payment Options
 export const getAllPaymentOptions = catchAsyncErrors(async (req, res, next) => {
@@ -58,11 +64,62 @@ export const getPaymentOptionById = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
+// //  Update Payment Option
+// export const updatePaymentOption = catchAsyncErrors(async (req, res, next) => {
+//   console.log("Update Request Body:", req.body); // Debugging line
+//   const updatedPaymentOption = await PaymentOption.findByIdAndUpdate(
+//     req.params.id,
+//     req.body,
+//     { new: true, runValidators: true }
+//   );
+
+//   if (!updatedPaymentOption) {
+//     return next(new Errorhandler("Payment option not found", 404));
+//   }
+
+//   res.status(200).json({
+//     success: true,
+//     message: "Payment option updated successfully",
+//     data: updatedPaymentOption,
+//   });
+// });
+
 //  Update Payment Option
 export const updatePaymentOption = catchAsyncErrors(async (req, res, next) => {
+  console.log("Update Request Body:", req.body);
+
+  let {
+    paymentType,
+    cashPayment,
+    creditPayment,
+  } = req.body;
+
+  // -----------------------------------------
+  // FIX 1: Auto-set interestStartAfterDays
+  // -----------------------------------------
+  if (creditPayment && creditPayment.creditPeriodDays) {
+    creditPayment.interestStartAfterDays = creditPayment.creditPeriodDays;
+  }
+
+  // -----------------------------------------
+  // FIX 2: Prevent null values (important)
+  // -----------------------------------------
+  if (paymentType === "Cash") {
+    creditPayment = null;
+  } else if (paymentType === "Credit") {
+    cashPayment = null;
+  }
+
+  // Build updated payload
+  const payload = {
+    paymentType,
+    cashPayment,
+    creditPayment,
+  };
+
   const updatedPaymentOption = await PaymentOption.findByIdAndUpdate(
     req.params.id,
-    req.body,
+    payload,
     { new: true, runValidators: true }
   );
 
@@ -76,6 +133,7 @@ export const updatePaymentOption = catchAsyncErrors(async (req, res, next) => {
     data: updatedPaymentOption,
   });
 });
+
 
 //  Delete Payment Option
 export const deletePaymentOption = catchAsyncErrors(async (req, res, next) => {
@@ -99,7 +157,7 @@ export const getPaymentOptionByUser = catchAsyncErrors(async (req, res, next) =>
         return next(new Errorhandler("User ID is required", 400));
     }
     // Find payment options for the authenticated user
-  const paymentOptions = await PaymentOption.find({user}).sort({ createdAt: -1 });
+  const paymentOptions = await PaymentOption.find({user}).populate("buyerCategory", "name discount").sort({ createdAt: -1 });
     if (!paymentOptions || paymentOptions.length === 0) {
         return next(new Errorhandler("No payment options found for this user", 404));
     }
@@ -112,6 +170,9 @@ export const getPaymentOptionByUser = catchAsyncErrors(async (req, res, next) =>
 // get payment option by buyer category
 export const getPaymentOptionBybuyer = catchAsyncErrors(async (req, res, next) => {
     const { buyerCategory, seller } = req.body;
+
+    console.log("Buyer Category:", buyerCategory);
+    console.log("Seller ID:", seller);
     
      // Validation
   if (!buyerCategory || !seller) {
