@@ -259,7 +259,8 @@ export const getBuyerOrders = catchAsyncErrors(async (req, res, next) => {
     })
     .populate("paymentOption", "paymentType")
     .populate("buyer", "name phone mode")
-    .sort({ date: -1 });
+    // .sort({ date: -1 });
+    .sort({ createdAt: -1 });
 
   res.status(200).json({
     success: true,
@@ -380,7 +381,7 @@ export const updateProcessStep = catchAsyncErrors(async (req, res, next) => {
     processFlow: order.processFlow,
   });
 });
-
+ 
 // Delete Order (Admin or Buyer can cancel)
 export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
   const { id } = req.params;
@@ -835,7 +836,7 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //         const qrCode = await generateQRCode(sellerBank.upiId, order.total);
 //         return qrCode;
 //       }
-      
+
 //       // For Credit payments, return null (no QR code)
 //       return null;
 //     };
@@ -886,9 +887,9 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //         const paymentOption = order.paymentOption;
 
 //         if (!paymentOption) {
-//           return res.status(400).json({ 
-//             success: false, 
-//             message: "Payment option missing." 
+//           return res.status(400).json({
+//             success: false,
+//             message: "Payment option missing."
 //           });
 //         }
 
@@ -896,7 +897,7 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //         if (paymentOption.paymentType === "Cash") {
 //           try {
 //             const qrCode = await generateQRCodeForPayment();
-            
+
 //             markStepComplete("Payment QR Generated", {
 //               visibleTo: ["buyer", "seller"],
 //               qrCodeUrl: qrCode,
@@ -909,7 +910,7 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //               message: `QR Code generation failed: ${qrError.message}`,
 //             });
 //           }
-//         } 
+//         }
 //         // For Credit payments: Store credit details for display
 //         else if (paymentOption.paymentType === "Credit") {
 //           const creditDetails = {
@@ -1141,7 +1142,7 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //         const qrCode = await generateQRCode(sellerBank.upiId, order.total);
 //         return qrCode;
 //       }
-      
+
 //       // For Credit payments, return null (no QR code)
 //       return null;
 //     };
@@ -1192,9 +1193,9 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //         const paymentOption = order.paymentOption;
 
 //         if (!paymentOption) {
-//           return res.status(400).json({ 
-//             success: false, 
-//             message: "Payment option missing." 
+//           return res.status(400).json({
+//             success: false,
+//             message: "Payment option missing."
 //           });
 //         }
 
@@ -1202,7 +1203,7 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //         if (paymentOption.paymentType === "Cash") {
 //           try {
 //             const qrCode = await generateQRCodeForPayment();
-            
+
 //             markStepComplete("Payment QR Generated", {
 //               visibleTo: ["buyer", "seller"],
 //               qrCodeUrl: qrCode,
@@ -1216,13 +1217,13 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //               message: `QR Code generation failed: ${qrError.message}`,
 //             });
 //           }
-//         } 
+//         }
 //         // For Credit payments: Store credit details but DON'T auto-complete the step
 //         else if (paymentOption.paymentType === "Credit") {
 //           // Calculate due date
 //           const dueDate = new Date();
 //           dueDate.setDate(dueDate.getDate() + (paymentOption.creditPayment?.creditPeriodDays || 0));
-          
+
 //           const creditDetails = {
 //             creditPeriodDays: paymentOption.creditPayment?.creditPeriodDays || 0,
 //             interestRatePerYear: paymentOption.creditPayment?.interestRatePerYear || 0,
@@ -1238,7 +1239,7 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //           // Create the step but don't mark it as completed - SHARE CREDIT DETAILS
 //           createStepIfNotExists("Payment QR Generated", {
 //             visibleTo: ["buyer", "seller"],
-//             creditDetails: creditDetails, 
+//             creditDetails: creditDetails,
 //             qrCodeUrl: null, // No QR code for credit
 //             paymentType: "Credit"
 //           });
@@ -1263,12 +1264,12 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //           // Get existing credit details from the step or create new
 //           const existingStep = order.processFlow.find(s => s.step === "Payment QR Generated");
 //           let creditDetails = existingStep?.creditDetails;
-          
+
 //           if (!creditDetails) {
 //             // If credit details don't exist, create them
 //             const dueDate = new Date();
 //             dueDate.setDate(dueDate.getDate() + (paymentOptionForQR.creditPayment?.creditPeriodDays || 0));
-            
+
 //             creditDetails = {
 //               creditPeriodDays: paymentOptionForQR.creditPayment?.creditPeriodDays || 0,
 //               interestRatePerYear: paymentOptionForQR.creditPayment?.interestRatePerYear || 0,
@@ -1417,7 +1418,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
         });
       } else {
         // Update existing step with new data
-        Object.keys(extraData).forEach(key => {
+        Object.keys(extraData).forEach((key) => {
           stepObj[key] = extraData[key];
         });
       }
@@ -1501,7 +1502,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
         const qrCode = await generateQRCode(sellerBank.upiId, order.total);
         return qrCode;
       }
-      
+
       // For Credit payments, return null (no QR code)
       return null;
     };
@@ -1545,6 +1546,9 @@ export const updateOrderProcessStep = async (req, res, next) => {
             message: "Only buyer can accept Proforma",
           });
 
+        // UPDATE ORDER STATUS
+        order.orderStatus = "Processing";
+
         markStepComplete("Proforma Accepted", {
           visibleTo: ["buyer", "seller"],
         });
@@ -1552,9 +1556,9 @@ export const updateOrderProcessStep = async (req, res, next) => {
         const paymentOption = order.paymentOption;
 
         if (!paymentOption) {
-          return res.status(400).json({ 
-            success: false, 
-            message: "Payment option missing." 
+          return res.status(400).json({
+            success: false,
+            message: "Payment option missing.",
           });
         }
 
@@ -1562,11 +1566,11 @@ export const updateOrderProcessStep = async (req, res, next) => {
         if (paymentOption.paymentType === "Cash") {
           try {
             const qrCode = await generateQRCodeForPayment();
-            
+
             markStepComplete("Payment QR Generated", {
               visibleTo: ["buyer", "seller"],
               qrCodeUrl: qrCode,
-              paymentType: "Cash"
+              paymentType: "Cash",
             });
 
             order.qrCodeData = qrCode;
@@ -1576,29 +1580,42 @@ export const updateOrderProcessStep = async (req, res, next) => {
               message: `QR Code generation failed: ${qrError.message}`,
             });
           }
-        } 
+        }
         // For Credit payments: Create step but DON'T mark complete - buyer will complete it
         else if (paymentOption.paymentType === "Credit") {
           // Calculate due date
           const dueDate = new Date();
-          dueDate.setDate(dueDate.getDate() + (paymentOption.creditPayment?.creditPeriodDays || 0));
-          
+          dueDate.setDate(
+            dueDate.getDate() +
+              (paymentOption.creditPayment?.creditPeriodDays || 0)
+          );
+
           const creditDetails = {
-            creditPeriodDays: paymentOption.creditPayment?.creditPeriodDays || 0,
-            interestRatePerYear: paymentOption.creditPayment?.interestRatePerYear || 0,
-            interestStartAfterDays: paymentOption.creditPayment?.interestStartAfterDays || 0,
+            creditPeriodDays:
+              paymentOption.creditPayment?.creditPeriodDays || 0,
+            interestRatePerYear:
+              paymentOption.creditPayment?.interestRatePerYear || 0,
+            interestStartAfterDays:
+              paymentOption.creditPayment?.interestStartAfterDays || 0,
             paymentType: "Credit",
             totalAmount: order.total,
             dueDate: dueDate,
-            interestStartDate: new Date(dueDate.getTime() + (paymentOption.creditPayment?.interestStartAfterDays || 0) * 24 * 60 * 60 * 1000)
+            interestStartDate: new Date(
+              dueDate.getTime() +
+                (paymentOption.creditPayment?.interestStartAfterDays || 0) *
+                  24 *
+                  60 *
+                  60 *
+                  1000
+            ),
           };
 
           // Create the step but don't mark it as completed - WAITING FOR BUYER TO COMPLETE
           createStepIfNotExists("Payment QR Generated", {
             visibleTo: ["buyer", "seller"],
-            creditDetails: creditDetails, 
+            creditDetails: creditDetails,
             qrCodeUrl: null, // No QR code for credit
-            paymentType: "Credit"
+            paymentType: "Credit",
           });
 
           order.creditPaymentDetails = creditDetails;
@@ -1607,11 +1624,9 @@ export const updateOrderProcessStep = async (req, res, next) => {
         break;
 
       case "Payment QR Generated":
-        // For Credit payments: Buyer completes this step
-        // For Cash payments: Seller completes this step (already handled in Proforma Accepted)
-        
+        // Determine current payment option
         const currentPaymentOption = order.paymentOption;
-        
+
         if (!currentPaymentOption) {
           return res.status(400).json({
             success: false,
@@ -1624,27 +1639,44 @@ export const updateOrderProcessStep = async (req, res, next) => {
           if (actionBy !== "buyer") {
             return res.status(403).json({
               success: false,
-              message: "For credit payments, only buyer can complete Payment QR Generated step",
+              message:
+                "For credit payments, only buyer can complete Payment QR Generated step",
             });
           }
 
           // Get existing credit details from the step
-          const existingStep = order.processFlow.find(s => s.step === "Payment QR Generated");
+          const existingStep = order.processFlow.find(
+            (s) => s.step === "Payment QR Generated"
+          );
           let creditDetails = existingStep?.creditDetails;
-          
+
           if (!creditDetails) {
             // If credit details don't exist, create them
             const dueDate = new Date();
-            dueDate.setDate(dueDate.getDate() + (currentPaymentOption.creditPayment?.creditPeriodDays || 0));
-            
+            dueDate.setDate(
+              dueDate.getDate() +
+                (currentPaymentOption.creditPayment?.creditPeriodDays || 0)
+            );
+
             creditDetails = {
-              creditPeriodDays: currentPaymentOption.creditPayment?.creditPeriodDays || 0,
-              interestRatePerYear: currentPaymentOption.creditPayment?.interestRatePerYear || 0,
-              interestStartAfterDays: currentPaymentOption.creditPayment?.interestStartAfterDays || 0,
+              creditPeriodDays:
+                currentPaymentOption.creditPayment?.creditPeriodDays || 0,
+              interestRatePerYear:
+                currentPaymentOption.creditPayment?.interestRatePerYear || 0,
+              interestStartAfterDays:
+                currentPaymentOption.creditPayment?.interestStartAfterDays || 0,
               paymentType: "Credit",
               totalAmount: order.total,
               dueDate: dueDate,
-              interestStartDate: new Date(dueDate.getTime() + (currentPaymentOption.creditPayment?.interestStartAfterDays || 0) * 24 * 60 * 60 * 1000)
+              interestStartDate: new Date(
+                dueDate.getTime() +
+                  (currentPaymentOption.creditPayment?.interestStartAfterDays ||
+                    0) *
+                    24 *
+                    60 *
+                    60 *
+                    1000
+              ),
             };
           }
 
@@ -1652,27 +1684,29 @@ export const updateOrderProcessStep = async (req, res, next) => {
             visibleTo: ["buyer", "seller"],
             creditDetails: creditDetails,
             qrCodeUrl: null,
-            paymentType: "Credit"
+            paymentType: "Credit",
           });
-
         } else if (currentPaymentOption.paymentType === "Cash") {
           // Cash payment: Seller completes this step (if not already completed in Proforma Accepted)
           if (actionBy !== "seller") {
             return res.status(403).json({
               success: false,
-              message: "For cash payments, only seller can complete Payment QR Generated step",
+              message:
+                "For cash payments, only seller can complete Payment QR Generated step",
             });
           }
 
           // Check if QR code already exists
-          const existingStep = order.processFlow.find(s => s.step === "Payment QR Generated");
+          const existingStep = order.processFlow.find(
+            (s) => s.step === "Payment QR Generated"
+          );
           if (!existingStep || !existingStep.completed) {
             try {
               const qrCode = await generateQRCodeForPayment();
               markStepComplete("Payment QR Generated", {
                 visibleTo: ["buyer", "seller"],
                 qrCodeUrl: qrCode,
-                paymentType: "Cash"
+                paymentType: "Cash",
               });
               order.qrCodeData = qrCode;
             } catch (qrError) {
@@ -1736,11 +1770,16 @@ export const updateOrderProcessStep = async (req, res, next) => {
             message: "Only seller can mark as delivered",
           });
 
+           // UPDATE ORDER STATUS
+        order.orderStatus = "Completed";
+
         markStepComplete("Delivered", { visibleTo: ["buyer", "seller"] });
         break;
 
       default:
-        return res.status(400).json({ success: false, message: "Invalid step" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid step" });
     }
 
     // Save Order

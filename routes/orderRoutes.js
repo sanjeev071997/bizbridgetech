@@ -14,6 +14,6 @@ router.post("/update-process-step",isAuthenticatedUser, updateOrderProcessStep);
 
 router.post("/update-item-quantity", isAuthenticatedUser, updateOrderItem); // update order item quantity
 
-router.delete("/:id", isAuthenticatedUser, deleteOrder); // Todo api check in postman 
+router.delete("/:id", isAuthenticatedUser, deleteOrder); // delete order
 
 export default router;

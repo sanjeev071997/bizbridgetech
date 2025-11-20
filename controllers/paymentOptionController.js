@@ -170,10 +170,6 @@ export const getPaymentOptionByUser = catchAsyncErrors(async (req, res, next) =>
 // get payment option by buyer category
 export const getPaymentOptionBybuyer = catchAsyncErrors(async (req, res, next) => {
     const { buyerCategory, seller } = req.body;
-
-    console.log("Buyer Category:", buyerCategory);
-    console.log("Seller ID:", seller);
-    
      // Validation
   if (!buyerCategory || !seller) {
     return next(new Errorhandler("Both buyerCategory and sellerId are required", 400));
