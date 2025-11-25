@@ -22,20 +22,81 @@ const uploadBase64Image = async (base64Image) => {
 };
 
 // Function to add a new product
+// export const addProduct = catchAsyncErrors(async (req, res, next) => {
+//   const { name, image, mrp, category, stock, description, specifications } =
+//     req.body;
+
+//     console.log("Request Body:", req.body);
+
+//   let imageUrl = "";
+//   let cloudinaryId = "";
+
+//   try {
+//     // Image upload handling
+//     if (image && image.startsWith("data:image")) {
+//       const result = await uploadBase64Image(image);
+//       imageUrl = result.image;
+//       cloudinaryId = result.cloudinaryId;
+//     } else if (image) {
+//       const result = await cloudinary.uploader.upload(image, {
+//         folder: "SallerProducts",
+//       });
+//       imageUrl = result.secure_url;
+//       cloudinaryId = result.public_id;
+//     }
+
+//     if (!imageUrl) {
+//       return next(new Errorhandler("Image upload failed", 400));
+//     }
+
+//     // price calculation (no buyerCategory discount now)
+//     // let price = mrp;
+
+//     // Product create
+//     const newProduct = await Product.create({
+//       user: req.user._id,
+//       name,
+//       image: imageUrl,
+//       cloudinaryId,
+//       mrp,
+//       // price,   // final price = mrp
+//       category,
+//       stock,
+//       description,
+//       specifications,
+//     });
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Product added successfully",
+//       product: newProduct,
+//     });
+//   } catch (error) {
+//     console.log("Detailed Error:", error);
+//     return next(
+//       new Errorhandler("Error processing product upload or creation", 500)
+//     );
+//   }
+// });
+
+// Function to add a new product
 export const addProduct = catchAsyncErrors(async (req, res, next) => {
-  const { name, image, mrp, category, stock, description, specifications } =
+  const { name, image, mrp, category, description, specifications } =
     req.body;
 
   let imageUrl = "";
   let cloudinaryId = "";
 
   try {
-    // Image upload handling
+    // CASE 1️ : Base64 IMAGE
     if (image && image.startsWith("data:image")) {
       const result = await uploadBase64Image(image);
       imageUrl = result.image;
       cloudinaryId = result.cloudinaryId;
-    } else if (image) {
+    }
+
+    // CASE 2: CLOUDINARY UPLOAD (normal file path)
+    else if (image && !image.startsWith("http")) {
       const result = await cloudinary.uploader.upload(image, {
         folder: "SallerProducts",
       });
@@ -43,23 +104,26 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
       cloudinaryId = result.public_id;
     }
 
-    if (!imageUrl) {
-      return next(new Errorhandler("Image upload failed", 400));
+    // CASE 3: DIRECT IMAGE URL (no Cloudinary upload)
+    else if (image && image.startsWith("http")) {
+      imageUrl = image;  // directly use URL
+      cloudinaryId = ""; // No Cloudinary upload
     }
 
-    // price calculation (no buyerCategory discount now)
-    // let price = mrp;
+    // NO IMAGE
+    // if (!imageUrl) {
+    //   return next(new Errorhandler("Image not provided or invalid", 400));
+    // }
 
-    // Product create
+    // Create Product
     const newProduct = await Product.create({
       user: req.user._id,
       name,
       image: imageUrl,
       cloudinaryId,
       mrp,
-      // price,   // final price = mrp
       category,
-      stock,
+      // stock,
       description,
       specifications,
     });
@@ -76,6 +140,7 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
     );
   }
 });
+
 
 // Update product discount & visible
 export const updateProductCategoryAndVisibility = catchAsyncErrors(
@@ -188,7 +253,7 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
     name,
     category,
     mrp,
-    stock,
+    // stock,
     description,
     specifications,
     buyerCategory,
@@ -242,7 +307,7 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
     product.cloudinaryId = cloudinaryId;
     product.mrp = mrp || product.mrp;
     product.category = category || product.category;
-    product.stock = stock || product.stock;
+    // product.stock = stock || product.stock;
     product.description = description || product.description;
     product.specifications = specifications || product.specifications;
 
@@ -590,12 +655,14 @@ export const getProductsByBuyerCategoryId = catchAsyncErrors(
                 name: matched.buyerCategory.name,
                 discount: matched.buyerCategory.discount,
                 price: matched.price,
+                visible: matched.visible,
               }
             : {
                 id: buyerCategoryDoc._id,
                 name: buyerCategoryDoc.name,
                 discount: buyerCategoryDoc.discount,
                 price: product.mrp,
+                visible: buyerCategoryDoc.defaultVisibility || false,
               },
         };
       });

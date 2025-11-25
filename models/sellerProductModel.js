@@ -8,7 +8,7 @@ const sellerProductSchema = new mongoose.Schema(
     },
     image: {
       type: String,
-      required: true,
+      required: false,
     },
     cloudinaryId: {
       type: String,
@@ -18,11 +18,11 @@ const sellerProductSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
-    stock: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
+    // stock: {
+    //   type: Number,
+    //   required: true,
+    //   min: 0,
+    // },
     description: {
       type: String,
       required: false,

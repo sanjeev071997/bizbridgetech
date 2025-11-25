@@ -1,7 +1,8 @@
 {
   "files": {
-    "main.css": "/static/css/main.a02967b6.css",
-    "main.js": "/static/js/main.d9e0e5a3.js",
+    "main.css": "/static/css/main.05f74a47.css",
+    "main.js": "/static/js/main.1c75e55d.js",
+    "static/js/238.708ce827.chunk.js": "/static/js/238.708ce827.chunk.js",
     "static/media/christina-wocintechchat-com-Q80LYxv_Tbs-unsplash.jpg": "/static/media/christina-wocintechchat-com-Q80LYxv_Tbs-unsplash.2439ebaa0e4678f9bc1a.jpg",
     "static/media/logo.jpg": "/static/media/logo.18a86a0084b0e445ae2f.jpg",
     "static/media/slick.svg": "/static/media/slick.2630a3e3eab21c607e21.svg",
@@ -9,11 +10,12 @@
     "static/media/slick.ttf": "/static/media/slick.c94f7671dcc99dce43e2.ttf",
     "static/media/slick.woff": "/static/media/slick.295183786cd8a1389865.woff",
     "index.html": "/index.html",
-    "main.a02967b6.css.map": "/static/css/main.a02967b6.css.map",
-    "main.d9e0e5a3.js.map": "/static/js/main.d9e0e5a3.js.map"
+    "main.05f74a47.css.map": "/static/css/main.05f74a47.css.map",
+    "main.1c75e55d.js.map": "/static/js/main.1c75e55d.js.map",
+    "238.708ce827.chunk.js.map": "/static/js/238.708ce827.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.a02967b6.css",
-    "static/js/main.d9e0e5a3.js"
+    "static/css/main.05f74a47.css",
+    "static/js/main.1c75e55d.js"
   ]
 }

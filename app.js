@@ -24,6 +24,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import companyFeedRoutes from "./routes/companyfeedsRoutes.js";
 import invoiceRoutes from "./routes/invoiceRoutes.js";
 import brandsRoutes from "./routes/brandsRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 import { startInterestCron } from "./utils/invoiceInterestCron.js";
 import swaggerUi from "swagger-ui-express";
 import fs from "fs";
@@ -38,16 +39,18 @@ const __dirname = path.dirname(__filename);
 const port = process.env.PORT || 8080;
 
 const app = express();
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-app.use(cors({
-  origin: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true 
-}));
-app.options('*', cors()); 
+app.use(
+  cors({
+    origin: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
+app.options("*", cors());
 app.use(bodyParser.json());
 app.use(cookieParser());
 
@@ -56,7 +59,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*",
-    credentials: true 
+    credentials: true,
   },
 });
 
@@ -89,13 +92,13 @@ app.use("/api/v1/order", orderRoutes);
 app.use("/api/v1/company/feed", companyFeedRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/brands", brandsRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes); // dashboard routes
 
 // app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // swagger.json file read karo
 const swaggerDocument = JSON.parse(fs.readFileSync("./swagger.json", "utf-8"));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));
@@ -130,181 +133,10 @@ io.on("connection", (socket) => {
   });
 });
 
-// io.on("connection", (socket) => {
-//   console.log("Socket.IO: User connected", socket.id);
-
-//   socket.on("joinRoom", (userId) => {
-//     if (userId) {
-//       socket.join(userId);
-//       console.log(`Socket.IO: User ${userId} joined room`);
-//     } else {
-//       console.error("Socket.IO: Invalid userId for joinRoom");
-//     }
-//   });
-
-//   socket.on("messagesRead", ({ readerId }) => {
-//     console.log("Socket.IO: Messages read by:", readerId);
-//     io.to(readerId).emit("messagesRead", { readerId });
-//   });
-
-//   socket.on("disconnect", () => {
-//     console.log("Socket.IO: User disconnected", socket.id);
-//   });
-// });
-
-
-
-  startInterestCron();     // daily per-day interest
+startInterestCron(); // daily per-day interest
 
 // Start server with Socket.IO attached
 server.listen(port, () => {
   console.log(`App listening on port ${port}`);
   console.log(`Swagger docs available at ${port}/api-docs`);
 });
-
-
-// import express from "express";
-// import dotenv from "dotenv";
-// import http from "http";
-// import { Server } from "socket.io";
-// import dbConfig from "./config/dbConfig.js";
-// import cors from "cors";
-// import bodyParser from "body-parser";
-// import cookieParser from "cookie-parser";
-// import errorMiddleware from "./middlewares/error.js";
-// import authRoute from "./routes/authRoute.js";
-// import contactRoute from "./routes/contactRoutes.js";
-// import sellerCategoryRoutes from "./routes/sellerCategoryRoutes.js";
-// import sellerProductRoutes from "./routes/sellerProductRoutes.js";
-// import buyerCategoryRoutes from "./routes/buyerCategoryRoutes.js";
-// import testimonialRoutes from "./routes/testimonialRoutes.js";
-// import advertisementRoutes from "./routes/advertisementRoutes.js";
-// import PaymentOption from "./routes/paymentOptionRoutes.js";
-// import SchemeRoutes from "./routes/schemeRoutes.js";
-// import supportRoutes from "./routes/supportRoutes.js";
-// import buyerSellerConnectionRoutes from "./routes/buyerSellerConnectionRoutes.js";
-// import chatRoutes from "./routes/chatRoutes.js";
-// import cartRoutes from "./routes/cartRoutes.js";
-// import orderRoutes from "./routes/orderRoutes.js";
-// import companyFeedRoutes from "./routes/companyfeedsRoutes.js";
-// import invoiceRoutes from "./routes/invoiceRoutes.js";
-// import brandsRoutes from "./routes/brandsRoutes.js";
-// import { startInterestCron } from "./utils/invoiceInterestCron.js";
-// import swaggerUi from "swagger-ui-express";
-// import fs from "fs";
-// import path from "path";
-// import { fileURLToPath } from "url";
-
-// dotenv.config();
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-// const port = process.env.PORT || 8080;
-
-// const app = express();
-// app.use(express.json({ limit: '50mb' }));
-// app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-// app.use(cors({
-//   origin: true,
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization'],
-//   credentials: true 
-// }));
-// app.options('*', cors()); 
-// app.use(bodyParser.json());
-// app.use(cookieParser());
-
-// // Create HTTP server and attach Socket.IO
-// const server = http.createServer(app);
-// const io = new Server(server, {
-//   cors: {
-//     origin: "*",
-//     credentials: true 
-//   },
-// });
-
-// // ✅✅✅ FIX: Attach io to every request BEFORE routes
-// app.use((req, res, next) => {
-//   req.io = io;
-//   next();
-// });
-
-// // Check Server Status
-// app.get("/api/status", (req, res) => {
-//   res.json({ data: true, message: "Server is running" });
-// });
-
-// // APIs end points
-// app.use("/api/v1/auth", authRoute);
-// app.use("/api/v1/contact", contactRoute);
-// app.use("/api/v1/seller-categories", sellerCategoryRoutes);
-// app.use("/api/v1/seller-products", sellerProductRoutes);
-// app.use("/api/v1/buyer-categories", buyerCategoryRoutes);
-// app.use("/api/v1/testimonial", testimonialRoutes);
-// app.use("/api/v1/advertisement", advertisementRoutes);
-// app.use("/api/v1/payment-options", PaymentOption);
-// app.use("/api/v1/schemes", SchemeRoutes);
-// app.use("/api/v1/support", supportRoutes);
-// app.use("/api/v1/buyer-seller-connections", buyerSellerConnectionRoutes);
-// app.use("/api/v1/chat", chatRoutes); // ✅ Now chatRoutes will have access to req.io
-// app.use("/api/v1/cart", cartRoutes);
-// app.use("/api/v1/order", orderRoutes);
-// app.use("/api/v1/company/feed", companyFeedRoutes);
-// app.use("/api/v1/invoices", invoiceRoutes);
-// app.use("/api/v1/brands", brandsRoutes);
-
-// // Swagger setup
-// const swaggerDocument = JSON.parse(fs.readFileSync("./swagger.json", "utf-8"));
-// app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-
-// // Static files
-// app.use(express.static(path.join(__dirname, "./build")));
-// app.get("*", (req, res) => {
-//   res.sendFile(path.join(__dirname, "./build/index.html"));
-// });
-
-// // Error middleware
-// app.use(errorMiddleware);
-
-// // ✅✅✅ Improved Socket.IO connection with authentication
-// io.on("connection", (socket) => {
-//   console.log("✅ Socket.IO: User connected", socket.id);
-
-//   // Extract user ID from auth token (if using token-based auth)
-//   const token = socket.handshake.auth.token;
-//   console.log("Socket auth:", socket.handshake.auth);
-
-//   socket.on("joinRoom", (userId) => {
-//     if (userId) {
-//       socket.join(userId);
-//       console.log(`✅ Socket.IO: User ${userId} joined room ${userId}`);
-//       socket.emit("joinRoomSuccess", { room: userId, message: "Successfully joined room" });
-//     } else {
-//       console.error("❌ Socket.IO: Invalid userId for joinRoom");
-//       socket.emit("joinRoomError", { error: "Invalid user ID" });
-//     }
-//   });
-
-//   socket.on("messagesRead", ({ readerId }) => {
-//     console.log("📩 Socket.IO: Messages read by:", readerId);
-//     // Notify the other user that their messages were read
-//     socket.to(readerId).emit("messagesRead", { readerId: socket.userId || "unknown" });
-//   });
-
-//   socket.on("disconnect", (reason) => {
-//     console.log("❌ Socket.IO: User disconnected", socket.id, "Reason:", reason);
-//   });
-
-//   socket.on("error", (error) => {
-//     console.error("❌ Socket.IO error:", error);
-//   });
-// });
-
-// // Start server with Socket.IO attached
-// server.listen(port, () => {
-//   console.log(`🚀 App listening on port ${port}`);
-//   console.log(`📚 Swagger docs available at http://localhost:${port}/api-docs`);
-//   console.log("✅ Socket.IO server is running");
-// });
-
-// startInterestCron(); // daily per-day interest
