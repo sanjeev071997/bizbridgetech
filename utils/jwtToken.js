@@ -30,7 +30,6 @@
 
 // export default sendToken;
 
-// utils/sendToken.js
 const sendToken = (user, statusCode, res) => {
   const token = user.getJWTToken();
   const refreshToken = user.getRefreshToken();
@@ -38,7 +37,7 @@ const sendToken = (user, statusCode, res) => {
   // Store refresh token in HTTP-only cookie
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    // secure: true,
+    secure: true,
     sameSite: "None",
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     path: "/",
@@ -46,7 +45,7 @@ const sendToken = (user, statusCode, res) => {
 
   res.cookie("token", token, {
     httpOnly: true,
-    // secure: true,
+    secure: true,
     sameSite: "None",
     maxAge: 15 * 60 * 1000, // 15 min
     path: "/",
