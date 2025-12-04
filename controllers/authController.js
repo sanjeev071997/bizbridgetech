@@ -106,16 +106,55 @@ export const login = catchAsyncErrors(async (req, res, next) => {
   sendToken(user, 200, res);
 });
 
+// export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
+//   const { tokenId } = req.body; // token from frontend Google login
+//   // Verify Google token
+//   const ticket = await client.verifyIdToken({
+//     idToken: tokenId,
+//     audience: process.env.GOOGLE_CLIENT_ID,
+//   });
+
+//   const { email, name, picture } = ticket.getPayload();
+
+//   // Check if user already exists
+//   const userExist = await User.findOne({ email });
+//   if (userExist) {
+//     return next(new Errorhandler("User already registered. Please login.", 400));
+//   }
+
+//   // Create user with a random password (Google handles login)
+//   const randomPassword = crypto.randomBytes(20).toString("hex");
+
+//   const user = await User.create({
+//     name,
+//     email,
+//     password: randomPassword,
+//     phone: "0000000000", // You can handle phone optional or ask later
+//     emailVerified: true, // Since Google verified
+//   });
+
+//   // AUTO CREATE BUYER CATEGORY (KIOSK) FOR NEW USER
+//   await BuyerCategory.create({
+//     user: user._id,
+//     name: "Kiosk",
+//     discount: 0,
+//   });
+
+//   // Send JWT token
+//   sendToken(user, 200, res);
+// });
+
+
 export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
   const { tokenId } = req.body; // token from frontend Google login
-console.log("tokenId", req.body);
+
   // Verify Google token
   const ticket = await client.verifyIdToken({
     idToken: tokenId,
     audience: process.env.GOOGLE_CLIENT_ID,
   });
 
-  const { email, name, picture } = ticket.getPayload();
+  const { email, name, picture, phone_number } = ticket.getPayload(); // phone_number may be available
 
   // Check if user already exists
   const userExist = await User.findOne({ email });
@@ -126,12 +165,25 @@ console.log("tokenId", req.body);
   // Create user with a random password (Google handles login)
   const randomPassword = crypto.randomBytes(20).toString("hex");
 
+  let phoneToSave = phone_number;
+
+  // If phone not provided by Google, generate a random unique 10-digit number
+  if (!phoneToSave) {
+    let randomPhone;
+    let phoneExists;
+    do {
+      randomPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      phoneExists = await User.findOne({ phone: randomPhone });
+    } while (phoneExists);
+    phoneToSave = randomPhone;
+  }
+
   const user = await User.create({
     name,
     email,
     password: randomPassword,
-    phone: "0000000000", // You can handle phone optional or ask later
-    emailVerified: true, // Since Google verified
+    phone: phoneToSave,
+    emailVerified: true, // Google verified
   });
 
   // AUTO CREATE BUYER CATEGORY (KIOSK) FOR NEW USER
@@ -144,6 +196,7 @@ console.log("tokenId", req.body);
   // Send JWT token
   sendToken(user, 200, res);
 });
+
 
 export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
   const { tokenId } = req.body;
