@@ -2,6 +2,8 @@ import express from "express";
 import {
   register,
   login,
+  googleWithRegister,
+  googleWithlogin,
   refreshAccessToken,
   logout,
   profileDetails,
@@ -25,6 +27,8 @@ const router = express.Router();
 
 router.post("/register",registerValidation, register);
 router.post("/login",loginValidation, login);
+router.post("/google-register", googleWithRegister);
+router.post("/google-login", googleWithlogin);
 router.post("/refresh", refreshAccessToken);
 router.get("/logout", logout);
 router.get("/profile", isAuthenticatedUser, profileDetails);

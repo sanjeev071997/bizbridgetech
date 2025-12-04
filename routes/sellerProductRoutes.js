@@ -17,11 +17,11 @@ import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({});
-const upload = multer({ storage });
+const upload = multer({ storage }); 
 
 const router = express.Router();
 
-router.post("/", upload.single('image'), isAuthenticatedUser, addProduct);
+router.post("/", upload.single('image'), isAuthenticatedUser, addProduct); 
 
 router.put("/update-buyer-category-visibility", isAuthenticatedUser, updateProductCategoryAndVisibility); // seller dashboard ye api product k buyer category and visibility update krne k liye h
 

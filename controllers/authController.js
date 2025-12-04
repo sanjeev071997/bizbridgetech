@@ -1,6 +1,8 @@
+import { OAuth2Client } from "google-auth-library";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
+import BuyerCategory from '../models/buyerCategoriesModel.js';
 import sendToken from "../utils/jwtToken.js";
 import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
@@ -9,9 +11,41 @@ import sendEmail from "../utils/sendEmail.js";
 import verifyEmail from '../utils/verifyEmail.js';
 import { sendOtp } from '../utils/sendOtp.js';
 
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+console.log("google client Id", client);
+// User Registration
+// export const register = catchAsyncErrors(async (req, res, next) => {
+//   const {email, phone, } = req.body;
+
+//   // Check if user already exists
+//   const userExist = await User.findOne({ email });
+//   if (userExist) {
+//     return next(new Errorhandler("Email already registered", 400));
+//   }
+
+//   // Check if user phone already exists
+//   const userPhoneExist = await User.findOne({ phone });
+//   if (userPhoneExist) {
+//     return next(new Errorhandler("Phone already registered", 400));
+//   }
+
+//   try {
+//     // Create a new user
+//     const user = await User.create(req.body);
+
+//     // Send token (login the user)
+//     sendToken(user, 200, res);
+//   } catch (error) {
+//     // Handle any other errors
+//     return next(
+//       new Errorhandler("Failed to create account. Please try again.", 500)
+//     );
+//   }
+// });
+
 // User Registration
 export const register = catchAsyncErrors(async (req, res, next) => {
-  const {email, phone, } = req.body;
+  const { email, phone } = req.body;
 
   // Check if user already exists
   const userExist = await User.findOne({ email });
@@ -26,102 +60,110 @@ export const register = catchAsyncErrors(async (req, res, next) => {
   }
 
   try {
-    // Create a new user
+    // Create user
     const user = await User.create(req.body);
+    // AUTO CREATE BUYER CATEGORY (KIOSK) FOR NEW USER
+    await BuyerCategory.create({
+       user: user._id,
+       name: "Kiosk",
+       discount: 0,
+    });
 
     // Send token (login the user)
     sendToken(user, 200, res);
+
   } catch (error) {
-    // Handle any other errors
     return next(
       new Errorhandler("Failed to create account. Please try again.", 500)
     );
   }
 });
 
-// user login
-// export const login = catchAsyncErrors(async (req, res, next) => {
-//   const { email, password } = req.body;
-
-//   // Use regex to check if input is email or phone
-//   const isEmail = email.includes("@"); 
-
-//   // Find user by email or phone
-//   const user = await User.findOne(
-//     isEmail ? { email } : { phone: email }
-//   ).select("+password");
-
-//   if (!user) {
-//     return next(new Errorhandler("Invalid email/phone or password", 401));
-//   }
-
-//   const isPasswordMatched = await user.comparePassword(password);
-//   if (!isPasswordMatched) {
-//     return next(new Errorhandler("Invalid email/phone or password", 401));
-//   }
-
-//   sendToken(user, 200, res);
-// });
-
-// // Refresh Access Token
-// export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {
-//   const { refreshToken } = req.cookies;
-  
-//   if (!refreshToken) return next(new Errorhandler("Refresh token missing", 401));
-  
-//   try {
-//     const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
-//     const user = await User.findById(decoded.id);
-//     if (!user) return next(new Errorhandler("User not found", 404));
-//     const newAccessToken = user.getJWTToken();
-
-//     res.cookie("token", newAccessToken, {
-//       httpOnly: true,
-//       secure: true, 
-//       sameSite: "None",
-//       maxAge: 15 * 60 * 1000,
-//       path: "/",
-//     });
-//     return res.status(200).json({ success: true });
-//   } catch {
-//     return next(new Errorhandler("Invalid refresh token", 403));
-//   }
-// });
-
-// // Logout
-// export const logout = catchAsyncErrors(async (req, res, next) => {
-//   res.clearCookie("token", {
-//     httpOnly: true,
-//     sameSite: 'none',
-//     secure: true,
-//   });
-//   res.clearCookie("refreshToken", {
-//     httpOnly: true,
-//     sameSite: 'none',
-//     secure: true,
-//   });
-
-//   res.status(200).json({
-//     success: true,
-//     message: "Logged out successfully",
-//   });
-// });
 
 // user login
 export const login = catchAsyncErrors(async (req, res, next) => {
-  const { email, password } = req.body;
-  const isEmail = email.includes("@"); 
+  const { email, phone, password } = req.body;
+  // Find user by email or phone
+  const user = await User.findOne({
+    $or: [{ email: email || null }, { phone: phone || null }],
+  }).select("+password");
 
-  const user = await User.findOne(
-    isEmail ? { email } : { phone: email }
-  ).select("+password");
+  if (!user) {
+    return next(
+      new Errorhandler("Invalid email/phone or password", 401)
+    );
+  }
 
-  if (!user) return next(new Errorhandler("Invalid email/phone or password", 401));
   const isPasswordMatched = await user.comparePassword(password);
-  if (!isPasswordMatched) return next(new Errorhandler("Invalid email/phone or password", 401));
 
+  if (!isPasswordMatched) {
+    return next(
+      new Errorhandler("Invalid email/phone or password", 401)
+    );
+  }
+
+  // ✅ Send token
   sendToken(user, 200, res);
 });
+
+export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
+  const { tokenId } = req.body; // token from frontend Google login
+console.log("tokenId", req.body);
+  // Verify Google token
+  const ticket = await client.verifyIdToken({
+    idToken: tokenId,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+
+  const { email, name, picture } = ticket.getPayload();
+
+  // Check if user already exists
+  const userExist = await User.findOne({ email });
+  if (userExist) {
+    return next(new Errorhandler("User already registered. Please login.", 400));
+  }
+
+  // Create user with a random password (Google handles login)
+  const randomPassword = crypto.randomBytes(20).toString("hex");
+
+  const user = await User.create({
+    name,
+    email,
+    password: randomPassword,
+    phone: "0000000000", // You can handle phone optional or ask later
+    emailVerified: true, // Since Google verified
+  });
+
+  // AUTO CREATE BUYER CATEGORY (KIOSK) FOR NEW USER
+  await BuyerCategory.create({
+    user: user._id,
+    name: "Kiosk",
+    discount: 0,
+  });
+
+  // Send JWT token
+  sendToken(user, 200, res);
+});
+
+export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
+  const { tokenId } = req.body;
+
+  const ticket = await client.verifyIdToken({
+    idToken: tokenId,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+
+  const { email } = ticket.getPayload();
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return next(new Errorhandler("User not found. Please register.", 404));
+  }
+
+  // Send JWT token
+  sendToken(user, 200, res);
+});
+
 
 // Refresh Access Token
 export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {

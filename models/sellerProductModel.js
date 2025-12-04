@@ -23,6 +23,10 @@ const sellerProductSchema = new mongoose.Schema(
     //   required: true,
     //   min: 0,
     // },
+    unit: {
+    type: String,
+    required: false,
+    },
     description: {
       type: String,
       required: false,

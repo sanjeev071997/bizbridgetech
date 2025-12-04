@@ -178,6 +178,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
+      trim: true,
     },
 
     password: {
@@ -246,12 +247,7 @@ const userSchema = new mongoose.Schema(
     resetPasswordOtp: {
       type: String,
     },
-
-    resetPasswordToken: String,
-
-    resetPasswordExpire: Date,
-
-    // --- NEW: bank details object ---
+   
     bankDetails: {
       upiId: {
         type: String,
@@ -307,8 +303,10 @@ const userSchema = new mongoose.Schema(
       updatedAt: {
         type: Date,
       }
-    }
-    // --- end bank details ---
+    },
+
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
   },
   {
     timestamps: true,

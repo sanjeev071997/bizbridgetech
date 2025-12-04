@@ -32,16 +32,29 @@ export const registerValidation = (req, res, next) => {
   }
 
   // Phone validation pattern to allow any country code followed by 10 digits
-  const phonePattern = /^\+\d{1,3}\s?[0-9]{10}$/;
+  // const phonePattern = /^\+\d{1,3}\s?[0-9]{10}$/;
 
-  if (!phonePattern.test(phone)) {
-    return next(
-      new Errorhandler(
-        `${req.body.phone} - Invalid phone number format. Please use a valid country code followed by a 10-digit number, like "+91 998XXXXXXX".`,
-        403
-      )
-    );
-  }
+  // if (!phonePattern.test(phone)) {
+  //   return next(
+  //     new Errorhandler(
+  //       `${req.body.phone} - Invalid phone number format. Please use a valid country code followed by a 10-digit number, like "+91 998XXXXXXX".`,
+  //       403
+  //     )
+  //   );
+  // }
+
+  // Only 10-digit number (no +91 required)
+const phonePattern = /^[0-9]{10}$/;
+
+if (!phonePattern.test(phone)) {
+  return next(
+    new Errorhandler(
+      `${req.body.phone} - Invalid phone number format. Please enter a 10-digit phone number like "998XXXXXXX".`,
+      403
+    )
+  );
+}
+
 
   // Password validation
   const pattern = new RegExp("(?=.*\\d)(?=.*[a-z])(?=.*[A-Z]).{8,}");
@@ -59,9 +72,13 @@ export const registerValidation = (req, res, next) => {
 
 // Login Validation
 export const loginValidation = (req, res, next) => {
-  const { email, password } = req.body;
-  if (!email) {
-    return next(new Errorhandler("Please Enter Your Email", 400));
+  const { email, phone, password } = req.body;
+  // if (!email) {
+  //   return next(new Errorhandler("Please Enter Your Email", 400));
+  // }
+     // ✅ Validate input
+  if ((!email || email.trim() === "") && (!phone || phone.trim() === "")) {
+    return next(new Errorhandler("Please enter your email or phone", 400));
   }
   if (!password) {
     return next(new Errorhandler("Please Enter Your Password", 400));
@@ -90,16 +107,29 @@ export const profileUpdateValidation = (req, res, next) => {
   }
 
   // Phone validation pattern to allow any country code followed by 10 digits
-  const phonePattern = /^\+\d{1,3}\s?[0-9]{10}$/;
+  // const phonePattern = /^\+\d{1,3}\s?[0-9]{10}$/;
 
-  if (!phonePattern.test(req.body.phone)) {
-    return next(
-      new Errorhandler(
-        `${req.body.phone} - Invalid phone number format. Please use a valid country code followed by a 10-digit number, like "+91 998XXXXXXX".`,
-        403
-      )
-    );
-  }
+  // if (!phonePattern.test(req.body.phone)) {
+  //   return next(
+  //     new Errorhandler(
+  //       `${req.body.phone} - Invalid phone number format. Please use a valid country code followed by a 10-digit number, like "+91 998XXXXXXX".`,
+  //       403
+  //     )
+  //   );
+  // }
+
+  // Only 10-digit number (no +91 required)
+const phonePattern = /^[0-9]{10}$/;
+
+if (!phonePattern.test(req.body.phone)) {
+  return next(
+    new Errorhandler(
+      `${req.body.phone} - Invalid phone number format. Please enter a 10-digit phone number like "998XXXXXXX".`,
+      403
+    )
+  );
+}
+
 
   next();
 };
