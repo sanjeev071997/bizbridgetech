@@ -137,6 +137,16 @@ const cartItemSchema = new mongoose.Schema(
       ref: "SellerProduct",
       required: true,
     },
+    // category : {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref : "SellerCategory",
+    // //  required: true,
+    // },
+    category: {
+      _id: { type: mongoose.Schema.Types.ObjectId },
+      name: { type: String },
+      gst: { type: String },
+    },
     quantity: {
       type: Number,
       required: true,

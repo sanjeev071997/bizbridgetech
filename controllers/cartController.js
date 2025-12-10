@@ -7,136 +7,309 @@ import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 import PaymentOption from "../models/paymentOption.js";
 
 // Add to Cart
+// export const addCart = async (req, res) => {
+//   try {
+//     const { userId, productId, quantity = 1 } = req.body;
+
+//     // 🔹 Find product
+//     const product = await SellerProduct.findById(productId)
+//       .populate("user")
+//       .populate("category", "gst name");
+
+//     if (!product)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Product not found" });
+
+//     const sellerId = product.user?._id;
+//     if (!sellerId)
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "Seller not found" });
+
+//     // 🔹 Verify buyer-seller connection
+//     const connection = await BuyerSellerConnection.findOne({
+//       buyer: userId,
+//       seller: sellerId,
+//       status: "Accepted",
+//     });
+
+//     if (!connection) {
+//       return res.status(403).json({
+//         success: false,
+//         message: "No buyer-seller connection found. Cannot add to cart.",
+//       });
+//     }
+
+//     const buyerCategory = connection.buyerCategory;
+
+//     // 🔹 Find product visibility for this buyer category
+//     const visibility = product.productVisibility.find(
+//       (v) => v.buyerCategory?.toString() === buyerCategory.toString()
+//     );
+
+//     if (!visibility) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "This product is not visible for your buyer category.",
+//       });
+//     }
+
+//     // 🔹 Calculate prices
+//     const basePrice = visibility.price;
+//     const gstPercent = product.category?.gst || 0;
+//     const gstAmount = (basePrice * gstPercent) / 100;
+//     const finalPrice = basePrice + gstAmount;
+
+//     // 🔹 Get payment option (for discount)
+//     const paymentOption = await PaymentOption.findOne({
+//       buyerCategory,
+//       user: sellerId,
+//     });
+
+//     let discountPercent = 0;
+//     if (paymentOption?.cashPayment?.discountPercent) {
+//       discountPercent = paymentOption.cashPayment.discountPercent;
+//     }
+
+//     const discountFromPayment = (finalPrice * quantity * discountPercent) / 100;
+
+//     // 🔹 Find or create cart
+//     let cart = await Cart.findOne({ user: userId, seller: sellerId });
+//     if (!cart) {
+//       cart = new Cart({
+//         user: userId,
+//         seller: sellerId,
+//         items: [],
+//         paymentOption: paymentOption?._id || null,
+//         subTotal: 0,
+//         discountFromPayment: discountFromPayment || 0,
+//         total: 0,
+//       });
+//     } else if (paymentOption?._id) {
+//       cart.paymentOption = paymentOption._id;
+//     }
+
+//     // 🔹 Add or update item
+//     const existingItem = cart.items.find(
+//       (i) => i.product.toString() === productId
+//     );
+
+//     if (existingItem) {
+//       existingItem.quantity += quantity;
+//       existingItem.mrp = basePrice;
+//       existingItem.gstAmount = gstAmount;
+//       existingItem.finalPrice = finalPrice;
+//       // Update category if not already present
+//       if (product.category && !existingItem.category) {
+//         existingItem.category = {
+//           _id: product.category._id,
+//           name: product.category.name,
+//           gst: product.category.gst
+//         };
+//       }
+//     } else {
+//       cart.items.push({
+//         product: productId,
+//         quantity,
+//         mrp: product.mrp,
+//         discountPrice: basePrice,
+//         gstAmount,
+//         finalPrice,
+//         // Add category to item
+//         category: product.category ? {
+//           _id: product.category._id,
+//           name: product.category.name,
+//           gst: product.category.gst
+//         } : null
+//       });
+//     }
+
+//     // 🔹 Calculate cart totals
+//     const subTotal = cart.items.reduce(
+//       (sum, i) => sum + (i.finalPrice || (i.discountPrice + i.gstAmount)) * i.quantity,
+//       0
+//     );
+
+//     const totalDiscountFromPayment = (subTotal * discountPercent) / 100;
+//     const total = subTotal - totalDiscountFromPayment;
+
+//     cart.subTotal = subTotal;
+//     cart.discountFromPayment = totalDiscountFromPayment;
+//     cart.total = total;
+
+//     await cart.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Cart updated successfully",
+//       cart,
+//     });
+//   } catch (error) {
+//     console.error("addCart error:", error);
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
 export const addCart = async (req, res) => {
   try {
-    const { userId, productId, quantity = 1 } = req.body;
+    const { userId, items } = req.body; // ⬅️ ITEMS IS ARRAY
 
-    // 🔹 Find product
-    const product = await SellerProduct.findById(productId)
-      .populate("user")
-      .populate("category", "gst");
-
-    if (!product)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
-
-    const sellerId = product.user?._id;
-    if (!sellerId)
-      return res
-        .status(400)
-        .json({ success: false, message: "Seller not found" });
-
-    // 🔹 Verify buyer-seller connection
-    const connection = await BuyerSellerConnection.findOne({
-      buyer: userId,
-      seller: sellerId,
-      status: "Accepted",
-    });
-
-    if (!connection) {
-      return res.status(403).json({
-        success: false,
-        message: "No buyer-seller connection found. Cannot add to cart.",
-      });
-    }
-
-    const buyerCategory = connection.buyerCategory;
-
-    // 🔹 Find product visibility for this buyer category
-    const visibility = product.productVisibility.find(
-      (v) => v.buyerCategory?.toString() === buyerCategory.toString()
-    );
-
-    if (!visibility) {
+    if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "This product is not visible for your buyer category.",
+        message: "Items array is required",
       });
     }
 
-    // const basePrice = visibility.price || product.mrp;
-    const basePrice = visibility.price;
-    const gstPercent = product.category?.gst || 0;
-    const gstAmount = (basePrice * gstPercent) / 100;
-    const finalPrice = basePrice + gstAmount;
-
-    // 🔹 Get payment option (for discount)
-    const paymentOption = await PaymentOption.findOne({
-      buyerCategory,
-      user: sellerId,
-    });
-
+    let cart = null;
+    let sellerId = null;
+    let buyerCategory = null;
+    let paymentOption = null;
     let discountPercent = 0;
-    if (paymentOption?.cashPayment?.discountPercent) {
-      discountPercent = paymentOption.cashPayment.discountPercent;
+
+    for (const item of items) {
+      const { productId, quantity = 1 } = item;
+
+      // 🔹 Fetch Product
+      const product = await SellerProduct.findById(productId)
+        .populate("user")
+        .populate("category", "gst name");
+
+      if (!product) continue;
+
+      // First product decide seller
+      if (!sellerId) sellerId = product.user?._id;
+
+      if (!sellerId)
+        return res.status(400).json({
+          success: false,
+          message: "Seller not found",
+        });
+
+      // 🔹 Get Buyer-Seller connection (only once)
+      if (!buyerCategory) {
+        const connection = await BuyerSellerConnection.findOne({
+          buyer: userId,
+          seller: sellerId,
+          status: "Accepted",
+        });
+
+        if (!connection) {
+          return res.status(403).json({
+            success: false,
+            message: "No buyer-seller connection found.",
+          });
+        }
+
+        buyerCategory = connection.buyerCategory;
+      }
+
+      // 🔹 Find product visibility
+      const visibility = product.productVisibility.find(
+        (v) => v.buyerCategory?.toString() === buyerCategory.toString()
+      );
+
+      if (!visibility) continue;
+
+      // 🔹 Prices
+      const basePrice = visibility.price;
+      const gstPercent = product.category?.gst || 0;
+      const gstAmount = (basePrice * gstPercent) / 100;
+      const finalPrice = basePrice + gstAmount;
+
+      // 🔹 Fetch payment option once
+      if (!paymentOption) {
+        paymentOption = await PaymentOption.findOne({
+          buyerCategory,
+          user: sellerId,
+        });
+
+        if (paymentOption?.cashPayment?.discountPercent) {
+          discountPercent = paymentOption.cashPayment.discountPercent;
+        }
+      }
+
+      // 🔹 Create or Fetch Cart
+      if (!cart) {
+        cart = await Cart.findOne({ user: userId, seller: sellerId });
+
+        if (!cart) {
+          cart = new Cart({
+            user: userId,
+            seller: sellerId,
+            items: [],
+            paymentOption: paymentOption?._id || null,
+            subTotal: 0,
+            discountFromPayment: 0,
+            total: 0,
+          });
+        }
+      }
+
+      // 🔹 Add or Update Item
+      const existingItem = cart.items.find(
+        (i) => i.product.toString() === productId
+      );
+
+      if (existingItem) {
+        existingItem.quantity += quantity;
+        existingItem.mrp = basePrice;
+        existingItem.gstAmount = gstAmount;
+        existingItem.finalPrice = finalPrice;
+        if (product.category && !existingItem.category) {
+          existingItem.category = {
+            _id: product.category._id,
+            name: product.category.name,
+            gst: product.category.gst,
+          };
+        }
+      } else {
+        cart.items.push({
+          product: productId,
+          quantity,
+          mrp: product.mrp,
+          discountPrice: basePrice,
+          gstAmount,
+          finalPrice,
+          category: product.category
+            ? {
+                _id: product.category._id,
+                name: product.category.name,
+                gst: product.category.gst,
+              }
+            : null,
+        });
+      }
     }
 
-    const discountFromPayment = (finalPrice * quantity * discountPercent) / 100;
-
-    // 🔹 Find or create cart
-    let cart = await Cart.findOne({ user: userId, seller: sellerId });
-    if (!cart) {
-      cart = new Cart({
-        user: userId,
-        seller: sellerId,
-        items: [],
-        paymentOption: paymentOption?._id || null,
-        subTotal: 0,
-        discountFromPayment: discountFromPayment || 0,
-        total: 0,
-      });
-    } else if (paymentOption?._id) {
-      cart.paymentOption = paymentOption._id;
-    }
-
-    // 🔹 Add or update item
-    const existingItem = cart.items.find(
-      (i) => i.product.toString() === productId
-    );
-
-    if (existingItem) {
-      existingItem.quantity += quantity;
-      existingItem.mrp = basePrice;
-      existingItem.gstAmount = gstAmount;
-      existingItem.finalPrice = finalPrice;
-    } else {
-      cart.items.push({
-        product: productId,
-        quantity,
-        mrp: product.mrp,
-        discountPrice: basePrice,
-        gstAmount,
-        finalPrice,
-      });
-    }
-
-    // 🔹 Calculate cart totals
+    // 🔹 Recalculate Totals
     const subTotal = cart.items.reduce(
-      (sum, i) => sum + i.finalPrice * i.quantity,
+      (sum, i) =>
+        sum + (i.finalPrice || i.discountPrice + i.gstAmount) * i.quantity,
       0
     );
 
-    const totalDiscountFromPayment = (subTotal * discountPercent) / 100;
-
-    const total = subTotal - totalDiscountFromPayment;
+    const totalDiscount = (subTotal * discountPercent) / 100;
+    const total = subTotal - totalDiscount;
 
     cart.subTotal = subTotal;
-    cart.discountFromPayment = totalDiscountFromPayment;
+    cart.discountFromPayment = totalDiscount;
     cart.total = total;
 
     await cart.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Cart updated successfully",
+      message: "Cart updated with multiple products",
       cart,
     });
   } catch (error) {
-    console.error("❌ addCart error:", error);
+    console.error("addCart multiple error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 // Update Cart (quantity)
 export const updateCart = async (req, res) => {
@@ -432,7 +605,7 @@ export const removeItemFromCart = async (req, res) => {
       cart,
     });
   } catch (error) {
-    console.error("❌ Remove item error:", error);
+    console.error("Remove item error:", error);
     res.status(500).json({
       success: false,
       message: "Internal Server Error",
