@@ -68,15 +68,84 @@ export const createBuyerSellerConnection = catchAsyncErrors(
 );
 
 // Get Buyer-Seller Connections for logged-in buyer
+// export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     const userId = req.user._id;
+//     const mode = req.user.mode; // "buyer" or "seller"
+
+//     // Find all connections where user is buyer or seller
+//     const connectionFilter = {
+//       $or: [{ buyer: userId }, { seller: userId }],
+//     };
+
+//     const connections = await BuyerSellerConnection.find(connectionFilter)
+//       .populate("buyer", "name email phone businessAddress")
+//       .populate("seller", "name email phone businessAddress")
+//       .populate("buyerCategory", "name _id discount")
+//       .sort({ createdAt: -1 });
+
+//     if (!connections.length) {
+//       return res.status(200).json({
+//         success: true,
+//         data: [],
+//       });
+//     }
+
+//     // Format safely (check for null buyer/seller)
+//     const formattedConnections = connections
+//       .filter((conn) => conn.buyer && conn.seller) 
+//       .map((conn) => {
+//         const isBuyer =
+//           conn.buyer?._id?.toString() === userId.toString() ? true : false;
+//         const otherUser = isBuyer ? conn.seller : conn.buyer;
+
+//         return {
+//           _id: conn._id,
+//           status: conn.status,
+//           buyerCategory:
+//             conn.buyerCategory?._id ||
+//             conn.buyerCategory?.name ||
+//             conn.buyerCategory?.discount ||
+//             null,
+//           userRole: isBuyer ? "buyer" : "seller",
+//           otherUser: otherUser
+//             ? {
+//                 _id: otherUser._id,
+//                 name: otherUser.name,
+//                 email: otherUser.email,
+//                 phone: otherUser.phone,
+//                 businessAddress: otherUser.businessAddress || null,
+//               }
+//             : null,
+//           createdAt: conn.createdAt,
+//           updatedAt: conn.updatedAt,
+//         };
+//       });
+
+//     res.status(200).json({
+//       success: true,
+//       data: formattedConnections,
+//     });
+//   } catch (error) {
+//     return next(new Errorhandler(error.message, 500));
+//   }
+// });
+
 export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
   try {
     const userId = req.user._id;
     const mode = req.user.mode; // "buyer" or "seller"
 
-    // Find all connections where user is buyer or seller
-    const connectionFilter = {
-      $or: [{ buyer: userId }, { seller: userId }],
-    };
+    let connectionFilter = {};
+
+    // MODE BASED FILTER
+    if (mode === "buyer") {
+      // Buyer mode → Only received requests (seller sent)
+      connectionFilter = { buyer: userId };
+    } else if (mode === "seller") {
+      // Seller mode → Only requests sent by seller
+      connectionFilter = { seller: userId };
+    }
 
     const connections = await BuyerSellerConnection.find(connectionFilter)
       .populate("buyer", "name email phone businessAddress")
@@ -84,53 +153,37 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
       .populate("buyerCategory", "name _id discount")
       .sort({ createdAt: -1 });
 
-    if (!connections.length) {
-      return res.status(200).json({
-        success: true,
-        data: [],
-      });
-    }
+    const formattedConnections = connections.map((conn) => {
+      const isBuyer = conn.buyer?._id?.toString() === userId.toString();
+      const otherUser = isBuyer ? conn.seller : conn.buyer;
 
-    // Format safely (check for null buyer/seller)
-    const formattedConnections = connections
-      .filter((conn) => conn.buyer && conn.seller) // 👈 Skip broken connections
-      .map((conn) => {
-        const isBuyer =
-          conn.buyer?._id?.toString() === userId.toString() ? true : false;
-        const otherUser = isBuyer ? conn.seller : conn.buyer;
-
-        return {
-          _id: conn._id,
-          status: conn.status,
-          buyerCategory:
-            conn.buyerCategory?._id ||
-            conn.buyerCategory?.name ||
-            conn.buyerCategory?.discount ||
-            null,
-          userRole: isBuyer ? "buyer" : "seller",
-          otherUser: otherUser
-            ? {
-                _id: otherUser._id,
-                name: otherUser.name,
-                email: otherUser.email,
-                phone: otherUser.phone,
-                businessAddress: otherUser.businessAddress || null,
-              }
-            : null,
-          createdAt: conn.createdAt,
-          updatedAt: conn.updatedAt,
-        };
-      });
+      return {
+        _id: conn._id,
+        status: conn.status,
+        buyerCategory: conn.buyerCategory || null,
+        userRole: isBuyer ? "buyer" : "seller",
+        otherUser: otherUser ? {
+          _id: otherUser._id,
+          name: otherUser.name,
+          email: otherUser.email,
+          phone: otherUser.phone,
+          businessAddress: otherUser.businessAddress || null,
+        } : null,
+        createdAt: conn.createdAt,
+        updatedAt: conn.updatedAt,
+      };
+    });
 
     res.status(200).json({
       success: true,
       data: formattedConnections,
     });
+
   } catch (error) {
-    console.error("Error in getBuyerConnections:", error);
     return next(new Errorhandler(error.message, 500));
   }
 });
+
 
 // Get Buyer-Seller Connections based on logged-in user's mode
 export const updateConnectionStatus = catchAsyncErrors(

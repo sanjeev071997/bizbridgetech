@@ -23,64 +23,6 @@ const uploadBase64Image = async (base64Image) => {
 };
 
 // Function to add a new product
-// export const addProduct = catchAsyncErrors(async (req, res, next) => {
-//   const { name, image, mrp, category, stock, description, specifications } =
-//     req.body;
-
-//     console.log("Request Body:", req.body);
-
-//   let imageUrl = "";
-//   let cloudinaryId = "";
-
-//   try {
-//     // Image upload handling
-//     if (image && image.startsWith("data:image")) {
-//       const result = await uploadBase64Image(image);
-//       imageUrl = result.image;
-//       cloudinaryId = result.cloudinaryId;
-//     } else if (image) {
-//       const result = await cloudinary.uploader.upload(image, {
-//         folder: "SallerProducts",
-//       });
-//       imageUrl = result.secure_url;
-//       cloudinaryId = result.public_id;
-//     }
-
-//     if (!imageUrl) {
-//       return next(new Errorhandler("Image upload failed", 400));
-//     }
-
-//     // price calculation (no buyerCategory discount now)
-//     // let price = mrp;
-
-//     // Product create
-//     const newProduct = await Product.create({
-//       user: req.user._id,
-//       name,
-//       image: imageUrl,
-//       cloudinaryId,
-//       mrp,
-//       // price,   // final price = mrp
-//       category,
-//       stock,
-//       description,
-//       specifications,
-//     });
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Product added successfully",
-//       product: newProduct,
-//     });
-//   } catch (error) {
-//     console.log("Detailed Error:", error);
-//     return next(
-//       new Errorhandler("Error processing product upload or creation", 500)
-//     );
-//   }
-// });
-
-// Function to add a new product
 export const addProduct = catchAsyncErrors(async (req, res, next) => {
   const { name, image, mrp, unit, category, description, specifications } =
     req.body;
@@ -88,7 +30,7 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
   let imageUrl = "";
   let cloudinaryId = "";
 
-  try { 
+  try {
     // VALIDATION: Category must be provided
     if (!category) {
       return next(new Errorhandler("Product category is required.", 400));
@@ -164,15 +106,23 @@ export const updateProductCategoryAndVisibility = catchAsyncErrors(
     const { buyerCategory, visible, productId } = req.body;
 
     try {
+      // Validate productId
+      if (!mongoose.Types.ObjectId.isValid(productId)) {
+        return next(new Errorhandler("Invalid product ID", 400));
+      }
+
+      // Fetch product
       const product = await Product.findById(productId);
       if (!product) {
         return next(new Errorhandler("Product not found", 404));
       }
 
-      // validate buyerCategory
+      // Validate buyerCategory
       if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
         return next(new Errorhandler("Invalid buyerCategory ID", 400));
       }
+
+      // Fetch buyerCategory data
       const buyerCatData = await BuyerCategory.findById(buyerCategory).select(
         "discount"
       );
@@ -180,33 +130,36 @@ export const updateProductCategoryAndVisibility = catchAsyncErrors(
         return next(new Errorhandler("BuyerCategory not found", 404));
       }
 
-      // discount calculate
-      let price = product.mrp;
-      if (buyerCatData.discount > 0) {
-        price = product.mrp - (product.mrp * buyerCatData.discount) / 100;
-      }
+      // Initialize productVisibility if missing
+      if (!product.productVisibility) product.productVisibility = [];
 
-      // check if this buyerCategory already exists in productVisibility
-      // const existingVisibility = product.productVisibility.find(
-      //   (v) => v.buyerCategory.toString() === buyerCategory.toString()
-      // );
+      // Remove invalid entries (buyerCategory: null)
+      product.productVisibility = product.productVisibility.filter(
+        (v) => v.buyerCategory
+      );
 
+      // Check if visibility for this buyerCategory already exists
       const existingVisibility = product.productVisibility.find(
-        (v) =>
-          v.buyerCategory &&
-          v.buyerCategory.toString() === buyerCategory.toString()
+        (v) => v.buyerCategory.toString() === buyerCategory.toString()
       );
 
       if (existingVisibility) {
-        existingVisibility.visible = visible; // update
+        existingVisibility.visible = visible;
       } else {
         product.productVisibility.push({
           buyerCategory,
-          visible: visible,
+          visible,
         });
       }
 
-      product.price = price; // update latest price for this category
+      // Calculate price based on discount
+      let price = product.mrp;
+      if (buyerCatData.discount && buyerCatData.discount > 0) {
+        price = product.mrp - (product.mrp * buyerCatData.discount) / 100;
+      }
+      product.price = price;
+
+      // Save product
       await product.save();
 
       res.status(200).json({
@@ -215,6 +168,7 @@ export const updateProductCategoryAndVisibility = catchAsyncErrors(
         product,
       });
     } catch (error) {
+      console.error("Error updating product:", error);
       return next(new Errorhandler("Error updating product", 500));
     }
   }
@@ -346,7 +300,8 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
 
       const alreadyExists = product.productVisibility.find(
         (v) =>
-          v.buyerCategory && v.buyerCategory._id.toString() === buyerCategoryDoc._id.toString()
+          v.buyerCategory &&
+          v.buyerCategory._id.toString() === buyerCategoryDoc._id.toString()
       );
 
       if (!alreadyExists) {
@@ -447,87 +402,6 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler("Error fetching product", 500));
   }
 });
-
-// export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
-//   const user = req.user.id;
-
-//   try {
-//     // Get page and limit from query parameters, set defaults
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 10;
-//     const skip = (page - 1) * limit;
-
-//     // First, get total count for pagination metadata
-//     const totalProducts = await Product.countDocuments({ user });
-
-//     // Fetch products with pagination
-//     const products = await Product.find({ user })
-//       .populate("category", "name gst")
-//       .populate("user", "name phone businessName")
-//       .populate({
-//         path: "productVisibility.buyerCategory",
-//         select: "name discount",
-//       })
-//       .sort({ createdAt: -1 })
-//       .skip(skip)
-//       .limit(limit);
-
-//     if (!products || products.length === 0) {
-//       return next(new Errorhandler("Product not found", 404));
-//     }
-
-//     // Iterate through each product
-//     for (const product of products) {
-//       let hasChanges = false; // flag to check if any price needs DB update
-
-//       product.productVisibility = product.productVisibility.map((vis) => {
-//         if (!vis.buyerCategory) return vis;
-
-//         const discount = parseFloat(vis.buyerCategory.discount) || 0;
-//         const mrp = product.mrp || 0;
-//         const calculatedPrice = Math.round(mrp - (mrp * discount) / 100);
-
-//         // If stored price is different, mark for update
-//         if (vis.price !== calculatedPrice) {
-//           vis.price = calculatedPrice;
-//           hasChanges = true;
-//         }
-
-//         vis.appliedDiscount = discount;
-//         return vis;
-//       });
-
-//       // Save product if any change happened
-//       if (hasChanges) {
-//         await Product.updateOne(
-//           { _id: product._id },
-//           { $set: { productVisibility: product.productVisibility } }
-//         );
-//       }
-//     }
-
-//     // Calculate pagination metadata
-//     const totalPages = Math.ceil(totalProducts / limit);
-//     const hasNextPage = page < totalPages;
-//     const hasPrevPage = page > 1;
-
-//     res.status(200).json({
-//       success: true,
-//       product: products,
-//       pagination: {
-//         currentPage: page,
-//         totalPages: totalPages,
-//         totalProducts: totalProducts,
-//         hasNextPage: hasNextPage,
-//         hasPrevPage: hasPrevPage,
-//         limit: limit,
-//       },
-//     });
-//   } catch (error) {
-//     console.error("Error fetching products:", error);
-//     return next(new Errorhandler("Error fetching product", 500));
-//   }
-// });
 
 // Function to get a products for Buyer view with discount & visibility logic
 export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
@@ -800,25 +674,52 @@ export const getProductsByConnection = async (req, res, next) => {
       });
     }
 
+    // Determine buyer/seller based on req.user.mode
+    let sellerId;
+    let buyerId;
+    if (req.user.mode === "buyer") {
+      buyerId = req.user._id;
+      sellerId = otherUserId;
+    } else if (req.user.mode === "seller") {
+      sellerId = req.user._id;
+      buyerId = otherUserId;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user mode",
+      });
+    }
+
     const buyerCategory = connection.buyerCategory;
 
-    // Get seller products
-    const products = await Product.find({ user: otherUserId })
-      .populate("user", "name phone email businessName businessAddress")
+    // Fetch seller products
+    const products = await Product.find({ user: sellerId })
+      .populate(
+        "user",
+        "name phone email businessName businessAddress createdAt"
+      )
       .sort({ createdAt: -1 });
 
     // Filter products by matching buyerCategory in productVisibility
     const filteredProducts = products
       .map((product) => {
-        const matchingVisibility = product.productVisibility?.find(
+        if (
+          !product.productVisibility ||
+          product.productVisibility.length === 0
+        )
+          return null;
+
+        const matchingVisibility = product.productVisibility.find(
           (pv) =>
+            pv &&
+            pv.buyerCategory &&
             pv.buyerCategory.toString() === buyerCategory.toString() &&
             pv.visible === true
         );
 
         if (!matchingVisibility) return null;
 
-        // return product but only include the matching productVisibility entry
+        // Return product with only the matching productVisibility entry
         return {
           ...product.toObject(),
           productVisibility: [matchingVisibility],
@@ -877,3 +778,94 @@ export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler("Error fetching products", 500));
   }
 });
+
+// Toggle All Product hide
+export const toggleProductsVisibilityByBuyerCategory = catchAsyncErrors(
+  async (req, res, next) => {
+    const { buyerCategoryId, productCategoryId } = req.body;
+    const user = req.user._id;
+
+    // Validate both IDs
+    if (!mongoose.Types.ObjectId.isValid(buyerCategoryId)) {
+      return next(new Errorhandler("Invalid buyerCategory ID", 400));
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(productCategoryId)) {
+      return next(new Errorhandler("Invalid productCategory ID", 400));
+    }
+
+    try {
+      let query = {
+        "productVisibility.buyerCategory": buyerCategoryId,
+        category: productCategoryId,  
+        user
+      };
+      const products = await Product.find(query);
+      if (!products.length) {
+        return res.status(404).json({
+          success: false,
+          message: `No products found for buyer category: ${buyerCategoryId} and product category: ${productCategoryId}`,
+        });
+      }
+
+      // Check current visibility status
+      let anyVisible = false;
+      
+      products.forEach((product) => {
+        product.productVisibility.forEach((v) => {
+          if (
+            v.buyerCategory &&
+            v.buyerCategory.toString() === buyerCategoryId.toString() &&
+            v.visible === true
+          ) {
+            anyVisible = true;
+          }
+        });
+      });
+
+      const newVisibility = !anyVisible;
+      let updatedCount = 0;
+
+      // Update each product's visibility
+      for (const product of products) {
+        let updated = false;
+
+        product.productVisibility = product.productVisibility.filter(
+          (v) => v.buyerCategory
+        );
+
+        let visibilityEntry = product.productVisibility.find(
+          (v) => v.buyerCategory.toString() === buyerCategoryId.toString()
+        );
+
+        if (visibilityEntry) {
+          visibilityEntry.visible = newVisibility;
+          updated = true;
+        } else {
+          product.productVisibility.push({
+            buyerCategory: buyerCategoryId,
+            visible: newVisibility
+          });
+          updated = true;
+        }
+
+        if (updated) {
+          await product.save();
+          updatedCount++;
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Products visibility set to ${newVisibility} for selected categories`,
+        newVisibility,
+        totalProductsUpdated: updatedCount,
+        buyerCategoryId,
+        productCategoryId
+      });
+    } catch (error) {
+      console.error("Toggle visibility error:", error);
+      return next(new Errorhandler("Error toggling visibility", 500));
+    }
+  }
+);

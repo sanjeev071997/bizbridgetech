@@ -10,6 +10,7 @@ import {
   getBuyerProducts,
   getProductsByBuyerCategoryId,
   getProductsByConnection,
+  toggleProductsVisibilityByBuyerCategory,
   // getProductsByCategoryId,
   // getProductById,
 } from "../controllers/sellerProductController.js";
@@ -37,9 +38,10 @@ router.get("/get/:buyerCategory", isAuthenticatedUser, getProductsByBuyerCategor
 
 router.post("/get/products-by-connection", isAuthenticatedUser, getProductsByConnection); // new route to get products by connection
 
+router.post("/hide-products-by-buyer-category", isAuthenticatedUser, toggleProductsVisibilityByBuyerCategory);
+
 // Admin routes
 router.get("/", isAuthenticatedUser, isAdmin, getAllProducts);  // admin can see all products
-
 
 
 // router.get("/:category", isAuthenticatedUser, getProductsByCategoryId);
