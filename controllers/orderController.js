@@ -5,256 +5,8 @@ import Invoice from "../models/invoiceModel.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 import ErrorHandler from "../utils/Errorhandler.js";
 import { generateQRCode } from "../utils/generateQRCode.js";
-import Product from "../models/sellerProductModel.js";
-import User from "../models/userModel.js";
-import PaymentOption from "../models/paymentOption.js";
 
 // Create Order
-// export const createOrder = async (req, res) => {
-//   try {
-//     const cart = await Cart.findOne({ user: req.user.id })
-//       .populate("items.product")
-//       .populate("user");
-
-//     if (!cart) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Cart not found" });
-//     }
-
-//     // Default process flow
-//     const defaultSteps = [
-//       { step: "Enquiry Received", completed: true, completedAt: new Date() },
-//       { step: "Proforma Invoice" },
-//       { step: "Proforma Accepted" },
-//       { step: "Payment Received" },
-//       { step: "Invoice Uploaded" },
-//       { step: "Dispatch" },
-//       { step: "Delivered" },
-//     ];
-
-//     // Create order
-//     const newOrder = await Order.create({
-//       buyer: cart.user._id,
-//       items: cart.items.map((i) => ({
-//         product: i.product._id,
-//         name: i.product.name,
-//         image: i.product.image,
-//         price: i.product.price,
-//         mrp: i.mrp,
-//         quantity: i.quantity,
-//         discountPrice: i.discountPrice,
-//         gstAmount: i.gstAmount,
-//         finalPrice: i.finalPrice,
-//         // Save sellerId from product
-//         seller: i.product.user,
-//       })),
-//       subTotal: cart.subTotal,
-//       discountFromPayment: cart.discountFromPayment,
-//       total: cart.total,
-//       paymentOption: cart.paymentOption?._id,
-//       processFlow: defaultSteps,
-//     });
-
-//     const order = await Order.findById(newOrder._id)
-//       .populate("buyer", "name mode")
-//       .populate({
-//         path: "items.seller",
-//         select: "name mode",
-//       });
-//     // (Optional) Empty cart after order
-//     await Cart.findByIdAndDelete(cart._id);
-
-//     res.status(201).json({ success: true, message: "Order created", order });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ success: false, message: "Server Error" });
-//   }
-// };
-
-// export const createOrder = async (req, res) => {
-//   try {
-//     const { seller } = req.body;
-//     if (!seller) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Seller ID is required to create order",
-//       });
-//     }
-
-//     const cart = await Cart.findOne({ user: req.user.id, seller })
-//       .populate("items.product")
-//       .populate("user");
-
-//     if (!cart || !cart.items.length) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Cart not found or empty",
-//       });
-//     }
-
-//     console.log("Cart found:", cart);
-
-//     // 🧮 Calculate subTotal and total manually
-//     let subTotal = 0;
-//     let total = 0;
-
-//     cart.items.forEach((item) => {
-//       const basePrice = item?.product?.price || item?.mrp || 0;
-//       const gstPercent = item?.product?.category?.gst || 0;
-//       const gstAmount = (basePrice * gstPercent) / 100;
-//       const priceWithGst = basePrice + gstAmount;
-
-//       subTotal += basePrice * item.quantity;
-//       total += priceWithGst * item.quantity;
-//     });
-
-//     // Default process flow
-//     const defaultSteps = [
-//       { step: "Enquiry Received", completed: true, completedAt: new Date() },
-//       { step: "Proforma Invoice" },
-//       { step: "Proforma Accepted" },
-//       { step: "Payment Received" },
-//       { step: "Invoice Uploaded" },
-//       { step: "Dispatch" },
-//       { step: "Delivered" },
-//     ];
-
-//     // 🧾 Create order
-//     const newOrder = await Order.create({
-//       buyer: cart.user._id,
-//       items: cart.items.map((i) => ({
-//         product: i.product._id,
-//         name: i.product.name,
-//         image: i.product.image,
-//         price: i.product.price || i.mrp || 0,
-//         mrp: i.mrp,
-//         quantity: i.quantity,
-//         discountPrice: i.discountPrice,
-//         gstAmount: i.gstAmount,
-//         finalPrice: i.finalPrice,
-//         seller: i.product.user,
-//       })),
-//       subTotal,
-//       discountFromPayment: cart.discountFromPayment || 0,
-//       total,
-//       paymentOption: cart.paymentOption?._id,
-//       processFlow: defaultSteps,
-//     });
-
-//     const order = await Order.findById(newOrder._id)
-//       .populate("buyer", "name mode")
-//       .populate({
-//         path: "items.seller",
-//         select: "name mode",
-//       });
-
-//     // 🧹 Empty cart after order
-//     await Cart.findByIdAndDelete(cart._id);
-
-//     res.status(201).json({
-//       success: true,
-//       message: "Order created successfully",
-//       order,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Server Error",
-//     });
-//   }
-// };
-
-// export const createOrder = async (req, res) => {
-//   try {
-//     const { seller } = req.body;
-//     if (!seller) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Seller ID is required to create order",
-//       });
-//     }
-
-//     // Find cart for this user & seller
-//     const cart = await Cart.findOne({ user: req.user.id, seller })
-//       .populate("items.product")
-//       .populate("user")
-//       .populate("paymentOption");
-
-//     if (!cart || !cart.items.length) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Cart not found or empty",
-//       });
-//     }
-
-//     // Default process flow
-//     const defaultSteps = [
-//       // { step: "Enquiry Received", completed: true, completedAt: new Date() },
-//       { step: "Enquiry Received" },
-//       { step: "Proforma Invoice" },
-//       { step: "Proforma Accepted" },
-//       { step: "Payment QR Generated" },
-//       { step: "Payment Received" },
-//       { step: "Invoice Uploaded" },
-//       { step: "Dispatch" },
-//       { step: "Delivered" },
-//     ];
-
-//     // Create order using existing cart data
-//     const newOrder = await Order.create({
-//       buyer: cart.user._id,
-//       seller: cart.seller,
-//       items: cart.items.map((i) => ({
-//         product: i.product._id,
-//         name: i.product.name,
-//         image: i.product.image,
-//         price: i.product.price || i.mrp || 0,
-//         mrp: i.mrp,
-//         quantity: i.quantity,
-//         discountPrice: i.discountPrice,
-//         gstAmount: i.gstAmount,
-//         finalPrice: i.finalPrice,
-//         seller: i.product.user,
-//          category: i.category ? {
-//           _id: i.category._id,
-//           name: i.category.name,
-//           gst: i.category.gst
-//         } : null
-//       })),
-//       subTotal: cart.subTotal || 0,
-//       discountFromPayment: cart.discountFromPayment || 0,
-//       total: cart.total || 0,
-//       paymentOption: cart.paymentOption?._id,
-//       processFlow: defaultSteps,
-//     });
-
-//     // Populate to send a cleaner response
-//     const order = await Order.findById(newOrder._id)
-//       .populate("buyer", "name mode")
-//       .populate({
-//         path: "items.seller",
-//         select: "name mode",
-//       });
-
-//     // Clear cart after order creation
-//     await Cart.findByIdAndDelete(cart._id);
-
-//     res.status(201).json({
-//       success: true,
-//       message: "Order created successfully",
-//       order,
-//     });
-//   } catch (error) {
-//     console.error("createOrder error:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Server Error",
-//     });
-//   }
-// };
-
 export const createOrder = async (req, res) => {
   try {
     const { seller, selectPaymentType } = req.body;
@@ -268,7 +20,6 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // Fetch cart with product details
     const cart = await Cart.findOne({ user: req.user.id, seller })
       .populate("items.product")
       .populate("user")
@@ -281,7 +32,6 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // Default steps
     const defaultSteps = [
       { step: "Enquiry Received" },
       { step: "Proforma Invoice" },
@@ -292,12 +42,7 @@ export const createOrder = async (req, res) => {
       { step: "Dispatch" },
       { step: "Delivered" },
     ];
-
-    // ---------------------------------------------
-    // 🔥 BUILD ORDER ITEMS WITH CALCULATIONS
-    // ---------------------------------------------
     let orderSubTotal = 0;
-
     const orderItems = cart.items.map((i) => {
       const base = Number(i.discountPrice || 0);
       const gstPercent = Number(i?.category?.gst || 0);
@@ -319,7 +64,7 @@ export const createOrder = async (req, res) => {
         gstAmount: gstAmount,
         finalPrice: finalPrice,
         subTotal: subTotal,
-        discountFromPayment: 0, // allow per item discount later
+        discountFromPayment: 0, 
         seller: i.product.user,
 
         category: i.category
@@ -335,10 +80,6 @@ export const createOrder = async (req, res) => {
     // Order level totals
     const discount = Number(cart.discountFromPayment || 0);
     const orderTotal = orderSubTotal - discount;
-
-    // ---------------------------------------------
-    // 🔥 CREATE ORDER
-    // ---------------------------------------------
     const newOrder = await Order.create({
       buyer: cart.user._id,
       items: orderItems,
@@ -367,14 +108,14 @@ export const createOrder = async (req, res) => {
       order,
     });
   } catch (error) {
-    console.error("createOrder error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    // console.error("createOrder error:", error);
+    // res.status(500).json({
+    //   success: false,
+    //   message: "Server Error",
+    // });
+     return next(new ErrorHandler(error.message, 500))
   }
 };
-
 
 // Get Buyer Orders
 export const getBuyerOrders = catchAsyncErrors(async (req, res, next) => {
@@ -477,7 +218,7 @@ export const updateOrderStatus = catchAsyncErrors(async (req, res, next) => {
 export const updateProcessStep = catchAsyncErrors(async (req, res, next) => {
   const { orderId } = req.params;
   const { step, itemId } = req.body;
-  const sellerId = req.user._id; // logged in seller
+  const sellerId = req.user._id; 
 
   if (!mongoose.Types.ObjectId.isValid(orderId))
     return next(new ErrorHandler("Invalid Order ID", 400));
@@ -526,642 +267,22 @@ export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-// export const updateOrderProcessStep = async (req, res, next) => {
-//   try {
-//     const { orderId, step, actionBy } = req.body;
-
-//     if (!mongoose.Types.ObjectId.isValid(orderId))
-//       return next(new ErrorHandler("Invalid Order ID", 400));
-
-//     const order = await Order.findById(orderId)
-//       .populate("paymentOption")
-//       .populate({
-//         path: "items.seller",
-//         select: "name email bankDetails accountName upiId",
-//         populate: {
-//           path: "bankDetails",
-//           select:
-//             "bankName accountName upiId accountNumber ifscCode branchName branchAddress",
-//         },
-//       })
-//       .populate("buyer");
-
-//     if (!order)
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Order not found" });
-
-//     // Helper function for marking step complete
-//     const markStepComplete = (stepName, extraData = {}) => {
-//       let stepObj = order.processFlow.find((s) => s.step === stepName);
-//       if (!stepObj) {
-//         order.processFlow.push({
-//           step: stepName,
-//           completed: true,
-//           completedAt: new Date(),
-//           ...extraData,
-//         });
-//       } else {
-//         stepObj.completed = true;
-//         stepObj.completedAt = new Date();
-//         Object.assign(stepObj, extraData);
-//       }
-//     };
-
-//     // Helper function for creating step without marking complete
-//     const createStepIfNotExists = (stepName, extraData = {}) => {
-//       let stepObj = order.processFlow.find((s) => s.step === stepName);
-//       if (!stepObj) {
-//         order.processFlow.push({
-//           step: stepName,
-//           completed: false,
-//           ...extraData,
-//         });
-//       } else {
-//         // Update existing step with new data
-//         Object.keys(extraData).forEach((key) => {
-//           stepObj[key] = extraData[key];
-//         });
-//       }
-//     };
-
-//     // INVOICE CREATION FUNCTION
-//     const createInvoiceOnEnquiry = async () => {
-//       // Check if invoice already exists
-//       const existing = await Invoice.findOne({ order: order._id });
-//       if (existing) {
-//         console.log("Invoice already exists. Skipping creation.");
-//         return;
-//       }
-
-//       if (!order.paymentOption)
-//         throw new Error("Payment Option not found for this order");
-
-//       const pay = order.paymentOption 
-
-//       let invoiceData = {
-//         order: order._id,
-//         buyer: order.buyer._id,
-//         seller: order.items[0]?.seller?._id,
-//         amount: order.total,
-//         status: "Pending",
-//         bankStatement: [],
-//       };
-
-//       // If Cash → Mark invoice paid
-//       if (pay.paymentType === "Cash") {
-//         invoiceData.status = "Paid";
-//         invoiceData.paidAt = new Date();
-
-//         // Add bank statement entry
-//         invoiceData.bankStatement.push({
-//           date: new Date(),
-//           description: "Cash Payment Received",
-//           debit: 0,
-//           credit: order.total,
-//           balance: 0,
-//         });
-//       } else if (pay.paymentType === "Credit") {
-//         // Add credit related values
-//         invoiceData.creditPeriodDays = pay.creditPayment.creditPeriodDays;
-//         invoiceData.interestRatePerYear = pay.creditPayment.interestRatePerYear;
-//         invoiceData.interestStartAfterDays =
-//           pay.creditPayment.interestStartAfterDays;
-
-//         // Due date = Today + creditPeriodDays
-//         const dueDate = new Date();
-//         dueDate.setDate(dueDate.getDate() + pay.creditPayment.creditPeriodDays);
-//         invoiceData.dueDate = dueDate;
-
-//         // Interest accrual start date = dueDate + interestStartAfterDays
-//         const interestStart = new Date(dueDate);
-//         interestStart.setDate(
-//           interestStart.getDate() + pay.creditPayment.interestStartAfterDays
-//         );
-//         invoiceData.interestAccrualStartDate = interestStart;
-//       }
-
-//       // SAVE the invoice
-//       await Invoice.create(invoiceData);
-//     };
-
-//     // QR CODE GENERATION FUNCTION
-//     const generateQRCodeForPayment = async () => {
-//       const paymentOption = order.paymentOption;
-
-//       if (!paymentOption) {
-//         throw new Error("Payment option missing.");
-//       }
-
-//       const sellerBank = order.items[0]?.seller?.bankDetails;
-//       if (!sellerBank?.upiId) {
-//         throw new Error("Seller UPI ID not found.");
-//       }
-
-//       // Generate QR code only for Cash payments
-//       if (paymentOption.paymentType === "Cash") {
-//         const qrCode = await generateQRCode(sellerBank.upiId, order.total);
-//         return qrCode;
-//       }
-
-//       // For Credit payments, return null (no QR code)
-//       return null;
-//     };
-
-//     // ---------------------------------------------
-//     // MAIN STEP LOGIC
-//     // ---------------------------------------------
-//     switch (step) {
-//       case "Enquiry Received":
-//         if (actionBy !== "seller")
-//           return res.status(403).json({
-//             success: false,
-//             message: "Only seller can send Enquiry Received",
-//           });
-
-//         markStepComplete("Enquiry Received", {
-//           visibleTo: ["buyer", "seller"],
-//         });
-
-//         // CREATE INVOICE IMMEDIATELY
-//         await createInvoiceOnEnquiry();
-
-//         break;
-
-//       case "Proforma Invoice":
-//         if (actionBy !== "seller")
-//           return res.status(403).json({
-//             success: false,
-//             message: "Only seller can send Proforma Invoice",
-//           });
-
-//         markStepComplete("Proforma Invoice", {
-//           visibleTo: ["buyer", "seller"],
-//         });
-//         break;
-
-//       case "Proforma Accepted":
-//         if (actionBy !== "buyer")
-//           return res.status(403).json({
-//             success: false,
-//             message: "Only buyer can accept Proforma",
-//           });
-
-//         // UPDATE ORDER STATUS
-//         order.orderStatus = "Processing";
-
-//         markStepComplete("Proforma Accepted", {
-//           visibleTo: ["buyer", "seller"],
-//         });
-
-//         const paymentOption = order.paymentOption;
-
-//         if (!paymentOption) {
-//           return res.status(400).json({
-//             success: false,
-//             message: "Payment option missing.",
-//           });
-//         }
-
-//         // For Cash payments: Generate QR code and auto-complete the step
-//         if (paymentOption.paymentType === "Cash") {
-//           try {
-//             const qrCode = await generateQRCodeForPayment();
-
-//             markStepComplete("Payment QR Generated", {
-//               visibleTo: ["buyer", "seller"],
-//               qrCodeUrl: qrCode,
-//               paymentType: "Cash",
-//             });
-
-//             order.qrCodeData = qrCode;
-//           } catch (qrError) {
-//             return res.status(400).json({
-//               success: false,
-//               message: `QR Code generation failed: ${qrError.message}`,
-//             });
-//           }
-//         }
-//         // For Credit payments: Create step but DON'T mark complete - buyer will complete it
-//         else if (paymentOption.paymentType === "Credit") {
-//           // Calculate due date
-//           const dueDate = new Date();
-//           dueDate.setDate(
-//             dueDate.getDate() +
-//               (paymentOption.creditPayment?.creditPeriodDays || 0)
-//           );
-
-//           const creditDetails = {
-//             creditPeriodDays:
-//               paymentOption.creditPayment?.creditPeriodDays || 0,
-//             interestRatePerYear:
-//               paymentOption.creditPayment?.interestRatePerYear || 0,
-//             interestStartAfterDays:
-//               paymentOption.creditPayment?.interestStartAfterDays || 0,
-//             paymentType: "Credit",
-//             totalAmount: order.total,
-//             dueDate: dueDate,
-//             interestStartDate: new Date(
-//               dueDate.getTime() +
-//                 (paymentOption.creditPayment?.interestStartAfterDays || 0) *
-//                   24 *
-//                   60 *
-//                   60 *
-//                   1000
-//             ),
-//           };
-
-//           // Create the step but don't mark it as completed - WAITING FOR BUYER TO COMPLETE
-//           createStepIfNotExists("Payment QR Generated", {
-//             visibleTo: ["buyer", "seller"],
-//             creditDetails: creditDetails,
-//             qrCodeUrl: null, // No QR code for credit
-//             paymentType: "Credit",
-//           });
-
-//           order.creditPaymentDetails = creditDetails;
-//         }
-
-//         break;
-
-//       case "Payment QR Generated":
-//         // Determine current payment option
-//         const currentPaymentOption = order.paymentOption;
-
-//         if (!currentPaymentOption) {
-//           return res.status(400).json({
-//             success: false,
-//             message: "Payment option not found",
-//           });
-//         }
-
-//         if (currentPaymentOption.paymentType === "Credit") {
-//           // Credit payment: Buyer completes this step
-//           if (actionBy !== "buyer") {
-//             return res.status(403).json({
-//               success: false,
-//               message:
-//                 "For credit payments, only buyer can complete Payment QR Generated step",
-//             });
-//           }
-
-//           // Get existing credit details from the step
-//           const existingStep = order.processFlow.find(
-//             (s) => s.step === "Payment QR Generated"
-//           );
-//           let creditDetails = existingStep?.creditDetails;
-
-//           if (!creditDetails) {
-//             // If credit details don't exist, create them
-//             const dueDate = new Date();
-//             dueDate.setDate(
-//               dueDate.getDate() +
-//                 (currentPaymentOption.creditPayment?.creditPeriodDays || 0)
-//             );
-
-//             creditDetails = {
-//               creditPeriodDays:
-//                 currentPaymentOption.creditPayment?.creditPeriodDays || 0,
-//               interestRatePerYear:
-//                 currentPaymentOption.creditPayment?.interestRatePerYear || 0,
-//               interestStartAfterDays:
-//                 currentPaymentOption.creditPayment?.interestStartAfterDays || 0,
-//               paymentType: "Credit",
-//               totalAmount: order.total,
-//               dueDate: dueDate,
-//               interestStartDate: new Date(
-//                 dueDate.getTime() +
-//                   (currentPaymentOption.creditPayment?.interestStartAfterDays ||
-//                     0) *
-//                     24 *
-//                     60 *
-//                     60 *
-//                     1000
-//               ),
-//             };
-//           }
-
-//           markStepComplete("Payment QR Generated", {
-//             visibleTo: ["buyer", "seller"],
-//             creditDetails: creditDetails,
-//             qrCodeUrl: null,
-//             paymentType: "Credit",
-//           });
-//         } else if (currentPaymentOption.paymentType === "Cash") {
-//           // Cash payment: Seller completes this step (if not already completed in Proforma Accepted)
-//           if (actionBy !== "seller") {
-//             return res.status(403).json({
-//               success: false,
-//               message:
-//                 "For cash payments, only seller can complete Payment QR Generated step",
-//             });
-//           }
-
-//           // Check if QR code already exists
-//           const existingStep = order.processFlow.find(
-//             (s) => s.step === "Payment QR Generated"
-//           );
-//           if (!existingStep || !existingStep.completed) {
-//             try {
-//               const qrCode = await generateQRCodeForPayment();
-//               markStepComplete("Payment QR Generated", {
-//                 visibleTo: ["buyer", "seller"],
-//                 qrCodeUrl: qrCode,
-//                 paymentType: "Cash",
-//               });
-//               order.qrCodeData = qrCode;
-//             } catch (qrError) {
-//               return res.status(400).json({
-//                 success: false,
-//                 message: `QR Code generation failed: ${qrError.message}`,
-//               });
-//             }
-//           }
-//         } else {
-//           return res.status(400).json({
-//             success: false,
-//             message: "Invalid payment type",
-//           });
-//         }
-//         break;
-
-//       case "Payment Received":
-//         if (actionBy !== "seller")
-//           return res.status(403).json({
-//             success: false,
-//             message: "Only seller can confirm payment",
-//           });
-
-//         markStepComplete("Payment Received", {
-//           visibleTo: ["buyer", "seller"],
-//         });
-//         break;
-
-//       case "Invoice Uploaded":
-//         if (actionBy !== "seller")
-//           return res.status(403).json({
-//             success: false,
-//             message: "Only seller can upload invoice",
-//           });
-
-//         const itemSummary = order.items.map((i) => i.productName).join(", ");
-//         const totalItems = order.items.length;
-//         const totalAmount = order.total;
-
-//         markStepComplete("Invoice Uploaded", {
-//           visibleTo: ["buyer", "seller"],
-//           invoiceSummary: { itemSummary, totalItems, totalAmount },
-//         });
-//         break;
-
-//       case "Dispatch":
-//         if (actionBy !== "seller")
-//           return res.status(403).json({
-//             success: false,
-//             message: "Only seller can dispatch order",
-//           });
-
-//         markStepComplete("Dispatch", { visibleTo: ["buyer", "seller"] });
-//         break;
-
-//       case "Delivered":
-//         if (actionBy !== "seller")
-//           return res.status(403).json({
-//             success: false,
-//             message: "Only seller can mark as delivered",
-//           });
-
-//            // UPDATE ORDER STATUS
-//         order.orderStatus = "Completed";
-
-//         markStepComplete("Delivered", { visibleTo: ["buyer", "seller"] });
-//         break;
-
-//       default:
-//         return res
-//           .status(400)
-//           .json({ success: false, message: "Invalid step" });
-//     }
-
-//     // Save Order
-//     await order.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: `${step} marked as completed.`,
-//       data: order,
-//     });
-//   } catch (err) {
-//     console.error("Error in updateOrderProcessStep:", err);
-//     res.status(500).json({
-//       success: false,
-//       message: "Server error",
-//       error: err.message,
-//     });
-//   }
-// };
-
-// export const updateOrderItem = async (req, res, next) => {
-//   try {
-//     const { orderId, itemId, quantity } = req.body;
-
-//     console.log("", orderId, itemId, quantity);
-
-//     if (!orderId || !itemId || !quantity) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "orderId, itemId and quantity are required",
-//       });
-//     }
-
-//     const order = await Order.findById(orderId);
-//     if (!order) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Order not found" });
-//     }
-
-//     const item = order.items.find((it) => it._id.toString() === itemId);
-//     if (!item) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Item not found" });
-//     }
-
-//     // Restore unit price (each item cost)
-//     const unitPrice = item.finalPrice / item.quantity;
-
-//     // Restore unit discount (discount of only 1 unit)
-//     const unitDiscount = order.discountFromPayment / item.quantity;
-
-//     // Update quantity
-//     item.quantity = quantity;
-
-//     // Recalculate prices using unit price
-//     const newFinalPrice = unitPrice * quantity;
-//     item.finalPrice = newFinalPrice;
-
-//     order.subTotal = newFinalPrice;
-
-//     // update discount
-//     const newDiscount = unitDiscount * quantity;
-//     order.discountFromPayment = newDiscount;
-
-//     order.total = newFinalPrice - newDiscount;
-
-//     await order.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Order item updated successfully",
-//       order,
-//     });
-//   } catch (error) {
-//     console.error("Error updating order:", error);
-//     next(error);
-//   }
-// };
-
-// export const updateOrderItem = async (req, res) => {
-//   try {
-//     const { orderId, items } = req.body;
-
-//     if (!orderId || !items) {
-//       return res.status(400).json({ message: "orderId and items are required" });
-//     }
-
-//     const order = await Order.findById(orderId);
-//     if (!order) return res.status(404).json({ message: "Order not found" });
-
-//     let newOrderSubTotal = 0; // order-level subtotal
-//     let newOrderTotal = 0;    // final total
-
-//     order.items = order.items.map((item) => {
-//       const updated = items.find((it) => it.itemId == item._id);
-
-//       const base = Number(item.discountPrice || 0);
-//       const gstPercent = Number(item?.category?.gst || 0);
-
-//       const gstAmount = (base * gstPercent) / 100;
-//       const finalPrice = base + gstAmount;
-
-//       // If quantity updated
-//       if (updated) {
-//         item.quantity = updated.quantity;
-//       }
-
-//       // Always recalc to avoid missing subtotal
-//       item.gstAmount = gstAmount;
-//       item.finalPrice = finalPrice;
-//       item.subTotal = finalPrice * item.quantity;
-
-//       // Add to order's total
-//       newOrderSubTotal += item.subTotal;
-//       newOrderTotal += item.subTotal;
-
-//       return item;
-//     });
-
-//     // Save order-level fields
-//     order.subTotal = newOrderSubTotal;
-//     order.total = newOrderTotal;
-
-//     await order.save();
-
-//     return res.json({
-//       success: true,
-//       order,
-//     });
-
-//   } catch (err) {
-//     return res.status(500).json({ message: err.message });
-//   }
-// };
-
-
-// export const updateOrderItem = async (req, res, next) => {
-//   try {
-//     const { orderId, items } = req.body;
-
-//     if (!orderId || !items?.length) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "orderId and items array are required",
-//       });
-//     }
-
-//     const order = await Order.findById(orderId);
-//     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
-
-//     let newSubTotal = 0;
-
-//     // STEP 1: Update item quantities & finalPrice correctly
-//     order.items.forEach((item) => {
-//       const reqItem = items.find((i) => i.itemId === item._id.toString());
-//       if (!reqItem) return;
-
-//       const qty = reqItem.quantity;
-
-//       item.quantity = qty;
-
-//       const perUnitFinal =
-//         (item.discountPrice || 0) + (item.gstAmount || 0);
-
-//       item.finalPrice = perUnitFinal * qty;
-
-//       newSubTotal += item.finalPrice;
-//     });
-
-//     // STEP 2: Recalculate discountFromPayment proportionally
-//     const oldSubTotal = order.subTotal || 1;
-//     const oldDiscount = order.discountFromPayment || 0;
-
-//     const discountRatio = oldDiscount / oldSubTotal;
-//     const newDiscount = newSubTotal * discountRatio;
-
-//     // STEP 3: Update order totals
-//     order.subTotal = newSubTotal;
-//     order.discountFromPayment = newDiscount;
-//     order.total = newSubTotal - newDiscount;
-
-//     await order.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Order items updated successfully",
-//       order,
-//     });
-//   } catch (error) {
-//     console.error("Error updating order:", error);
-//     next(error);
-//   }
-// };
-
 const getFinalPaymentType = (paymentOption, order) => {
   if (!paymentOption) return null;
 
   const type = paymentOption.paymentType;
-
-  // CASE 1: If paymentType is BOTH → read from order.selectPaymentType
   if (type === "Both") {
     const selected = order?.selectPaymentType?.toLowerCase();
 
     if (selected === "cash") return "Cash";
     if (selected === "credit") return "Credit";
-
-    // selectedPaymentType missing or invalid
     throw new Error(
       "Order has payment type 'Both' but no valid selectPaymentType found (must be 'cash' or 'credit')"
     );
   }
-
-  // CASE 2: paymentType is Cash or Credit directly
   if (type === "Cash" || type === "Credit") return type;
-
-  // unexpected paymentType
   throw new Error("Invalid paymentType in paymentOption");
 };
-
 
 export const updateOrderProcessStep = async (req, res, next) => {
   try {
@@ -1188,10 +309,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
         .status(404)
         .json({ success: false, message: "Order not found" });
 
-    // ⭐ FINAL PAYMENT TYPE FIX
     const finalPaymentType = getFinalPaymentType(order.paymentOption, order);
-
-    console.log(finalPaymentType, "finalPaymentType")
 
     if (!finalPaymentType)
       return next(new ErrorHandler("Unable to determine payment type", 400));
@@ -1498,15 +616,9 @@ export const updateOrderProcessStep = async (req, res, next) => {
       data: order,
     });
   } catch (err) {
-    console.error("Error in updateOrderProcessStep:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: err.message,
-    });
+    return next(new ErrorHandler(err.message, 500))
   }
 };
-
 
 export const updateOrderItem = async (req, res, next) => {
   try {
@@ -1527,8 +639,6 @@ export const updateOrderItem = async (req, res, next) => {
       });
 
     let newSubTotal = 0;
-
-    // STEP 1: Update item quantities & finalPrice correctly
     order.items.forEach((item) => {
       const reqItem = items.find((i) => i.itemId === item._id.toString());
       if (!reqItem) return;
@@ -1540,21 +650,15 @@ export const updateOrderItem = async (req, res, next) => {
         (item.discountPrice || 0) + (item.gstAmount || 0);
 
       const updatedFinal = perUnitFinal * qty;
-
-      // ✅ Fix to 2 decimal
       item.finalPrice = Number(updatedFinal.toFixed(2));
 
       newSubTotal += item.finalPrice;
     });
-
-    // STEP 2: Recalculate discount ratio
     const oldSubTotal = order.subTotal || 1;
     const oldDiscount = order.discountFromPayment || 0;
 
     const discountRatio = oldDiscount / oldSubTotal;
     const newDiscount = newSubTotal * discountRatio;
-
-    // STEP 3: Update order totals with 2 decimals
     order.subTotal = Number(newSubTotal.toFixed(2));
     order.discountFromPayment = Number(newDiscount.toFixed(2));
     order.total = Number((order.subTotal - order.discountFromPayment).toFixed(2));
@@ -1567,8 +671,7 @@ export const updateOrderItem = async (req, res, next) => {
       order,
     });
   } catch (error) {
-    console.error("Error updating order:", error);
-    next(error);
+    return next(new ErrorHandler(error.message, 500))
   }
 };
 

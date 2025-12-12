@@ -698,6 +698,10 @@ export const getProductsByConnection = async (req, res, next) => {
         "user",
         "name phone email businessName businessAddress createdAt"
       )
+      .populate(
+        "category",
+        "name"
+      )
       .sort({ createdAt: -1 });
 
     // Filter products by matching buyerCategory in productVisibility
@@ -736,7 +740,6 @@ export const getProductsByConnection = async (req, res, next) => {
       data: filteredProducts,
     });
   } catch (error) {
-    console.error("Error fetching products by connection:", error);
     return next(new Errorhandler("Error fetching products", 500));
   }
 };

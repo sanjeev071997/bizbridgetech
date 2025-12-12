@@ -1,7 +1,7 @@
 {
   "files": {
-    "main.css": "/static/css/main.05f74a47.css",
-    "main.js": "/static/js/main.aa4262fd.js",
+    "main.css": "/static/css/main.142cecef.css",
+    "main.js": "/static/js/main.ea93309f.js",
     "static/js/238.76b904d6.chunk.js": "/static/js/238.76b904d6.chunk.js",
     "static/js/239.eab0352a.chunk.js": "/static/js/239.eab0352a.chunk.js",
     "static/js/977.fa8bdf19.chunk.js": "/static/js/977.fa8bdf19.chunk.js",
@@ -9,20 +9,22 @@
     "static/media/christina-wocintechchat-com-Q80LYxv_Tbs-unsplash.jpg": "/static/media/christina-wocintechchat-com-Q80LYxv_Tbs-unsplash.2439ebaa0e4678f9bc1a.jpg",
     "static/media/logo.jpeg": "/static/media/logo.18a86a0084b0e445ae2f.jpeg",
     "static/media/logo.jpg": "/static/media/logo.18a86a0084b0e445ae2f.jpg",
+    "static/media/BizBridge-Logo-1.png": "/static/media/BizBridge-Logo-1.3a2f0b692e1e08c5ec1e.png",
+    "static/media/BizBridge-whiteLogo-1.png": "/static/media/BizBridge-whiteLogo-1.55928bd5967460d7d417.png",
     "static/media/slick.svg": "/static/media/slick.2630a3e3eab21c607e21.svg",
     "static/media/slick.eot": "/static/media/slick.a4e97f5a2a64f0ab1323.eot",
     "static/media/slick.ttf": "/static/media/slick.c94f7671dcc99dce43e2.ttf",
     "static/media/slick.woff": "/static/media/slick.295183786cd8a1389865.woff",
     "index.html": "/index.html",
-    "main.05f74a47.css.map": "/static/css/main.05f74a47.css.map",
-    "main.aa4262fd.js.map": "/static/js/main.aa4262fd.js.map",
+    "main.142cecef.css.map": "/static/css/main.142cecef.css.map",
+    "main.ea93309f.js.map": "/static/js/main.ea93309f.js.map",
     "238.76b904d6.chunk.js.map": "/static/js/238.76b904d6.chunk.js.map",
     "239.eab0352a.chunk.js.map": "/static/js/239.eab0352a.chunk.js.map",
     "977.fa8bdf19.chunk.js.map": "/static/js/977.fa8bdf19.chunk.js.map",
     "667.8a55ad2a.chunk.js.map": "/static/js/667.8a55ad2a.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.05f74a47.css",
-    "static/js/main.aa4262fd.js"
+    "static/css/main.142cecef.css",
+    "static/js/main.ea93309f.js"
   ]
 }
