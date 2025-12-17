@@ -1,9 +1,9 @@
+import mongoose from "mongoose";
 import Invoice from "../models/invoiceModel.js";
 import Order from "../models/orderModel.js";
 import PaymentOption from "../models/paymentOption.js";
 import { startOfDay, daysBetween } from "../utils/InvoiceTime.js";
 import Errorhandler from '../utils/Errorhandler.js';
-
 
 // Create Invoice from Order
 export const createInvoice = async (req, res) => {
@@ -12,7 +12,7 @@ export const createInvoice = async (req, res) => {
   const order = await Order.findById(orderId).populate("paymentOption");
   if (!order) return res.status(404).json({ success:false, message:"Order not found" });
 
-  const po = order.paymentOption; // may be null
+  const po = order.paymentOption; 
   let creditPeriodDays = 0, interestRatePerYear = 0, interestStartAfterDays = 0;
 
   if (po?.paymentType === "Credit" || po?.paymentType === "Both") {
@@ -21,7 +21,7 @@ export const createInvoice = async (req, res) => {
     interestStartAfterDays = po.creditPayment?.interestStartAfterDays ?? 0;
   }
 
-  const invoiceDate = new Date(); // or order.createdAt — choose as per business rule
+  const invoiceDate = new Date(); 
   const dueDate = creditPeriodDays > 0
     ? new Date(invoiceDate.getTime() + creditPeriodDays * 86400000)
     : null;
@@ -60,8 +60,8 @@ export const createInvoice = async (req, res) => {
 };
 
 export const recordPayment = async (req, res, next) => {
-  const { id } = req.params;                 // invoiceId
-  const { amount, paidAt, note } = req.body; // amount > 0
+  const { id } = req.params;                 
+  const { amount, paidAt, note } = req.body; 
 
   if (!amount || amount <= 0) {
     return res.status(400).json({ success: false, message: "Amount must be > 0" });
@@ -74,12 +74,12 @@ export const recordPayment = async (req, res, next) => {
 
   const lastBalance = invoice.bankStatement.at(-1)?.balance ?? invoice.amount;
 
-  // ✅ Default to today's date if not provided
+  // Default to today's date if not provided
   let tDate = paidAt ? new Date(paidAt) : new Date();
 
-  // ✅ Validate
+  // Validate
   if (isNaN(tDate.getTime())) {
-    tDate = new Date(); // fallback to today
+    tDate = new Date(); 
   }
 
   const newBalance = Math.max(+(lastBalance - amount).toFixed(2), 0);
@@ -110,11 +110,8 @@ export const recordPayment = async (req, res, next) => {
   });
 };
 
-/**
- * Get Invoice + latest balance
- */
+//  Get Invoice + latest balance
 export const getInvoice = async (req, res) => {
-  console.log(Date.now, "current date")
   const invoice = await Invoice.findById(req.params.id)
     .populate("order")
     .populate("buyer")
@@ -125,9 +122,7 @@ export const getInvoice = async (req, res) => {
   res.json({ success:true, data: { invoice, latestBalance } });
 };
 
-/**
- * Full bank statement for an invoice
- */
+//  Full bank statement for an invoice
 export const getInvoiceStatement = async (req, res) => {
   const invoice = await Invoice.findById(req.params.id, { bankStatement: 1 });
   if (!invoice) return res.status(404).json({ success:false, message:"Not found" });
@@ -173,7 +168,7 @@ export const applyDailyInterestIfNeeded = async (invoice, runAt = new Date()) =>
     return;
   }
 
-  const dailyRate = (invoice.interestRatePerYear || 0) / 100 / 365; // per-day from per-annum %
+  const dailyRate = (invoice.interestRatePerYear || 0) / 100 / 365; 
   const interest = +(lastBalance * dailyRate).toFixed(2);
   if (interest <= 0) {
     invoice.lastInterestAppliedOn = today;
@@ -197,9 +192,7 @@ export const applyDailyInterestIfNeeded = async (invoice, runAt = new Date()) =>
   await invoice.save();
 };
 
-/**
- * Cron runner: apply daily interest to all eligible invoices
- */
+//  Cron runner: apply daily interest to all eligible invoices
 export const runDailyInterestForAll = async (runAt = new Date()) => {
   const invoices = await Invoice.find({
     status: { $ne: "Paid" },
@@ -211,18 +204,17 @@ export const runDailyInterestForAll = async (runAt = new Date()) => {
   }
 };
 
-/** Manual trigger API (use admin auth in real app) */
+//  Manual trigger API (use admin auth in real app) 
 export const runInterestCronNow = async (req, res) => {
   await runDailyInterestForAll(new Date());
   res.json({ success:true, message:"Daily interest run executed" });
 };
 
-
 export const sellerInvoice = async (req, res) => {
   try {
     const { order, seller, buyer } = req.body;
 
-    // 🛑 Validation: orderId required + seller OR buyer required
+    // Validation: orderId required + seller OR buyer required
     if (!order || (!seller && !buyer)) {
       return res.status(400).json({
         success: false,
@@ -230,12 +222,12 @@ export const sellerInvoice = async (req, res) => {
       });
     }
 
-    // 🔍 Build dynamic query
+    // Build dynamic query
     const query = { order: order };
     if (seller) query.seller = seller;
     if (buyer) query.buyer = buyer;
 
-    // 📄 Fetch invoice
+    // Fetch invoice
     const invoice = await Invoice.findOne(query).populate("order").populate("buyer").populate("seller");
 
     if (!invoice) {
@@ -245,7 +237,7 @@ export const sellerInvoice = async (req, res) => {
       });
     }
 
-    // 🧮 Calculate last balance
+    // Calculate last balance
     const latestBalance = invoice.bankStatement.at(-1)?.balance ?? 0;
 
     return res.status(200).json({
@@ -266,4 +258,196 @@ export const sellerInvoice = async (req, res) => {
     });
   }
 };
+
+// // Get Seller Invoice
+// export const getSellerAllInvoices = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//      if (!mongoose.Types.ObjectId.isValid(id)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid invoice ID",
+//       });
+//     }
+//     // Fetch all invoices of this seller
+//     const invoices = await Invoice.find({ seller: id })
+//       .populate("order", "total")
+//       .populate("buyer", "name phone mode")
+//       .populate("seller", "name phone mode")
+//       .sort({ createdAt: -1 });
+
+//     if (!invoices.length) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "No invoices found for this seller",
+//       });
+//     }
+
+//     // Optional: add latest balance per invoice
+//     const invoicesWithBalance = invoices.map((invoice) => {
+//       const latestBalance =
+//         invoice.bankStatement?.at(-1)?.balance ?? 0;
+
+//       return {
+//         ...invoice.toObject(),
+//         latestBalance,
+//       };
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Seller invoices fetched successfully",
+//       totalInvoices: invoices.length,
+//       data: invoicesWithBalance,
+//     });
+//   } catch (error) {
+//     console.error("getSellerAllInvoices error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
+// // Get Seller Invoice (with Pagination)
+// export const getSellerAllInvoices = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     // Pagination params
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const skip = (page - 1) * limit;
+
+//     if (!mongoose.Types.ObjectId.isValid(id)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid seller ID",
+//       });
+//     }
+
+//     // Total count (for pagination)
+//     const totalInvoices = await Invoice.countDocuments({ seller: id });
+
+//     // if (!totalInvoices) {
+//     //   return res.status(404).json({
+//     //     success: false,
+//     //     message: "No invoices found for this seller",
+//     //   });
+//     // }
+
+//     if (totalInvoices === 0) {
+//   return res.status(200).json({
+//     success: true,
+//     message: "No invoices found for this seller",
+//     pagination: {
+//       totalInvoices: 0,
+//       currentPage: page,
+//       limit,
+//       totalPages: 0,
+//     },
+//     data: [],
+//   });
+// }
+
+
+//     // Fetch paginated invoices
+//     const invoices = await Invoice.find({ seller: id })
+//       .populate("order", "total")
+//       .populate("buyer", "name phone mode")
+//       .populate("seller", "name phone mode")
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limit);
+
+//     // Add latest balance (bank statement closing balance)
+//     const invoicesWithBalance = invoices.map((invoice) => {
+//       const latestBalance =
+//         invoice.bankStatement?.length > 0
+//           ? invoice.bankStatement[invoice.bankStatement.length - 1].balance
+//           : invoice.amount;
+
+//       return {
+//         ...invoice.toObject(),
+//         latestBalance,
+//       };
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Seller invoices fetched successfully",
+//       pagination: {
+//         totalInvoices,
+//         currentPage: page,
+//         limit,
+//         totalPages: Math.ceil(totalInvoices / limit),
+//       },
+//       data: invoicesWithBalance,
+//     });
+//   } catch (error) {
+//     console.error("getSellerAllInvoices error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+export const getSellerAllInvoices = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid seller ID",
+      });
+    }
+
+    const totalInvoices = await Invoice.countDocuments({ seller: id });
+
+    // Important: DO NOT send 404
+    const invoices = await Invoice.find({ seller: id })
+      .populate("order", "total")
+      .populate("buyer", "name phone mode")
+      .populate("seller", "name phone mode")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const invoicesWithBalance = invoices.map((invoice) => ({
+      ...invoice.toObject(),
+      latestBalance:
+        invoice.bankStatement?.at(-1)?.balance ?? invoice.amount,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message:
+        totalInvoices === 0
+          ? "No invoices found for this seller"
+          : "Seller invoices fetched successfully",
+      pagination: {
+        totalInvoices,
+        currentPage: page,
+        limit,
+        totalPages: Math.ceil(totalInvoices / limit),
+      },
+      data: invoicesWithBalance,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 

@@ -6,6 +6,7 @@ import {
   getInvoiceStatement,
   sellerInvoice,
   runInterestCronNow,
+  getSellerAllInvoices,
 } from "../controllers/invoiceController.js";
 import { isAuthenticatedUser, isAdmin} from "../middlewares/authMiddleware.js";
 
@@ -27,5 +28,7 @@ router.post("/get/invoice" ,isAuthenticatedUser, sellerInvoice);
 
 // Manual interest run (protect in real app)
 router.post("/cron/run", runInterestCronNow);
+
+router.get("/seller/:id", isAuthenticatedUser, getSellerAllInvoices);
 
 export default router;

@@ -148,8 +148,8 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
     }
 
     const connections = await BuyerSellerConnection.find(connectionFilter)
-      .populate("buyer", "name email phone businessAddress")
-      .populate("seller", "name email phone businessAddress")
+      .populate("buyer", "name email phone businessAddress businessName")
+      .populate("seller", "name email phone businessAddress businessName")
       .populate("buyerCategory", "name _id discount")
       .sort({ createdAt: -1 });
 
@@ -168,6 +168,7 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
           email: otherUser.email,
           phone: otherUser.phone,
           businessAddress: otherUser.businessAddress || null,
+          businessName: otherUser.businessName || null,
         } : null,
         createdAt: conn.createdAt,
         updatedAt: conn.updatedAt,
