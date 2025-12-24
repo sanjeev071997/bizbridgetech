@@ -29,7 +29,7 @@ export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
     creditPayment,
     buyerCategory,
     user,
-  });
+  }); 
 
   res.status(201).json({
     success: true,
@@ -64,25 +64,6 @@ export const getPaymentOptionById = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-// //  Update Payment Option
-// export const updatePaymentOption = catchAsyncErrors(async (req, res, next) => {
-//   console.log("Update Request Body:", req.body); // Debugging line
-//   const updatedPaymentOption = await PaymentOption.findByIdAndUpdate(
-//     req.params.id,
-//     req.body,
-//     { new: true, runValidators: true }
-//   );
-
-//   if (!updatedPaymentOption) {
-//     return next(new Errorhandler("Payment option not found", 404));
-//   }
-
-//   res.status(200).json({
-//     success: true,
-//     message: "Payment option updated successfully",
-//     data: updatedPaymentOption,
-//   });
-// });
 
 //  Update Payment Option
 export const updatePaymentOption = catchAsyncErrors(async (req, res, next) => {

@@ -6,6 +6,11 @@ const bankStatementEntrySchema = new mongoose.Schema({
   debit: { type: Number, default: 0 }, // outstanding increases
   credit: { type: Number, default: 0 }, // outstanding decreases
   balance: { type: Number, required: true }, // running outstanding after this entry
+  paymentStatus: {
+    type: String,
+    enum: ["Pending", "Approved", "Cancelled"],
+    default: "Pending",
+  },
 });
 
 const invoiceSchema = new mongoose.Schema(
@@ -65,16 +70,12 @@ invoiceSchema.pre("validate", async function (next) {
 
     const lastNumber = lastInvoice?.invoiceNumber;
 
-    this.invoiceNumber = Number.isFinite(lastNumber)
-      ? lastNumber + 1
-      : 1; // fallback for first invoice
+    this.invoiceNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1; // fallback for first invoice
 
     next();
   } catch (err) {
     next(err);
   }
 });
-
-
 
 export default mongoose.model("Invoice", invoiceSchema);
