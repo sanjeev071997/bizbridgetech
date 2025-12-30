@@ -22,7 +22,7 @@ router.put("/:id", isAuthenticatedUser, updatePaymentOption);
 
 router.delete("/:id",isAuthenticatedUser, deletePaymentOption);
 
-router.get("/user/:id", isAuthenticatedUser, getPaymentOptionByUser);
+router.get("/user/:userId", isAuthenticatedUser, getPaymentOptionByUser);
 
 router.post("/buyer", isAuthenticatedUser, getPaymentOptionBybuyer);
 

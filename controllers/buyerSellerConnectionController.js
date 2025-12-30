@@ -187,7 +187,6 @@ import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 //   }
 // );
 
-
 export const createBuyerSellerConnection = catchAsyncErrors(
   async (req, res, next) => {
     try {
@@ -362,8 +361,8 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
     const totalConnections = await BuyerSellerConnection.countDocuments(connectionFilter);
 
     const connections = await BuyerSellerConnection.find(connectionFilter)
-      .populate("buyer", "name email phone businessAddress businessName")
-      .populate("seller", "name email phone businessAddress businessName")
+      .populate("buyer", "name email phone businessAddress businessName lastSeen")
+      .populate("seller", "name email phone businessAddress businessName lastSeen")
       .populate("buyerCategory", "name _id discount")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -378,6 +377,7 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
         status: conn.status,
         buyerCategory: conn.buyerCategory || null,
         userRole: isBuyer ? "buyer" : "seller",
+        lastSeen: otherUser.lastSeen,
         otherUser: otherUser
           ? {
               _id: otherUser._id,
@@ -386,6 +386,7 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
               phone: otherUser.phone,
               businessAddress: otherUser.businessAddress || null,
               businessName: otherUser.businessName || null,
+              lastSeen: otherUser.lastSeen,
             }
           : null,
         createdAt: conn.createdAt,
@@ -509,6 +510,82 @@ export const updateConnectionStatus = catchAsyncErrors(
 // );
 
 // Assigned Category Buyer Seller
+// export const assignedCategoryBuyerSeller = catchAsyncErrors(
+//   async (req, res, next) => {
+//     try {
+//       const { buyerEmail, buyerPhone, buyerCategory } = req.body;
+//       const seller = req.user._id;
+
+//       if (!buyerEmail && !buyerPhone) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Either Email or Phone is required",
+//         });
+//       }
+
+//       if (!buyerCategory) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Buyer Category is required",
+//         });
+//       }
+
+//       // Find buyer
+//       const buyer = await User.findOne({
+//         $or: [
+//           buyerEmail ? { email: buyerEmail } : null,
+//           buyerPhone ? { phone: buyerPhone } : null,
+//         ].filter(Boolean),
+//       });
+
+//       if (!buyer) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "No user found with given email or phone",
+//         });
+//       }
+
+//       // Check existing connection
+//       let connection = await BuyerSellerConnection.findOne({
+//         seller,
+//         buyer: buyer._id,
+//       });
+
+//       // If exists → UPDATE
+//       if (connection) {
+//         connection.buyerCategory = buyerCategory;
+//         connection.buyerEmail = buyerEmail || null;
+//         connection.buyerPhone = buyerPhone || null;
+//         connection.status = "Accepted"; 
+//         await connection.save();
+//       }
+//       else {
+//         connection = await BuyerSellerConnection.create({
+//           seller,
+//           buyer: buyer._id,
+//           buyerEmail: buyerEmail || null,
+//           buyerPhone: buyerPhone || null,
+//           buyerCategory,
+//           status: "Accepted",
+//         });
+//       }
+
+//       // Emit socket event
+//       if (req.io?.sockets?.sockets?.size > 0) {
+//         req.io.emit("buyerSellerConnectionUpdated", connection);
+//       }
+
+//       return res.status(201).json({
+//         success: true,
+//         message: "Buyer–Seller assigned category saved successfully",
+//         data: connection,
+//       });
+//     } catch (error) {
+//       return next(new Errorhandler(error.message, 500));
+//     }
+//   }
+// );
+
 export const assignedCategoryBuyerSeller = catchAsyncErrors(
   async (req, res, next) => {
     try {
@@ -544,28 +621,31 @@ export const assignedCategoryBuyerSeller = catchAsyncErrors(
         });
       }
 
-      // Check existing connection
+      // Find existing connection
       let connection = await BuyerSellerConnection.findOne({
         seller,
         buyer: buyer._id,
       });
 
-      // If exists → UPDATE
       if (connection) {
+        // ✅ Update only category + contact info
         connection.buyerCategory = buyerCategory;
         connection.buyerEmail = buyerEmail || null;
         connection.buyerPhone = buyerPhone || null;
-        connection.status = "Accepted"; 
+
+        // ❌ DO NOT auto-accept pending requests
+        // status remains as-is (Pending / Accepted)
+
         await connection.save();
-      }
-      else {
+      } else {
+        // ✅ New connection → Pending
         connection = await BuyerSellerConnection.create({
           seller,
           buyer: buyer._id,
           buyerEmail: buyerEmail || null,
           buyerPhone: buyerPhone || null,
           buyerCategory,
-          status: "Accepted",
+          status: "Pending",
         });
       }
 
@@ -574,9 +654,9 @@ export const assignedCategoryBuyerSeller = catchAsyncErrors(
         req.io.emit("buyerSellerConnectionUpdated", connection);
       }
 
-      return res.status(201).json({
+      return res.status(200).json({
         success: true,
-        message: "Buyer–Seller assigned category saved successfully",
+        message: "Buyer category updated successfully",
         data: connection,
       });
     } catch (error) {
@@ -584,3 +664,151 @@ export const assignedCategoryBuyerSeller = catchAsyncErrors(
     }
   }
 );
+
+// View All Members 
+// export const viewMembers = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     const { buyerCategory, seller } = req.body;
+
+//     if (!buyerCategory) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Buyer Category is required",
+//       });
+//     }
+
+//     if (!seller) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Seller is required",
+//       });
+//     }
+
+//     const allViewMembers = await BuyerSellerConnection.find({
+//       buyerCategory: buyerCategory,
+//       seller: seller,
+//       status: "Accepted", // optional (agar sirf accepted buyers chahiye)
+//     })
+//       .populate("buyer", "name email phone") // optional
+//       .sort({ createdAt: -1 });
+
+//     return res.status(200).json({
+//       success: true,
+//       count: allViewMembers.length,
+//       data: allViewMembers,
+//     });
+//   } catch (error) {
+//     return next(new Errorhandler(error.message, 500));
+//   }
+// });
+
+// export const viewMembers = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     const { buyerCategory, seller } = req.body;
+
+//     if (!buyerCategory) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Buyer Category is required",
+//       });
+//     }
+
+//     if (!seller) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Seller is required",
+//       });
+//     }
+
+//     const filter = {
+//       buyerCategory,
+//       seller,
+//       status: "Accepted", // optional
+//     };
+
+//     // 🔥 Parallel queries (fast)
+//     const [members, totalCount] = await Promise.all([
+//       BuyerSellerConnection.find(filter)
+//         .populate("buyer", "name email phone")
+//         .sort({ createdAt: -1 }),
+
+//       BuyerSellerConnection.countDocuments(filter),
+//     ]);
+
+//     return res.status(200).json({
+//       success: true,
+//       count: totalCount,
+//       data: members,
+//     });
+//   } catch (error) {
+//     return next(new Errorhandler(error.message, 500));
+//   }
+// });
+
+
+export const viewMembers = catchAsyncErrors(async (req, res, next) => {
+  try {
+    const { buyerCategory, seller, page = 1, limit = 10 } = req.body;
+
+    if (!buyerCategory) {
+      return res.status(400).json({
+        success: false,
+        message: "Buyer Category is required",
+      });
+    }
+
+    if (!seller) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller is required",
+      });
+    }
+
+    // 验证页码和限制
+    const pageNumber = Math.max(1, parseInt(page));
+    const pageLimit = Math.max(1, Math.min(100, parseInt(limit))); // 限制最大100条
+    const skip = (pageNumber - 1) * pageLimit;
+
+    const filter = {
+      buyerCategory,
+      seller,
+      status: "Accepted",
+    };
+
+    // 🔥 Parallel queries (fast)
+    const [members, totalCount] = await Promise.all([
+      BuyerSellerConnection.find(filter)
+        .populate("buyer", "name email phone")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageLimit),
+
+      BuyerSellerConnection.countDocuments(filter),
+    ]);
+
+    // 计算总页数
+    const totalPages = Math.ceil(totalCount / pageLimit);
+    
+    // 计算是否有下一页/上一页
+    const hasNextPage = pageNumber < totalPages;
+    const hasPrevPage = pageNumber > 1;
+
+    return res.status(200).json({
+      success: true,
+      count: totalCount,
+      pagination: {
+        total: totalCount,
+        page: pageNumber,
+        limit: pageLimit,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+        nextPage: hasNextPage ? pageNumber + 1 : null,
+        prevPage: hasPrevPage ? pageNumber - 1 : null,
+      },
+      data: members,
+    });
+  } catch (error) {
+    return next(new Errorhandler(error.message, 500));
+  }
+});

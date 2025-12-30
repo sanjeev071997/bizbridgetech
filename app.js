@@ -28,6 +28,7 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import { startInterestCron } from "./utils/invoiceInterestCron.js";
 import swaggerUi from "swagger-ui-express";
 import fs from "fs";
+import { initSocket } from "./socket/socket.js";
 // import swaggerDocument from "./swagger.json" assert { type: "json" };
 
 import path from "path";
@@ -64,10 +65,18 @@ const io = new Server(server, {
 });
 
 // // Attach io to every request
+// app.use((req, res, next) => {
+//   req.io = io;
+//   next();
+// });
+
+// attach io to req
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
+
+initSocket(io);
 
 // Check Server Status
 app.get("/api/status", (req, res) => {

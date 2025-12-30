@@ -1,16 +1,11 @@
-import PaymentOption from '../models/paymentOption.js';
+import PaymentOption from "../models/paymentOption.js";
 import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 
 // Create Payment Option
 export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
-  let {
-    paymentType,
-    cashPayment,
-    creditPayment,
-    buyerCategory,
-    user,
-  } = req.body;
+  let { paymentType, cashPayment, creditPayment, buyerCategory, user } =
+    req.body;
 
   // Validation
   if (!paymentType) {
@@ -29,7 +24,7 @@ export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
     creditPayment,
     buyerCategory,
     user,
-  }); 
+  });
 
   res.status(201).json({
     success: true,
@@ -37,7 +32,6 @@ export const createPaymentOption = catchAsyncErrors(async (req, res, next) => {
     data: newPaymentOption,
   });
 });
-
 
 //  Get All Payment Options
 export const getAllPaymentOptions = catchAsyncErrors(async (req, res, next) => {
@@ -64,16 +58,9 @@ export const getPaymentOptionById = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-
 //  Update Payment Option
 export const updatePaymentOption = catchAsyncErrors(async (req, res, next) => {
-  console.log("Update Request Body:", req.body);
-
-  let {
-    paymentType,
-    cashPayment,
-    creditPayment,
-  } = req.body;
+  let { paymentType, cashPayment, creditPayment } = req.body;
 
   // -----------------------------------------
   // FIX 1: Auto-set interestStartAfterDays
@@ -115,10 +102,11 @@ export const updatePaymentOption = catchAsyncErrors(async (req, res, next) => {
   });
 });
 
-
 //  Delete Payment Option
 export const deletePaymentOption = catchAsyncErrors(async (req, res, next) => {
-  const deletedPaymentOption = await PaymentOption.findByIdAndDelete(req.params.id);
+  const deletedPaymentOption = await PaymentOption.findByIdAndDelete(
+    req.params.id
+  );
 
   if (!deletedPaymentOption) {
     return next(new Errorhandler("Payment option not found", 404));
@@ -131,37 +119,107 @@ export const deletePaymentOption = catchAsyncErrors(async (req, res, next) => {
 });
 
 // get payment option by user
-export const getPaymentOptionByUser = catchAsyncErrors(async (req, res, next) => {
-    const user = req.params.id;
-    // Validate user ID
-    if (!user) {
-        return next(new Errorhandler("User ID is required", 400));
+// export const getPaymentOptionByUser = catchAsyncErrors(
+//   async (req, res, next) => {
+//     const user = req.params.id;
+//     let { page = 1, limit = 10 } = req.query;
+
+//     // Convert to numbers
+//     page = parseInt(page);
+//     limit = parseInt(limit);
+//     // Count total documents for the logged-in user
+//     const totalPaymentOptions = await PaymentOption.countDocuments({
+//       user: req.params.id,
+//     });
+//     // Validate user ID
+//     if (!user) {
+//       return next(new Errorhandler("User ID is required", 400));
+//     }
+//     // Find payment options for the authenticated user
+//     const paymentOptions = await PaymentOption.find({ user })
+//       .populate("buyerCategory", "name discount")
+//       .sort({ createdAt: -1 })
+//       .skip((page - 1) * limit)
+//       .limit(limit);
+//     if (!paymentOptions || paymentOptions.length === 0) {
+//       return next(
+//         new Errorhandler("No payment options found for this user", 404)
+//       );
+//     }
+//     res.status(200).json({
+//       success: true,
+//       data: paymentOptions,
+//       total: totalPaymentOptions,
+//       page,
+//       limit,
+//       totalPages: Math.ceil(totalPaymentOptions / limit),
+//     });
+//   }
+// );
+
+export const getPaymentOptionByUser = catchAsyncErrors(
+  async (req, res, next) => {
+    const userId = req.params.userId;
+
+    let { page = 1, limit = 10 } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+
+    if (!userId) {
+      return next(new Errorhandler("User ID is required", 400));
     }
-    // Find payment options for the authenticated user
-  const paymentOptions = await PaymentOption.find({user}).populate("buyerCategory", "name discount").sort({ createdAt: -1 });
-    if (!paymentOptions || paymentOptions.length === 0) {
-        return next(new Errorhandler("No payment options found for this user", 404));
-    }
-    res.status(200).json({
-        success: true,
-        data: paymentOptions,
+
+    const totalPaymentOptions = await PaymentOption.countDocuments({
+      user: userId,
     });
-}); 
+
+    const paymentOptions = await PaymentOption.find({ user: userId })
+      .populate("buyerCategory", "name discount")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // EMPTY ARRAY IS OK
+    res.status(200).json({
+      success: true,
+      data: paymentOptions,
+      total: totalPaymentOptions,
+      page,
+      limit,
+      totalPages: Math.ceil(totalPaymentOptions / limit),
+    });
+  }
+);
 
 // get payment option by buyer category
-export const getPaymentOptionBybuyer = catchAsyncErrors(async (req, res, next) => {
+export const getPaymentOptionBybuyer = catchAsyncErrors(
+  async (req, res, next) => {
     const { buyerCategory, seller } = req.body;
-     // Validation
-  if (!buyerCategory || !seller) {
-    return next(new Errorhandler("Both buyerCategory and sellerId are required", 400));
-  }
+    // Validation
+    if (!buyerCategory || !seller) {
+      return next(
+        new Errorhandler("Both buyerCategory and sellerId are required", 400)
+      );
+    }
     // Find payment options for the given buyer category
-  const paymentOptions = await PaymentOption.find({ buyerCategory, user:seller }).populate("buyerCategory", "name discount").sort({ createdAt: -1 });
+    const paymentOptions = await PaymentOption.find({
+      buyerCategory,
+      user: seller,
+    })
+      .populate("buyerCategory", "name discount")
+      .sort({ createdAt: -1 });
     if (!paymentOptions || paymentOptions.length === 0) {
-        return next(new Errorhandler("No payment options found for this buyer category", 404));
+      return next(
+        new Errorhandler(
+          "No payment options found for this buyer category",
+          404
+        )
+      );
     }
     res.status(200).json({
-        success: true,
-        data: paymentOptions,
+      success: true,
+      data: paymentOptions,
     });
-});
+  }
+);

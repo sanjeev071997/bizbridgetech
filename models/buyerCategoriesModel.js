@@ -17,6 +17,10 @@
        required: true,
        trim: true,
      },
+     color: {
+      type: String,
+      required: false
+     }
    },
    {
      timestamps: true,

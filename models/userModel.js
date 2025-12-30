@@ -85,8 +85,6 @@
 //       type: String,
 //     },
 
-
-
 //     resetPasswordToken: String,
 
 //     resetPasswordExpire: Date,
@@ -247,7 +245,7 @@ const userSchema = new mongoose.Schema(
     resetPasswordOtp: {
       type: String,
     },
-   
+
     bankDetails: {
       upiId: {
         type: String,
@@ -282,8 +280,8 @@ const userSchema = new mongoose.Schema(
             // Basic IFSC format: 4 letters + 0 + 6 digits (example). Adjust if needed.
             return /^[A-Z]{4}0[0-9A-Z]{6}$/.test(v);
           },
-          message: props => `${props.value} is not a valid IFSC code!`
-        }
+          message: (props) => `${props.value} is not a valid IFSC code!`,
+        },
       },
       branchName: {
         type: String,
@@ -302,12 +300,24 @@ const userSchema = new mongoose.Schema(
       // optional: store when added/updated
       updatedAt: {
         type: Date,
-      }
+      },
     },
+
+    lastSeen: {
+      type: Date,
+      default: null,
+    },
+
+  //   currentMode: {
+  //   type: String,
+  //   enum: ["seller", "buyer"],
+  //   default: "buyer",
+  // },
 
     resetPasswordToken: String,
     resetPasswordExpire: Date,
   },
+
   {
     timestamps: true,
   }
@@ -356,7 +366,7 @@ userSchema.methods.getJWTToken = function () {
 // Method to create refresh token
 userSchema.methods.getRefreshToken = function () {
   return jwt.sign({ id: this._id }, process.env.REFRESH_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE_REFRESHTOKEN
+    expiresIn: process.env.JWT_EXPIRE_REFRESHTOKEN,
   });
 };
 
