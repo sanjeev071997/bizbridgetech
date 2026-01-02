@@ -101,78 +101,78 @@ export const addProduct = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Update product discount & visible
-export const updateProductCategoryAndVisibility = catchAsyncErrors(
-  async (req, res, next) => {
-    const { buyerCategory, visible, productId } = req.body;
+// export const updateProductCategoryAndVisibility = catchAsyncErrors(
+//   async (req, res, next) => {
+//     const { buyerCategory, visible, productId } = req.body;
 
-    try {
-      // Validate productId
-      if (!mongoose.Types.ObjectId.isValid(productId)) {
-        return next(new Errorhandler("Invalid product ID", 400));
-      }
+//     try {
+//       // Validate productId
+//       if (!mongoose.Types.ObjectId.isValid(productId)) {
+//         return next(new Errorhandler("Invalid product ID", 400));
+//       }
 
-      // Fetch product
-      const product = await Product.findById(productId);
-      if (!product) {
-        return next(new Errorhandler("Product not found", 404));
-      }
+//       // Fetch product
+//       const product = await Product.findById(productId);
+//       if (!product) {
+//         return next(new Errorhandler("Product not found", 404));
+//       }
 
-      // Validate buyerCategory
-      if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
-        return next(new Errorhandler("Invalid buyerCategory ID", 400));
-      }
+//       // Validate buyerCategory
+//       if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
+//         return next(new Errorhandler("Invalid buyerCategory ID", 400));
+//       }
 
-      // Fetch buyerCategory data
-      const buyerCatData = await BuyerCategory.findById(buyerCategory).select(
-        "discount"
-      );
-      if (!buyerCatData) {
-        return next(new Errorhandler("BuyerCategory not found", 404));
-      }
+//       // Fetch buyerCategory data
+//       const buyerCatData = await BuyerCategory.findById(buyerCategory).select(
+//         "discount"
+//       );
+//       if (!buyerCatData) {
+//         return next(new Errorhandler("BuyerCategory not found", 404));
+//       }
 
-      // Initialize productVisibility if missing
-      if (!product.productVisibility) product.productVisibility = [];
+//       // Initialize productVisibility if missing
+//       if (!product.productVisibility) product.productVisibility = [];
 
-      // Remove invalid entries (buyerCategory: null)
-      product.productVisibility = product.productVisibility.filter(
-        (v) => v.buyerCategory
-      );
+//       // Remove invalid entries (buyerCategory: null)
+//       product.productVisibility = product.productVisibility.filter(
+//         (v) => v.buyerCategory
+//       );
 
-      // Check if visibility for this buyerCategory already exists
-      const existingVisibility = product.productVisibility.find(
-        (v) => v.buyerCategory.toString() === buyerCategory.toString()
-      );
+//       // Check if visibility for this buyerCategory already exists
+//       const existingVisibility = product.productVisibility.find(
+//         (v) => v.buyerCategory.toString() === buyerCategory.toString()
+//       );
 
-      if (existingVisibility) {
-        existingVisibility.visible = visible;
-      } else {
-        product.productVisibility.push({
-          buyerCategory,
-          visible,
-        });
-      }
+//       if (existingVisibility) {
+//         existingVisibility.visible = visible;
+//       } else {
+//         product.productVisibility.push({
+//           buyerCategory,
+//           visible,
+//         });
+//       }
 
-      // Calculate price based on discount
-      let price = product.mrp;
-      if (buyerCatData.discount && buyerCatData.discount > 0) {
-        price = product.mrp - (product.mrp * buyerCatData.discount) / 100;
-      }
-      product.price = price;
+//       // Calculate price based on discount
+//       let price = product.mrp;
+//       if (buyerCatData.discount && buyerCatData.discount > 0) {
+//         price = product.mrp - (product.mrp * buyerCatData.discount) / 100;
+//       }
+//       product.price = price;
 
-      // Save product
-      await product.save();
+//       // Save product
+//       await product.save();
 
-      res.status(200).json({
-        success: true,
-        message: "Product updated successfully for buyerCategory visibility",
-        product,
-      });
-    } catch (error) {
-      console.error("Error updating product:", error);
-      return next(new Errorhandler("Error updating product", 500));
-    }
-  }
-);
+//       res.status(200).json({
+//         success: true,
+//         message: "Product updated successfully for buyerCategory visibility",
+//         product,
+//       });
+//     } catch (error) {
+//       console.error("Error updating product:", error);
+//       return next(new Errorhandler("Error updating product", 500));
+//     }
+//   }
+// );
 
 // Function to delete a product
 export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
@@ -214,194 +214,210 @@ export const deleteProduct = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Function to update a product
-export const updateProduct = catchAsyncErrors(async (req, res, next) => {
-  const { id } = req.params;
-  const {
-    image,
-    name,
-    category,
-    mrp,
-    unit,
-    // stock,
-    description,
-    specifications,
-    buyerCategory,
-    price,
-  } = req.body;
+// export const updateProduct = catchAsyncErrors(async (req, res, next) => {
+//   const { id } = req.params;
+//   const {
+//     image,
+//     name,
+//     category,
+//     mrp,
+//     unit,
+//     // stock,
+//     description,
+//     specifications,
+//     buyerCategory,
+//     price,
+//   } = req.body;
 
-  try {
-    const product = await Product.findById(id).populate(
-      "productVisibility.buyerCategory",
-      "name discount"
-    );
-    if (!product) {
-      return next(new Errorhandler("Product not found", 404));
-    }
+//   try {
+//     const product = await Product.findById(id).populate(
+//       "productVisibility.buyerCategory",
+//       "name discount"
+//     );
+//     if (!product) {
+//       return next(new Errorhandler("Product not found", 404));
+//     }
 
-    // Permission check
-    if (
-      product.user.toString() !== req.user._id.toString() &&
-      req.user.role !== 1
-    ) {
-      return next(
-        new Errorhandler("You are not authorized to update this product", 403)
-      );
-    }
+//     // Permission check
+//     if (
+//       product.user.toString() !== req.user._id.toString() &&
+//       req.user.role !== 1
+//     ) {
+//       return next(
+//         new Errorhandler("You are not authorized to update this product", 403)
+//       );
+//     }
 
-    // Handle image update
-    let imageUrl = product.image;
-    let cloudinaryId = product.cloudinaryId;
-    if (image && image.startsWith("data:image")) {
-      if (product.cloudinaryId) {
-        await cloudinary.uploader.destroy(product.cloudinaryId);
-      }
-      const result = await uploadBase64Image(image);
-      imageUrl = result.image;
-      cloudinaryId = result.cloudinaryId;
-    } else if (image && image !== product.image) {
-      if (product.cloudinaryId) {
-        await cloudinary.uploader.destroy(product.cloudinaryId);
-      }
-      const result = await cloudinary.uploader.upload(image, {
-        folder: "SallerProducts",
-      });
-      imageUrl = result.secure_url;
-      cloudinaryId = result.public_id;
-    }
+//     // Handle image update
+//     let imageUrl = product.image;
+//     let cloudinaryId = product.cloudinaryId;
+//     if (image && image.startsWith("data:image")) {
+//       if (product.cloudinaryId) {
+//         await cloudinary.uploader.destroy(product.cloudinaryId);
+//       }
+//       const result = await uploadBase64Image(image);
+//       imageUrl = result.image;
+//       cloudinaryId = result.cloudinaryId;
+//     } else if (image && image !== product.image) {
+//       if (product.cloudinaryId) {
+//         await cloudinary.uploader.destroy(product.cloudinaryId);
+//       }
+//       const result = await cloudinary.uploader.upload(image, {
+//         folder: "SallerProducts",
+//       });
+//       imageUrl = result.secure_url;
+//       cloudinaryId = result.public_id;
+//     }
 
-    // Update base product fields
-    const oldMrp = product.mrp;
-    product.name = name || product.name;
-    product.unit = unit || product.unit;
-    product.image = imageUrl;
-    product.cloudinaryId = cloudinaryId;
-    product.mrp = mrp || product.mrp;
-    product.category = category || product.category;
-    // product.stock = stock || product.stock;
-    product.description = description || product.description;
-    product.specifications = specifications || product.specifications;
+//     // Update base product fields
+//     const oldMrp = product.mrp;
+//     product.name = name || product.name;
+//     product.unit = unit || product.unit;
+//     product.image = imageUrl;
+//     product.cloudinaryId = cloudinaryId;
+//     product.mrp = mrp || product.mrp;
+//     product.category = category || product.category;
+//     // product.stock = stock || product.stock;
+//     product.description = description || product.description;
+//     product.specifications = specifications || product.specifications;
 
-    // Agar buyerCategory diya gaya hai to add/update
-    if (buyerCategory) {
-      const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
-      if (!buyerCategoryDoc) {
-        return next(new Errorhandler("Buyer category not found", 404));
-      }
+//     // Agar buyerCategory diya gaya hai to add/update
+//     if (buyerCategory) {
+//       const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
+//       if (!buyerCategoryDoc) {
+//         return next(new Errorhandler("Buyer category not found", 404));
+//       }
 
-      const discount = parseFloat(buyerCategoryDoc.discount) || 0;
-      let finalPrice = mrp
-        ? mrp - (mrp * discount) / 100
-        : product.mrp - (product.mrp * discount) / 100;
+//       const discount = parseFloat(buyerCategoryDoc.discount) || 0;
+//       let finalPrice = mrp
+//         ? mrp - (mrp * discount) / 100
+//         : product.mrp - (product.mrp * discount) / 100;
 
-      // agar price explicitly diya hai to override
-      if (price) {
-        finalPrice = price;
-      }
+//       // agar price explicitly diya hai to override
+//       if (price) {
+//         finalPrice = price;
+//       }
 
-      const alreadyExists = product.productVisibility.find(
-        (v) =>
-          v.buyerCategory &&
-          v.buyerCategory._id.toString() === buyerCategoryDoc._id.toString()
-      );
+//       const alreadyExists = product.productVisibility.find(
+//         (v) =>
+//           v.buyerCategory &&
+//           v.buyerCategory._id.toString() === buyerCategoryDoc._id.toString()
+//       );
 
-      if (!alreadyExists) {
-        product.productVisibility.push({
-          buyerCategory: buyerCategoryDoc._id,
-          visible: true,
-          price: finalPrice,
-        });
-      } else {
-        alreadyExists.price = finalPrice;
-        alreadyExists.visible = true;
-      }
-    }
+//       if (!alreadyExists) {
+//         product.productVisibility.push({
+//           buyerCategory: buyerCategoryDoc._id,
+//           visible: true,
+//           price: finalPrice,
+//         });
+//       } else {
+//         alreadyExists.price = finalPrice;
+//         alreadyExists.visible = true;
+//       }
+//     }
 
-    if (mrp && mrp !== oldMrp) {
-      for (let visibility of product.productVisibility) {
-        if (
-          visibility.buyerCategory &&
-          visibility.buyerCategory.discount != null
-        ) {
-          const discount = parseFloat(visibility.buyerCategory.discount) || 0;
-          visibility.price = mrp - (mrp * discount) / 100;
-        }
-      }
-    }
+//     if (mrp && mrp !== oldMrp) {
+//       for (let visibility of product.productVisibility) {
+//         if (
+//           visibility.buyerCategory &&
+//           visibility.buyerCategory.discount != null
+//         ) {
+//           const discount = parseFloat(visibility.buyerCategory.discount) || 0;
+//           visibility.price = mrp - (mrp * discount) / 100;
+//         }
+//       }
+//     }
 
-    const updatedProduct = await product.save();
+//     const updatedProduct = await product.save();
 
-    await updatedProduct.populate(
-      "productVisibility.buyerCategory",
-      "name discount"
-    );
+//     await updatedProduct.populate(
+//       "productVisibility.buyerCategory",
+//       "name discount"
+//     );
 
-    res.status(200).json({
-      success: true,
-      message: "Product updated successfully",
-      updatedProduct,
-    });
-  } catch (error) {
-    console.log(error);
-    return next(new Errorhandler("Error updating product", 500));
-  }
-});
+//     res.status(200).json({
+//       success: true,
+//       message: "Product updated successfully",
+//       updatedProduct,
+//     });
+//   } catch (error) {
+//     console.log(error);
+//     return next(new Errorhandler("Error updating product", 500));
+//   }
+// });
 
 // Function to get a product by ID for Seller own products
-export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
-  const user = req.user.id;
+// export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
+//   const user = req.user.id;
 
-  try {
-    const products = await Product.find({ user })
-      .populate("category", "name gst")
-      .populate("user", "name phone businessName")
-      .populate({
-        path: "productVisibility.buyerCategory",
-        select: "name discount",
-      })
-      .sort({ createdAt: -1 });
+//   // ✅ Pagination params
+//   const page = parseInt(req.query.page) || 1;
+//   const limit = parseInt(req.query.limit) || 10;
+//   const skip = (page - 1) * limit;
 
-    if (!products || products.length === 0) {
-      return next(new Errorhandler("Product not found", 404));
-    }
+//   try {
+//     // ✅ Total count (for frontend pagination)
+//     const totalProducts = await Product.countDocuments({ user });
 
-    // Iterate through each product
-    for (const product of products) {
-      let hasChanges = false; // flag to check if any price needs DB update
+//     const products = await Product.find({ user })
+//       .populate("category", "name gst")
+//       .populate("user", "name phone businessName")
+//       .populate({
+//         path: "productVisibility.buyerCategory",
+//         select: "name discount",
+//       })
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limit);
 
-      product.productVisibility = product.productVisibility.map((vis) => {
-        if (!vis.buyerCategory) return vis;
+//     if (!products || products.length === 0) {
+//       return next(new Errorhandler("Product not found", 404));
+//     }
 
-        const discount = parseFloat(vis.buyerCategory.discount) || 0;
-        const mrp = product.mrp || 0;
-        const calculatedPrice = Math.round(mrp - (mrp * discount) / 100);
+//     // 🔁 Price recalculation logic
+//     for (const product of products) {
+//       let hasChanges = false;
 
-        // If stored price is different, mark for update
-        if (vis.price !== calculatedPrice) {
-          vis.price = calculatedPrice;
-          hasChanges = true;
-        }
+//       product.productVisibility = product.productVisibility.map((vis) => {
+//         if (!vis.buyerCategory) return vis;
 
-        vis.appliedDiscount = discount;
-        return vis;
-      });
+//         const discount = Number(vis.buyerCategory.discount) || 0;
+//         const mrp = Number(product.mrp) || 0;
+//         const calculatedPrice = Math.round(
+//           mrp - (mrp * discount) / 100
+//         );
 
-      // Save product if any change happened
-      if (hasChanges) {
-        await Product.updateOne(
-          { _id: product._id },
-          { $set: { productVisibility: product.productVisibility } }
-        );
-      }
-    }
+//         if (vis.price !== calculatedPrice) {
+//           vis.price = calculatedPrice;
+//           hasChanges = true;
+//         }
 
-    res.status(200).json({
-      success: true,
-      product: products,
-    });
-  } catch (error) {
-    return next(new Errorhandler("Error fetching product", 500));
-  }
-});
+//         vis.appliedDiscount = discount;
+//         return vis;
+//       });
+
+//       if (hasChanges) {
+//         await Product.updateOne(
+//           { _id: product._id },
+//           { $set: { productVisibility: product.productVisibility } }
+//         );
+//       }
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       product: products,
+//       pagination: {
+//         totalProducts,
+//         currentPage: page,
+//         totalPages: Math.ceil(totalProducts / limit),
+//         limit,
+//       },
+//     });
+//   } catch (error) {
+//     return next(new Errorhandler("Error fetching product", 500));
+//   }
+// });
 
 // Function to get a products for Buyer view with discount & visibility logic
 export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
@@ -521,131 +537,147 @@ export const getBuyerProducts = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Get Buyer Category Products
-export const getProductsByBuyerCategoryId = catchAsyncErrors(
-  async (req, res, next) => {
-    const { buyerCategory } = req.params;
-    const loginUserId = req.user?._id;
+// export const getProductsByBuyerCategoryId = catchAsyncErrors(
+//   async (req, res, next) => {
+//     const { buyerCategory } = req.params;
+//     const loginUserId = req.user?._id;
 
-    if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
-      return next(new Errorhandler("Invalid buyer category ID", 400));
-    }
+//     // ✅ Pagination params
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const skip = (page - 1) * limit;
 
-    try {
-      const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
-      if (!buyerCategoryDoc) {
-        return next(new Errorhandler("Buyer category not found", 404));
-      }
+//     if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
+//       return next(new Errorhandler("Invalid buyer category ID", 400));
+//     }
 
-      const discount = parseFloat(buyerCategoryDoc.discount) || 0;
-      const buyerCatOid = new mongoose.Types.ObjectId(buyerCategory);
+//     try {
+//       const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
+//       if (!buyerCategoryDoc) {
+//         return next(new Errorhandler("Buyer category not found", 404));
+//       }
 
-      // Fetch products (lean for faster read)
-      const products = await Product.find({ user: loginUserId })
-        .select("_id mrp name image unit productVisibility category")
-        .lean(); // plain objects - faster
+//       const discount = parseFloat(buyerCategoryDoc.discount) || 0;
+//       const buyerCatOid = new mongoose.Types.ObjectId(buyerCategory);
 
-      if (!products.length) {
-        return next(new Errorhandler("No products found", 404));
-      }
+//       // ✅ Total count (for pagination)
+//       const totalProducts = await Product.countDocuments({
+//         user: loginUserId,
+//       });
 
-      const bulkOps = [];
+//       // ✅ Fetch paginated products
+//       const products = await Product.find({ user: loginUserId })
+//         .sort({ createdAt: -1 })
+//         .select("_id mrp name image unit productVisibility category")
+//         .skip(skip)
+//         .limit(limit)
+//         .lean();
 
-      // Prepare bulk operations: push only if buyerCategory not present (atomic)
-      for (const p of products) {
-        const vis = p.productVisibility || [];
+//       if (!products.length) {
+//         return next(new Errorhandler("No products found", 404));
+//       }
 
-        const exists = vis.some((v) => {
-          // v.buyerCategory could be ObjectId or populated object — normalize to string
-          const catId =
-            v && v.buyerCategory
-              ? v.buyerCategory._id
-                ? v.buyerCategory._id.toString()
-                : v.buyerCategory.toString()
-              : null;
-          return catId === buyerCategory;
-        });
+//       const bulkOps = [];
 
-        if (!exists) {
-          const priceAfterDiscount =
-            discount > 0 ? p.mrp - (p.mrp * discount) / 100 : p.mrp;
+//       for (const p of products) {
+//         const vis = p.productVisibility || [];
 
-          bulkOps.push({
-            updateOne: {
-              // atomic condition: only push when no existing buyerCategory
-              filter: {
-                _id: p._id,
-                "productVisibility.buyerCategory": { $ne: buyerCatOid },
-              },
-              update: {
-                $push: {
-                  productVisibility: {
-                    buyerCategory: buyerCatOid,
-                    visible: true,
-                    price: priceAfterDiscount,
-                  },
-                },
-              },
-            },
-          });
-        }
-      }
+//         const exists = vis.some((v) => {
+//           const catId =
+//             v?.buyerCategory?._id
+//               ? v.buyerCategory._id.toString()
+//               : v?.buyerCategory?.toString?.();
+//           return catId === buyerCategory;
+//         });
 
-      // Execute bulk writes (only when needed)
-      if (bulkOps.length > 0) {
-        await Product.bulkWrite(bulkOps);
-      }
+//         if (!exists) {
+//           const priceAfterDiscount =
+//             discount > 0 ? p.mrp - (p.mrp * discount) / 100 : p.mrp;
 
-      // Re-fetch products (populated) to return actual DB values
-      const updatedProducts = await Product.find({ user: loginUserId })
-        .populate("productVisibility.buyerCategory", "name discount")
-        .populate("category", "name gst")
-        .sort({ createdAt: -1 });
+//           bulkOps.push({
+//             updateOne: {
+//               filter: {
+//                 _id: p._id,
+//                 "productVisibility.buyerCategory": { $ne: buyerCatOid },
+//               },
+//               update: {
+//                 $push: {
+//                   productVisibility: {
+//                     buyerCategory: buyerCatOid,
+//                     visible: true,
+//                     price: priceAfterDiscount,
+//                   },
+//                 },
+//               },
+//             },
+//           });
+//         }
+//       }
 
-      const filteredProducts = updatedProducts.map((product) => {
-        const matched = product.productVisibility.find((v) => {
-          const catId =
-            v.buyerCategory && v.buyerCategory._id
-              ? v.buyerCategory._id.toString()
-              : v.buyerCategory?.toString?.();
-          return catId === buyerCategory;
-        });
+//       if (bulkOps.length > 0) {
+//         await Product.bulkWrite(bulkOps);
+//       }
 
-        return {
-          _id: product._id,
-          name: product.name,
-          unit: product.unit,
-          mrp: product.mrp,
-          image: product.image,
-          category: product.category,
-          buyerCategory: matched
-            ? {
-                id: matched.buyerCategory._id,
-                name: matched.buyerCategory.name,
-                discount: matched.buyerCategory.discount,
-                price: matched.price,
-                visible: matched.visible,
-              }
-            : {
-                id: buyerCategoryDoc._id,
-                name: buyerCategoryDoc.name,
-                discount: buyerCategoryDoc.discount,
-                price: product.mrp,
-                visible: buyerCategoryDoc.defaultVisibility || false,
-              },
-        };
-      });
+//       // ✅ Re-fetch only paginated products
+//       const updatedProducts = await Product.find({
+//         _id: { $in: products.map((p) => p._id) },
+//       })
+//         .populate("productVisibility.buyerCategory", "name discount")
+//         .populate("category", "name gst")
+//         .sort({ createdAt: -1 });
 
-      return res
-        .status(200)
-        .json({ success: true, products: filteredProducts });
-    } catch (error) {
-      console.error("Detailed Error:", error);
-      return next(
-        new Errorhandler("Error fetching products by buyer category", 500)
-      );
-    }
-  }
-);
+//       const filteredProducts = updatedProducts.map((product) => {
+//         const matched = product.productVisibility.find((v) => {
+//           const catId =
+//             v.buyerCategory && v.buyerCategory._id
+//               ? v.buyerCategory._id.toString()
+//               : v.buyerCategory?.toString?.();
+//           return catId === buyerCategory;
+//         });
+
+//         return {
+//           _id: product._id,
+//           name: product.name,
+//           unit: product.unit,
+//           mrp: product.mrp,
+//           image: product.image,
+//           category: product.category,
+//           buyerCategory: matched
+//             ? {
+//                 id: matched.buyerCategory._id,
+//                 name: matched.buyerCategory.name,
+//                 discount: matched.buyerCategory.discount,
+//                 price: matched.price,
+//                 visible: matched.visible,
+//               }
+//             : {
+//                 id: buyerCategoryDoc._id,
+//                 name: buyerCategoryDoc.name,
+//                 discount: buyerCategoryDoc.discount,
+//                 price: product.mrp,
+//                 visible: buyerCategoryDoc.defaultVisibility || false,
+//               },
+//         };
+//       });
+
+//       return res.status(200).json({
+//         success: true,
+//         products: filteredProducts,
+//         pagination: {
+//           totalProducts,
+//           currentPage: page,
+//           totalPages: Math.ceil(totalProducts / limit),
+//           limit,
+//         },
+//       });
+//     } catch (error) {
+//       console.error("Detailed Error:", error);
+//       return next(
+//         new Errorhandler("Error fetching products by buyer category", 500)
+//       );
+//     }
+//   }
+// );
 
 // Get Products by Connection (new function)
 export const getProductsByConnection = async (req, res, next) => {
@@ -872,3 +904,672 @@ export const toggleProductsVisibilityByBuyerCategory = catchAsyncErrors(
     }
   }
 );
+
+
+
+// New Apis IN APIS ME AGR MRP CHANGE HO RHI HAI TO CUSTOM PRICE change nhi hoge 
+// Function to update a product
+export const updateProduct = catchAsyncErrors(async (req, res, next) => {
+  const { id } = req.params;
+  const {
+    image,
+    name,
+    category,
+    mrp,
+    unit,
+    description,
+    specifications,
+    // buyerCategory और price को हटा दें - ये edit product में नहीं भेजेंगे
+  } = req.body;
+
+  try {
+    const product = await Product.findById(id).populate(
+      "productVisibility.buyerCategory",
+      "name discount"
+    );
+    if (!product) {
+      return next(new Errorhandler("Product not found", 404));
+    }
+
+    // Permission check
+    if (
+      product.user.toString() !== req.user._id.toString() &&
+      req.user.role !== 1
+    ) {
+      return next(
+        new Errorhandler("You are not authorized to update this product", 403)
+      );
+    }
+
+    // Handle image update
+    let imageUrl = product.image;
+    let cloudinaryId = product.cloudinaryId;
+    if (image && image.startsWith("data:image")) {
+      if (product.cloudinaryId) {
+        await cloudinary.uploader.destroy(product.cloudinaryId);
+      }
+      const result = await uploadBase64Image(image);
+      imageUrl = result.image;
+      cloudinaryId = result.cloudinaryId;
+    } else if (image && image !== product.image) {
+      if (product.cloudinaryId) {
+        await cloudinary.uploader.destroy(product.cloudinaryId);
+      }
+      const result = await cloudinary.uploader.upload(image, {
+        folder: "SallerProducts",
+      });
+      imageUrl = result.secure_url;
+      cloudinaryId = result.public_id;
+    }
+
+    // Update base product fields
+    const oldMrp = product.mrp;
+    product.name = name || product.name;
+    product.unit = unit || product.unit;
+    product.image = imageUrl;
+    product.cloudinaryId = cloudinaryId;
+    product.mrp = mrp || product.mrp;
+    product.category = category || product.category;
+    product.description = description || product.description;
+    product.specifications = specifications || product.specifications;
+
+    // MRP change होने पर केवल उन्हीं buyer categories की price update करें 
+    // जिनकी price manually set नहीं है
+    if (mrp && mrp !== oldMrp) {
+      for (let visibility of product.productVisibility) {
+        if (
+          visibility.buyerCategory &&
+          visibility.buyerCategory.discount != null &&
+          !visibility.isPriceManuallySet  // Only update if price wasn't manually set
+        ) {
+          const discount = parseFloat(visibility.buyerCategory.discount) || 0;
+          visibility.price = mrp - (mrp * discount) / 100;
+        }
+      }
+    }
+
+    const updatedProduct = await product.save();
+
+    await updatedProduct.populate(
+      "productVisibility.buyerCategory",
+      "name discount"
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Product updated successfully",
+      updatedProduct,
+    });
+  } catch (error) {
+    console.log(error);
+    return next(new Errorhandler("Error updating product", 500));
+  }
+});
+
+// Update product discount & visible - WITH PRICE UPDATE SUPPORT
+export const updateProductCategoryAndVisibility = catchAsyncErrors(
+  async (req, res, next) => {
+    const { buyerCategory, visible, productId, price: userPrice } = req.body;
+
+    console.log("Price Change API Called:", { 
+      buyerCategory, 
+      productId, 
+      userPrice,
+      visible 
+    });
+
+    try {
+      // Validate productId
+      if (!mongoose.Types.ObjectId.isValid(productId)) {
+        return next(new Errorhandler("Invalid product ID", 400));
+      }
+
+      // Fetch product
+      const product = await Product.findById(productId);
+      if (!product) {
+        return next(new Errorhandler("Product not found", 404));
+      }
+
+      // Validate buyerCategory
+      if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
+        return next(new Errorhandler("Invalid buyerCategory ID", 400));
+      }
+
+      // Fetch buyerCategory data
+      const buyerCatData = await BuyerCategory.findById(buyerCategory).select(
+        "discount"
+      );
+      if (!buyerCatData) {
+        return next(new Errorhandler("BuyerCategory not found", 404));
+      }
+
+      // Initialize productVisibility if missing
+      if (!product.productVisibility) product.productVisibility = [];
+
+      // Remove invalid entries (buyerCategory: null)
+      product.productVisibility = product.productVisibility.filter(
+        (v) => v.buyerCategory
+      );
+
+      // Check if visibility for this buyerCategory already exists
+      const existingVisibility = product.productVisibility.find(
+        (v) => v.buyerCategory.toString() === buyerCategory.toString()
+      );
+
+      if (existingVisibility) {
+        // Update visibility status
+        existingVisibility.visible = visible !== undefined ? visible : existingVisibility.visible;
+        
+        // Update price if user provided
+        if (userPrice !== undefined && userPrice !== null && userPrice !== "") {
+          const newPrice = parseFloat(userPrice);
+          if (!isNaN(newPrice) && newPrice > 0) {
+            existingVisibility.price = newPrice;
+            existingVisibility.isPriceManuallySet = true;  // Mark as manually set
+            existingVisibility.lastPriceUpdate = new Date();
+            console.log("Updated price to:", newPrice, "Manually set: true");
+          }
+        }
+      } else {
+        // For new visibility entry
+        let finalPrice = product.mrp; // Default to MRP
+        
+        // If user has provided a price, use that
+        if (userPrice !== undefined && userPrice !== null && userPrice !== "") {
+          const newPrice = parseFloat(userPrice);
+          if (!isNaN(newPrice) && newPrice > 0) {
+            finalPrice = newPrice;
+          }
+        } 
+        // Otherwise calculate based on discount for new entries
+        else if (buyerCatData.discount && buyerCatData.discount > 0) {
+          finalPrice = product.mrp - (product.mrp * buyerCatData.discount) / 100;
+        }
+        
+        console.log("Setting new price:", finalPrice, "Manually set:", userPrice !== undefined);
+        
+        product.productVisibility.push({
+          buyerCategory,
+          visible: visible !== undefined ? visible : true,
+          price: finalPrice,
+          isPriceManuallySet: (userPrice !== undefined && userPrice !== null && userPrice !== ""), // Mark if custom
+          lastPriceUpdate: new Date()
+        });
+      }
+
+      // Save product
+      await product.save();
+      console.log("Product saved successfully with updated price");
+
+      res.status(200).json({
+        success: true,
+        message: "Product updated successfully",
+        product,
+      });
+    } catch (error) {
+      console.error("Error updating product:", error);
+      return next(new Errorhandler("Error updating product", 500));
+    }
+  }
+);
+
+// Get Buyer Category Products - WITH MANUAL PRICE SUPPORT
+export const getProductsByBuyerCategoryId = catchAsyncErrors(
+  async (req, res, next) => {
+    const { buyerCategory } = req.params;
+    const loginUserId = req.user?._id;
+
+    // ✅ Pagination params
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
+      return next(new Errorhandler("Invalid buyer category ID", 400));
+    }
+
+    try {
+      const buyerCategoryDoc = await BuyerCategory.findById(buyerCategory);
+      if (!buyerCategoryDoc) {
+        return next(new Errorhandler("Buyer category not found", 404));
+      }
+
+      const discount = parseFloat(buyerCategoryDoc.discount) || 0;
+      const buyerCatOid = new mongoose.Types.ObjectId(buyerCategory);
+
+      // ✅ Total count (for pagination)
+      const totalProducts = await Product.countDocuments({
+        user: loginUserId,
+      });
+
+      // ✅ Fetch paginated products
+      const products = await Product.find({ user: loginUserId })
+        .sort({ createdAt: -1 })
+        .select("_id mrp name image unit productVisibility category")
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      if (!products.length) {
+        return next(new Errorhandler("No products found", 404));
+      }
+
+      const bulkOps = [];
+
+      for (const p of products) {
+        const vis = p.productVisibility || [];
+
+        const exists = vis.some((v) => {
+          const catId =
+            v?.buyerCategory?._id
+              ? v.buyerCategory._id.toString()
+              : v?.buyerCategory?.toString?.();
+          return catId === buyerCategory;
+        });
+
+        if (!exists) {
+          const priceAfterDiscount =
+            discount > 0 ? p.mrp - (p.mrp * discount) / 100 : p.mrp;
+
+          bulkOps.push({
+            updateOne: {
+              filter: {
+                _id: p._id,
+                "productVisibility.buyerCategory": { $ne: buyerCatOid },
+              },
+              update: {
+                $push: {
+                  productVisibility: {
+                    buyerCategory: buyerCatOid,
+                    visible: true,
+                    price: priceAfterDiscount,
+                    isPriceManuallySet: false,  // Default to false for auto-calculated
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
+      }
+
+      // ✅ Re-fetch only paginated products
+      const updatedProducts = await Product.find({
+        _id: { $in: products.map((p) => p._id) },
+      })
+        .populate("productVisibility.buyerCategory", "name discount")
+        .populate("category", "name gst")
+        .sort({ createdAt: -1 });
+
+      const filteredProducts = updatedProducts.map((product) => {
+        const matched = product.productVisibility.find((v) => {
+          const catId =
+            v.buyerCategory && v.buyerCategory._id
+              ? v.buyerCategory._id.toString()
+              : v.buyerCategory?.toString?.();
+          return catId === buyerCategory;
+        });
+
+        let displayPrice = product.mrp; // Default
+        let isCustomPrice = false;
+        
+        if (matched) {
+          // Use manually set price if exists, otherwise calculate
+          if (matched.isPriceManuallySet) {
+            displayPrice = matched.price;
+            isCustomPrice = true;
+          } else {
+            const discountVal = matched.buyerCategory?.discount || 0;
+            displayPrice = product.mrp - (product.mrp * discountVal) / 100;
+          }
+        } else {
+          // No visibility entry yet, calculate based on buyer category discount
+          displayPrice = discount > 0 ? product.mrp - (product.mrp * discount) / 100 : product.mrp;
+        }
+
+        return {
+          _id: product._id,
+          name: product.name,
+          unit: product.unit,
+          mrp: product.mrp,
+          image: product.image,
+          category: product.category,
+          price: displayPrice,  // This will be the correct price
+          buyerCategory: matched
+            ? {
+                id: matched.buyerCategory._id,
+                name: matched.buyerCategory.name,
+                discount: matched.buyerCategory.discount,
+                price: displayPrice,
+                visible: matched.visible,
+                isPriceManuallySet: matched.isPriceManuallySet || false,
+              }
+            : {
+                id: buyerCategoryDoc._id,
+                name: buyerCategoryDoc.name,
+                discount: buyerCategoryDoc.discount,
+                price: displayPrice,
+                visible: buyerCategoryDoc.defaultVisibility || false,
+                isPriceManuallySet: false,
+              },
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        products: filteredProducts,
+        pagination: {
+          totalProducts,
+          currentPage: page,
+          totalPages: Math.ceil(totalProducts / limit),
+          limit,
+        },
+      });
+    } catch (error) {
+      console.error("Detailed Error:", error);
+      return next(
+        new Errorhandler("Error fetching products by buyer category", 500)
+      );
+    }
+  }
+);
+
+// Function to get a product by ID for Seller own products
+export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
+  const user = req.user.id;
+
+  // ✅ Pagination params
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  try {
+    // ✅ Total count (for frontend pagination)
+    const totalProducts = await Product.countDocuments({ user });
+
+    const products = await Product.find({ user })
+      .populate("category", "name gst")
+      .populate("user", "name phone businessName")
+      .populate({
+        path: "productVisibility.buyerCategory",
+        select: "name discount",
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    if (!products || products.length === 0) {
+      return next(new Errorhandler("Product not found", 404));
+    }
+
+    // 🔁 Price recalculation logic - ONLY for non-manually set prices
+    for (const product of products) {
+      let hasChanges = false;
+
+      product.productVisibility = product.productVisibility.map((vis) => {
+        if (!vis.buyerCategory) return vis;
+
+        // Skip if price was manually set
+        if (vis.isPriceManuallySet) {
+          return vis;
+        }
+
+        const discount = Number(vis.buyerCategory.discount) || 0;
+        const mrp = Number(product.mrp) || 0;
+        const calculatedPrice = Math.round(mrp - (mrp * discount) / 100);
+
+        if (vis.price !== calculatedPrice) {
+          vis.price = calculatedPrice;
+          hasChanges = true;
+        }
+
+        vis.appliedDiscount = discount;
+        return vis;
+      });
+
+      if (hasChanges) {
+        await Product.updateOne(
+          { _id: product._id },
+          { $set: { productVisibility: product.productVisibility } }
+        );
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      product: products,
+      pagination: {
+        totalProducts,
+        currentPage: page,
+        totalPages: Math.ceil(totalProducts / limit),
+        limit,
+      },
+    });
+  } catch (error) {
+    return next(new Errorhandler("Error fetching product", 500));
+  }
+});
+
+// New Apis IN APIS ME AGR MRP CHANGE HO RHI HAI TO CUSTOM PRICE bhi change hoge 
+// Function to update a product - ALL PRICES UPDATE WITH MRP CHANGE
+// export const updateProduct = catchAsyncErrors(async (req, res, next) => {
+//   const { id } = req.params;
+//   const {
+//     image,
+//     name,
+//     category,
+//     mrp,
+//     unit,
+//     description,
+//     specifications,
+//   } = req.body;
+
+//   try {
+//     const product = await Product.findById(id).populate(
+//       "productVisibility.buyerCategory",
+//       "name discount"
+//     );
+//     if (!product) {
+//       return next(new Errorhandler("Product not found", 404));
+//     }
+
+//     // Permission check
+//     if (
+//       product.user.toString() !== req.user._id.toString() &&
+//       req.user.role !== 1
+//     ) {
+//       return next(
+//         new Errorhandler("You are not authorized to update this product", 403)
+//       );
+//     }
+
+//     // Handle image update
+//     let imageUrl = product.image;
+//     let cloudinaryId = product.cloudinaryId;
+//     if (image && image.startsWith("data:image")) {
+//       if (product.cloudinaryId) {
+//         await cloudinary.uploader.destroy(product.cloudinaryId);
+//       }
+//       const result = await uploadBase64Image(image);
+//       imageUrl = result.image;
+//       cloudinaryId = result.cloudinaryId;
+//     } else if (image && image !== product.image) {
+//       if (product.cloudinaryId) {
+//         await cloudinary.uploader.destroy(product.cloudinaryId);
+//       }
+//       const result = await cloudinary.uploader.upload(image, {
+//         folder: "SallerProducts",
+//       });
+//       imageUrl = result.secure_url;
+//       cloudinaryId = result.public_id;
+//     }
+
+//     // Update base product fields
+//     const oldMrp = product.mrp;
+//     const newMrp = mrp || product.mrp;
+    
+//     product.name = name || product.name;
+//     product.unit = unit || product.unit;
+//     product.image = imageUrl;
+//     product.cloudinaryId = cloudinaryId;
+//     product.mrp = newMrp;
+//     product.category = category || product.category;
+//     product.description = description || product.description;
+//     product.specifications = specifications || product.specifications;
+
+//     // ✅ IMPORTANT: MRP change होने पर सभी buyer categories की price update करें
+//     if (newMrp !== oldMrp) {
+//       console.log(`MRP changed from ${oldMrp} to ${newMrp}. Updating all buyer category prices...`);
+      
+//       for (let visibility of product.productVisibility) {
+//         if (visibility.buyerCategory && visibility.buyerCategory.discount != null) {
+//           const discount = parseFloat(visibility.buyerCategory.discount) || 0;
+          
+//           // Calculate new price based on new MRP and discount
+//           const newPrice = newMrp - (newMrp * discount) / 100;
+          
+//           // Update the price
+//           visibility.price = newPrice;
+          
+//           // Mark as NOT manually set (since it's auto-calculated from MRP change)
+//           visibility.isPriceManuallySet = false;
+          
+//           console.log(`Updated price for buyer category ${visibility.buyerCategory.name}: ${newPrice}`);
+//         }
+//       }
+//     }
+
+//     const updatedProduct = await product.save();
+
+//     await updatedProduct.populate(
+//       "productVisibility.buyerCategory",
+//       "name discount"
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Product updated successfully",
+//       updatedProduct,
+//     });
+//   } catch (error) {
+//     console.log(error);
+//     return next(new Errorhandler("Error updating product", 500));
+//   }
+// });
+
+// // Update product discount & visible - WITH PRICE UPDATE SUPPORT
+// export const updateProductCategoryAndVisibility = catchAsyncErrors(
+//   async (req, res, next) => {
+//     const { buyerCategory, visible, productId, price: userPrice } = req.body;
+
+//     console.log("Price Change API Called:", { 
+//       buyerCategory, 
+//       productId, 
+//       userPrice,
+//       visible 
+//     });
+
+//     try {
+//       // Validate productId
+//       if (!mongoose.Types.ObjectId.isValid(productId)) {
+//         return next(new Errorhandler("Invalid product ID", 400));
+//       }
+
+//       // Fetch product
+//       const product = await Product.findById(productId);
+//       if (!product) {
+//         return next(new Errorhandler("Product not found", 404));
+//       }
+
+//       // Validate buyerCategory
+//       if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
+//         return next(new Errorhandler("Invalid buyerCategory ID", 400));
+//       }
+
+//       // Fetch buyerCategory data
+//       const buyerCatData = await BuyerCategory.findById(buyerCategory).select(
+//         "discount"
+//       );
+//       if (!buyerCatData) {
+//         return next(new Errorhandler("BuyerCategory not found", 404));
+//       }
+
+//       // Initialize productVisibility if missing
+//       if (!product.productVisibility) product.productVisibility = [];
+
+//       // Remove invalid entries (buyerCategory: null)
+//       product.productVisibility = product.productVisibility.filter(
+//         (v) => v.buyerCategory
+//       );
+
+//       // Check if visibility for this buyerCategory already exists
+//       const existingVisibility = product.productVisibility.find(
+//         (v) => v.buyerCategory.toString() === buyerCategory.toString()
+//       );
+
+//       if (existingVisibility) {
+//         // Update visibility status
+//         existingVisibility.visible = visible !== undefined ? visible : existingVisibility.visible;
+        
+//         // Update price if user provided
+//         if (userPrice !== undefined && userPrice !== null && userPrice !== "") {
+//           const newPrice = parseFloat(userPrice);
+//           if (!isNaN(newPrice) && newPrice > 0) {
+//             existingVisibility.price = newPrice;
+//             existingVisibility.isPriceManuallySet = true;  // Mark as manually set
+//             existingVisibility.lastPriceUpdate = new Date();
+//             console.log("Manually updated price to:", newPrice);
+//           }
+//         } else {
+//           // If user didn't provide price but we need to update based on discount
+//           const discount = parseFloat(buyerCatData.discount) || 0;
+//           const calculatedPrice = product.mrp - (product.mrp * discount) / 100;
+//           existingVisibility.price = calculatedPrice;
+//           existingVisibility.isPriceManuallySet = false; // Auto-calculated
+//           console.log("Auto-calculated price:", calculatedPrice, "based on discount:", discount);
+//         }
+//       } else {
+//         // For new visibility entry
+//         let finalPrice = product.mrp; // Default to MRP
+        
+//         // If user has provided a price, use that
+//         if (userPrice !== undefined && userPrice !== null && userPrice !== "") {
+//           const newPrice = parseFloat(userPrice);
+//           if (!isNaN(newPrice) && newPrice > 0) {
+//             finalPrice = newPrice;
+//           }
+//         } 
+//         // Otherwise calculate based on discount for new entries
+//         else if (buyerCatData.discount && buyerCatData.discount > 0) {
+//           finalPrice = product.mrp - (product.mrp * buyerCatData.discount) / 100;
+//         }
+        
+//         console.log("Setting new price:", finalPrice);
+        
+//         product.productVisibility.push({
+//           buyerCategory,
+//           visible: visible !== undefined ? visible : true,
+//           price: finalPrice,
+//           isPriceManuallySet: (userPrice !== undefined && userPrice !== null && userPrice !== ""), // Mark if manually set
+//           lastPriceUpdate: new Date()
+//         });
+//       }
+
+//       // Save product
+//       await product.save();
+//       console.log("Product saved successfully with updated price");
+
+//       res.status(200).json({
+//         success: true,
+//         message: "Product updated successfully",
+//         product,
+//       });
+//     } catch (error) {
+//       console.error("Error updating product:", error);
+//       return next(new Errorhandler("Error updating product", 500));
+//     }
+//   }
+// );

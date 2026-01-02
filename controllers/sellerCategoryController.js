@@ -20,7 +20,7 @@ const uploadBase64Image = async (base64Image) => {
 
 // Create new seller category
 export const createSellerCategory = catchAsyncErrors(async (req, res, next) => {
-  const { name, gst, image } = req.body;
+  const { name, gst, image, hsnCode } = req.body;
 
   let imageUrl = "";
   let cloudinaryId = "";
@@ -55,6 +55,7 @@ export const createSellerCategory = catchAsyncErrors(async (req, res, next) => {
       gst,
       image: imageUrl,
       cloudinaryId,
+      hsnCode
     });
 
     return res.status(201).json({
@@ -128,7 +129,7 @@ export const getSellerCategoryById = catchAsyncErrors(
 //   res.status(200).json({ success: true, data: updated });
 // });
 export const updateSellerCategory = catchAsyncErrors(async (req, res, next) => {
-  const { name, gst, image } = req.body;
+  const { name, gst, image, hsnCode } = req.body;
 
   // Find category first
   const category = await SellerCategory.findOne({
@@ -184,6 +185,7 @@ export const updateSellerCategory = catchAsyncErrors(async (req, res, next) => {
         gst,
         image: imageUrl,
         cloudinaryId,
+        hsnCode
       },
       { new: true, runValidators: true }
     );

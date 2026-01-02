@@ -63,6 +63,15 @@ const sellerProductSchema = new mongoose.Schema(
           type: Number,
           required: true,
         },
+
+         isPriceManuallySet: {  // NEW FIELD
+      type: Boolean,
+      default: false,
+    },
+    lastPriceUpdate: {  // NEW FIELD
+      type: Date,
+      default: Date.now,
+    }
       },
     ],
   },

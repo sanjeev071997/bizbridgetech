@@ -365,6 +365,7 @@ export const applyMonthlyInterestIfNeeded = async (
     debit: interest,
     credit: 0,
     balance: newBalance,
+    paymentStatus: "Approved",
   });
 
   invoice.status = "Overdue";

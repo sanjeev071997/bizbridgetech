@@ -25,6 +25,10 @@ const sellerCategorySchema = new mongoose.Schema(
       type: String,
       required: false,
     },
+    hsnCode: {
+      type: String,
+      required: false,
+    }
   },
   {
     timestamps: true,
