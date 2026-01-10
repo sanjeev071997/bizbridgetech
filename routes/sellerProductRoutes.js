@@ -36,7 +36,7 @@ router.get("/get/buyer/products", isAuthenticatedUser, getBuyerProducts); // buy
 
 router.get("/get/:buyerCategory", isAuthenticatedUser, getProductsByBuyerCategoryId); // seller dashbaord me buyerCategory k onclick pr data is se aagye    // buyer can see products assigned to their category 
 
-router.post("/get/products-by-connection", isAuthenticatedUser, getProductsByConnection); // new route to get products by connection
+router.post("/get/products-by-connection", isAuthenticatedUser, getProductsByConnection); // new route to get products by connection 
 
 router.post("/hide-products-by-buyer-category", isAuthenticatedUser, toggleProductsVisibilityByBuyerCategory);
 

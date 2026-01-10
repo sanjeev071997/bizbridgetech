@@ -272,107 +272,107 @@ export const getInvoiceStatement = async (req, res) => {
 };
 
 // BALANCE HELPER (Interest entries bittu balance nodalu)
-const getBalanceOnDate = (invoice, date) => {
-  const targetDate = startOfDay(new Date(date));
-  let balance = invoice.amount;
+// const getBalanceOnDate = (invoice, date) => {
+//   const targetDate = startOfDay(new Date(date));
+//   let balance = invoice.amount;
 
-  const sortedStatements = [...invoice.bankStatement]
-    .filter((entry) => !entry.description.toLowerCase().includes("interest"))
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+//   const sortedStatements = [...invoice.bankStatement]
+//     .filter((entry) => !entry.description.toLowerCase().includes("interest"))
+//     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  for (const entry of sortedStatements) {
-    if (startOfDay(new Date(entry.date)) <= targetDate) {
-      balance = entry.balance;
-    } else {
-      break;
-    }
-  }
-  return balance;
-};
+//   for (const entry of sortedStatements) {
+//     if (startOfDay(new Date(entry.date)) <= targetDate) {
+//       balance = entry.balance;
+//     } else {
+//       break;
+//     }
+//   }
+//   return balance;
+// };
 
 // DAILY INTEREST HELPER (Leap Year Optimized)
-const calculateDailyInterestForPeriod = (invoice, startDate, endDate) => {
-  const ratePerYear = (invoice.interestRatePerYear || 0) / 100;
+// const calculateDailyInterestForPeriod = (invoice, startDate, endDate) => {
+//   const ratePerYear = (invoice.interestRatePerYear || 0) / 100;
 
-  const payments = [...invoice.bankStatement]
-    .filter((txn) => !txn.description.toLowerCase().includes("interest"))
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+//   const payments = [...invoice.bankStatement]
+//     .filter((txn) => !txn.description.toLowerCase().includes("interest"))
+//     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  let totalInterest = 0;
-  let periodStart = startOfDay(new Date(startDate));
-  const finalEnd = startOfDay(new Date(endDate));
-  let currentBalance = getBalanceOnDate(invoice, startDate);
+//   let totalInterest = 0;
+//   let periodStart = startOfDay(new Date(startDate));
+//   const finalEnd = startOfDay(new Date(endDate));
+//   let currentBalance = getBalanceOnDate(invoice, startDate);
 
-  for (const txn of payments) {
-    const txnDate = startOfDay(new Date(txn.date));
+//   for (const txn of payments) {
+//     const txnDate = startOfDay(new Date(txn.date));
 
-    if (txnDate > periodStart && txnDate <= finalEnd) {
-      const days = differenceInCalendarDays(txnDate, periodStart);
-      if (days > 0) {
-        // Dynamic daily rate based on year (365 or 366)
-        const dailyRate = ratePerYear / getDaysInYear(periodStart);
-        totalInterest += currentBalance * dailyRate * days;
-      }
-      currentBalance = txn.balance;
-      periodStart = txnDate;
-    }
-  }
+//     if (txnDate > periodStart && txnDate <= finalEnd) {
+//       const days = differenceInCalendarDays(txnDate, periodStart);
+//       if (days > 0) {
+//         // Dynamic daily rate based on year (365 or 366)
+//         const dailyRate = ratePerYear / getDaysInYear(periodStart);
+//         totalInterest += currentBalance * dailyRate * days;
+//       }
+//       currentBalance = txn.balance;
+//       periodStart = txnDate;
+//     }
+//   }
 
-  // Last payment ninda end date varege
-  const remainingDays = differenceInCalendarDays(finalEnd, periodStart) + 1;
-  if (remainingDays > 0) {
-    const dailyRate = ratePerYear / getDaysInYear(periodStart);
-    totalInterest += currentBalance * dailyRate * remainingDays;
-  }
+//   // Last payment ninda end date varege
+//   const remainingDays = differenceInCalendarDays(finalEnd, periodStart) + 1;
+//   if (remainingDays > 0) {
+//     const dailyRate = ratePerYear / getDaysInYear(periodStart);
+//     totalInterest += currentBalance * dailyRate * remainingDays;
+//   }
 
-  return +totalInterest.toFixed(2);
-};
+//   return +totalInterest.toFixed(2);
+// };
 
 // APPLY MONTHLY INTEREST
-export const applyMonthlyInterestIfNeeded = async (
-  invoice,
-  runAt = new Date()
-) => {
-  if (invoice.status === "Paid") return;
+// export const applyMonthlyInterestIfNeeded = async (
+//   invoice,
+//   runAt = new Date()
+// ) => {
+//   if (invoice.status === "Paid") return;
 
-  const today = startOfDay(runAt);
-  if (!isLastDayOfMonth(today)) return;
-  if (!invoice.dueDate || !invoice.interestRatePerYear) return;
+//   const today = startOfDay(runAt);
+//   if (!isLastDayOfMonth(today)) return;
+//   if (!invoice.dueDate || !invoice.interestRatePerYear) return;
 
-  const dueDate = startOfDay(new Date(invoice.dueDate));
-  if (today < dueDate) return;
+//   const dueDate = startOfDay(new Date(invoice.dueDate));
+//   if (today < dueDate) return;
 
-  const monthName = today.toLocaleString("default", {
-    month: "long",
-    year: "numeric",
-  });
-  const interestDesc = `Monthly interest for ${monthName}`;
+//   const monthName = today.toLocaleString("default", {
+//     month: "long",
+//     year: "numeric",
+//   });
+//   const interestDesc = `Monthly interest for ${monthName}`;
 
-  const alreadyApplied = invoice.bankStatement.some(
-    (txn) => txn.description === interestDesc
-  );
-  if (alreadyApplied) return;
+//   const alreadyApplied = invoice.bankStatement.some(
+//     (txn) => txn.description === interestDesc
+//   );
+//   if (alreadyApplied) return;
 
-  const interest = calculateDailyInterestForPeriod(invoice, dueDate, today);
-  if (interest <= 0) return;
+//   const interest = calculateDailyInterestForPeriod(invoice, dueDate, today);
+//   if (interest <= 0) return;
 
-  const lastBalance = invoice.bankStatement.at(-1)?.balance ?? invoice.amount;
-  const newBalance = +(lastBalance + interest).toFixed(2);
+//   const lastBalance = invoice.bankStatement.at(-1)?.balance ?? invoice.amount;
+//   const newBalance = +(lastBalance + interest).toFixed(2);
 
-  invoice.bankStatement.push({
-    date: endOfDay(today),
-    description: interestDesc,
-    debit: interest,
-    credit: 0,
-    balance: newBalance,
-    paymentStatus: "Approved",
-  });
+//   invoice.bankStatement.push({
+//     date: endOfDay(today),
+//     description: interestDesc,
+//     debit: interest,
+//     credit: 0,
+//     balance: newBalance,
+//     paymentStatus: "Approved",
+//   });
 
-  invoice.status = "Overdue";
-  invoice.lastMonthEndInterestApplied = endOfDay(today);
-  invoice.markModified("bankStatement");
-  await invoice.save();
-};
+//   invoice.status = "Overdue";
+//   invoice.lastMonthEndInterestApplied = endOfDay(today);
+//   invoice.markModified("bankStatement");
+//   await invoice.save();
+// };
 
 // CALCULATE INTEREST TILL DATE (API Response)
 export const calculateInterestTillDate = async (req, res) => {
@@ -418,40 +418,40 @@ export const calculateInterestTillDate = async (req, res) => {
 };
 
 // Cron runner: apply monthly interest to all eligible invoices
-export const runMonthlyInterestForAll = async (runAt = new Date()) => {
-  // Only run on month-end dates
-  if (!isLastDayOfMonth(runAt)) {
-    console.log(`Not a month-end date: ${runAt.toISOString()}`);
-    return;
-  }
+// export const runMonthlyInterestForAll = async (runAt = new Date()) => {
+//   // Only run on month-end dates
+//   if (!isLastDayOfMonth(runAt)) {
+//     console.log(`Not a month-end date: ${runAt.toISOString()}`);
+//     return;
+//   }
 
-  // Find invoices that:
-  // 1. Are not paid
-  // 2. Have dueDate passed
-  // 3. Either have nextInterestApplicationDate = today OR no interest applied yet
-  const today = startOfDay(runAt);
+//   // Find invoices that:
+//   // 1. Are not paid
+//   // 2. Have dueDate passed
+//   // 3. Either have nextInterestApplicationDate = today OR no interest applied yet
+//   const today = startOfDay(runAt);
 
-  const invoices = await Invoice.find({
-    status: { $ne: "Paid" },
-    dueDate: { $lte: today },
-    $or: [
-      { nextInterestApplicationDate: { $lte: today } },
-      { nextInterestApplicationDate: null, lastMonthEndInterestApplied: null },
-    ],
-  });
+//   const invoices = await Invoice.find({
+//     status: { $ne: "Paid" },
+//     dueDate: { $lte: today },
+//     $or: [
+//       { nextInterestApplicationDate: { $lte: today } },
+//       { nextInterestApplicationDate: null, lastMonthEndInterestApplied: null },
+//     ],
+//   });
 
-  console.log(
-    `Running monthly interest for ${
-      invoices.length
-    } invoices on ${runAt.toISOString()}`
-  );
+//   console.log(
+//     `Running monthly interest for ${
+//       invoices.length
+//     } invoices on ${runAt.toISOString()}`
+//   );
 
-  for (const inv of invoices) {
-    await applyMonthlyInterestIfNeeded(inv, runAt);
-  }
+//   for (const inv of invoices) {
+//     await applyMonthlyInterestIfNeeded(inv, runAt);
+//   }
 
-  console.log(`Monthly interest application completed`);
-};
+//   console.log(`Monthly interest application completed`);
+// };
 
 // Manual trigger API
 export const runInterestCronNow = async (req, res) => {
@@ -1011,5 +1011,291 @@ export const getInvoiceBySellerBuyer = async (req, res) => {
       success: false,
       message: "Internal server error",
     });
+  }
+};
+
+// My Fix corn job 
+// APPLY MONTHLY INTEREST - FIXED VERSION
+export const applyMonthlyInterestIfNeeded = async (
+  invoice,
+  runAt = new Date()
+) => {
+  if (invoice.status === "Paid") return;
+
+  const today = startOfDay(runAt);
+  if (!isLastDayOfMonth(today)) return;
+  if (!invoice.dueDate || !invoice.interestRatePerYear) return;
+
+  const dueDate = startOfDay(new Date(invoice.dueDate));
+  if (today < dueDate) return;
+
+  const monthName = today.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
+  const interestDesc = `Monthly interest for ${monthName}`;
+
+  const alreadyApplied = invoice.bankStatement.some(
+    (txn) => txn.description === interestDesc
+  );
+  if (alreadyApplied) return;
+
+  const interest = calculateDailyInterestForPeriod(invoice, dueDate, today);
+  if (interest <= 0) return;
+
+  // Get last APPROVED balance (not pending payments)
+  const approvedStatements = invoice.bankStatement.filter(
+    (entry) => entry.paymentStatus === "Approved"
+  );
+  const lastBalance = approvedStatements.length > 0 
+    ? approvedStatements.at(-1).balance 
+    : invoice.amount;
+  
+  const newBalance = +(lastBalance + interest).toFixed(2);
+
+  // FIX: Interest entries should be AUTO-APPROVED
+  invoice.bankStatement.push({
+    date: endOfDay(today),
+    description: interestDesc,
+    debit: interest,
+    credit: 0,
+    balance: newBalance,
+    paymentStatus: "Approved", // AUTO-APPROVED (not Pending)
+  });
+
+  invoice.status = "Overdue";
+  invoice.lastMonthEndInterestApplied = endOfDay(today);
+  invoice.nextInterestApplicationDate = getNextMonthEndDate(endOfDay(today));
+  invoice.markModified("bankStatement");
+  await invoice.save();
+  
+  console.log(`✅ Interest applied for invoice ${invoice._id}: ₹${interest}`);
+};
+
+// BALANCE HELPER (Interest entries bittu balance nodalu)
+const getBalanceOnDate = (invoice, date) => {
+  const targetDate = startOfDay(new Date(date));
+  let balance = invoice.amount;
+
+  // Filter only APPROVED entries (excluding pending payments AND interest)
+  const sortedStatements = [...invoice.bankStatement]
+    .filter((entry) => entry.paymentStatus === "Approved" && 
+                      !entry.description.toLowerCase().includes("interest"))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  for (const entry of sortedStatements) {
+    if (startOfDay(new Date(entry.date)) <= targetDate) {
+      balance = entry.balance;
+    } else {
+      break;
+    }
+  }
+  return balance;
+};
+
+// DAILY INTEREST HELPER (Leap Year Optimized)
+const calculateDailyInterestForPeriod = (invoice, startDate, endDate) => {
+  const ratePerYear = (invoice.interestRatePerYear || 0) / 100;
+
+  // Filter only APPROVED payments (not pending)
+  const payments = [...invoice.bankStatement]
+    .filter((txn) => txn.paymentStatus === "Approved" && 
+                     !txn.description.toLowerCase().includes("interest"))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let totalInterest = 0;
+  let periodStart = startOfDay(new Date(startDate));
+  const finalEnd = startOfDay(new Date(endDate));
+  let currentBalance = getBalanceOnDate(invoice, startDate);
+
+  for (const txn of payments) {
+    const txnDate = startOfDay(new Date(txn.date));
+
+    if (txnDate > periodStart && txnDate <= finalEnd) {
+      const days = differenceInCalendarDays(txnDate, periodStart);
+      if (days > 0) {
+        const dailyRate = ratePerYear / getDaysInYear(periodStart);
+        totalInterest += currentBalance * dailyRate * days;
+      }
+      currentBalance = txn.balance;
+      periodStart = txnDate;
+    }
+  }
+
+  const remainingDays = differenceInCalendarDays(finalEnd, periodStart);
+  if (remainingDays > 0) {
+    const dailyRate = ratePerYear / getDaysInYear(periodStart);
+    totalInterest += currentBalance * dailyRate * remainingDays;
+  }
+
+  return +totalInterest.toFixed(2);
+};
+
+// export const runMonthlyInterestForAll = async (runAt = new Date()) => {
+//   // Only run on month-end dates
+//   if (!isLastDayOfMonth(runAt)) {
+//     console.log(`Not a month-end date: ${runAt.toISOString()}`);
+//     return;
+//   }
+
+//   const today = startOfDay(runAt);
+  
+//   // Find invoices that:
+//   // 1. Are not paid
+//   // 2. Have dueDate passed
+//   // 3. Have interest rate > 0
+//   // 4. Haven't already had interest applied for this month
+//   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  
+//   const invoices = await Invoice.find({
+//     status: { $ne: "Paid" },
+//     dueDate: { $lte: today },
+//     interestRatePerYear: { $gt: 0 },
+//     $or: [
+//       { lastMonthEndInterestApplied: { $lt: startOfMonth } },
+//       { lastMonthEndInterestApplied: null }
+//     ]
+//   });
+
+//   console.log(
+//     `Running monthly interest for ${
+//       invoices.length
+//     } invoices on ${runAt.toISOString()}`
+//   );
+
+//   for (const inv of invoices) {
+//     try {
+//       await applyMonthlyInterestIfNeeded(inv, runAt);
+//     } catch (error) {
+//       console.error(`Failed to apply interest for invoice ${inv._id}: ${error.message}`);
+//     }
+//   }
+
+//   console.log(`Monthly interest application completed`);
+// };
+
+
+// invoiceController.js में
+
+export const runMonthlyInterestForAll = async (runAt = new Date()) => {
+  console.log('🔔 runMonthlyInterestForAll called with date:', runAt);
+  console.log('Input date ISO:', runAt.toISOString());
+  
+  // दिए गए date को IST में convert करें
+  const istDate = new Date(
+    runAt.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+  
+  console.log('After IST conversion:', istDate.toString());
+  
+  // IST के हिसाब से check करें
+  const lastDayOfMonth = new Date(
+    istDate.getFullYear(),
+    istDate.getMonth() + 1,
+    0
+  ).getDate();
+  
+  const isLastDay = istDate.getDate() === lastDayOfMonth;
+  
+  if (!isLastDay) {
+    console.log(`❌ Not a month-end date in IST: ${istDate.toLocaleDateString()}`);
+    console.log(`Today: ${istDate.getDate()}, Last day: ${lastDayOfMonth}`);
+    return;
+  }
+
+  console.log(`✅ Date is month-end in IST: ${istDate.toLocaleDateString()}`);
+  
+  // Start of day in IST
+  const todayIST = startOfDay(istDate);
+  
+  console.log(`🔍 Looking for invoices with dueDate <= ${todayIST.toISOString()}`);
+  
+  // Find invoices
+  const invoices = await Invoice.find({
+    status: { $ne: "Paid" },
+    dueDate: { $lte: todayIST },
+    interestRatePerYear: { $gt: 0 }
+  });
+
+  console.log(`📊 Found ${invoices.length} invoices for interest calculation`);
+  
+  for (const inv of invoices) {
+    try {
+      console.log(`\n🔄 Processing invoice: ${inv._id}`);
+      console.log(`   Due date: ${inv.dueDate}`);
+      console.log(`   Current balance: ${inv.bankStatement.at(-1)?.balance || inv.amount}`);
+      
+      // Check if interest already applied for this month
+      const monthStart = new Date(istDate.getFullYear(), istDate.getMonth(), 1);
+      const lastApplied = inv.lastMonthEndInterestApplied;
+      
+      if (lastApplied && lastApplied >= monthStart) {
+        console.log(`   ⏭️ Interest already applied this month on: ${lastApplied}`);
+        continue;
+      }
+      
+      await applyMonthlyInterestIfNeeded(inv, istDate);
+      console.log(`   ✅ Interest applied successfully`);
+      
+    } catch (error) {
+      console.error(`   ❌ Failed for invoice ${inv._id}: ${error.message}`);
+    }
+  }
+
+  console.log(`🎯 Monthly interest application completed for ${invoices.length} invoices`);
+};
+
+// invoiceController.js में
+export const testMonthEndInterest = async (req, res) => {
+  try {
+    const { date } = req.body; // Format: "2026-01-31"
+    
+    // Use provided date or current date
+    let testDate;
+    if (date) {
+      // Create date in IST timezone
+      testDate = new Date(date + 'T00:00:00.000+05:30');
+    } else {
+      // Current IST date
+      const now = new Date();
+      testDate = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    }
+    
+    console.log('\n🧪 TEST: Monthly Interest Calculation');
+    console.log('Test Date:', testDate.toString());
+    console.log('Test Date ISO:', testDate.toISOString());
+    
+    // Check if it's month end
+    const lastDay = new Date(
+      testDate.getFullYear(),
+      testDate.getMonth() + 1,
+      0
+    ).getDate();
+    
+    const isLastDay = testDate.getDate() === lastDay;
+    
+    if (!isLastDay) {
+      return res.json({
+        success: false,
+        message: `Not month end. Date: ${testDate.getDate()}, Last day: ${lastDay}`,
+        testDate: testDate.toISOString(),
+        isMonthEnd: false
+      });
+    }
+    
+    // Run interest calculation
+    console.log('✅ This is month end, running interest calculation...');
+    await runMonthlyInterestForAll(testDate);
+    
+    res.json({
+      success: true,
+      message: `Interest calculation run for ${testDate.toLocaleDateString()}`,
+      testDate: testDate.toISOString(),
+      isMonthEnd: true
+    });
+    
+  } catch (error) {
+    console.error('Test error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };

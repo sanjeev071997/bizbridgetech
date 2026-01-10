@@ -361,8 +361,8 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
     const totalConnections = await BuyerSellerConnection.countDocuments(connectionFilter);
 
     const connections = await BuyerSellerConnection.find(connectionFilter)
-      .populate("buyer", "name email phone businessAddress businessName lastSeen")
-      .populate("seller", "name email phone businessAddress businessName lastSeen")
+      .populate("buyer", "name email phone businessAddress businessName lastSeen ProfileImage")
+      .populate("seller", "name email phone businessAddress businessName lastSeen ProfileImage")
       .populate("buyerCategory", "name _id discount")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -387,6 +387,7 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
               businessAddress: otherUser.businessAddress || null,
               businessName: otherUser.businessName || null,
               lastSeen: otherUser.lastSeen,
+              profileImage: otherUser.ProfileImage?.url
             }
           : null,
         createdAt: conn.createdAt,
@@ -764,9 +765,8 @@ export const viewMembers = catchAsyncErrors(async (req, res, next) => {
       });
     }
 
-    // 验证页码和限制
     const pageNumber = Math.max(1, parseInt(page));
-    const pageLimit = Math.max(1, Math.min(100, parseInt(limit))); // 限制最大100条
+    const pageLimit = Math.max(1, Math.min(100, parseInt(limit))); 
     const skip = (pageNumber - 1) * pageLimit;
 
     const filter = {
@@ -775,10 +775,9 @@ export const viewMembers = catchAsyncErrors(async (req, res, next) => {
       status: "Accepted",
     };
 
-    // 🔥 Parallel queries (fast)
     const [members, totalCount] = await Promise.all([
       BuyerSellerConnection.find(filter)
-        .populate("buyer", "name email phone")
+        .populate("buyer", "name email phone ProfileImage.url")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageLimit),
@@ -786,10 +785,7 @@ export const viewMembers = catchAsyncErrors(async (req, res, next) => {
       BuyerSellerConnection.countDocuments(filter),
     ]);
 
-    // 计算总页数
     const totalPages = Math.ceil(totalCount / pageLimit);
-    
-    // 计算是否有下一页/上一页
     const hasNextPage = pageNumber < totalPages;
     const hasPrevPage = pageNumber > 1;
 

@@ -25,11 +25,35 @@ export const addDays = (date, days) => {
   return d;
 };
 
+// export const isLastDayOfMonth = (date = new Date()) => {
+//   const d = startOfDay(date);
+//   const nextDay = new Date(d);
+//   nextDay.setDate(d.getDate() + 1);
+//   return d.getMonth() !== nextDay.getMonth();
+// };
+
+// InvoiceTime.js में
 export const isLastDayOfMonth = (date = new Date()) => {
-  const d = startOfDay(date);
-  const nextDay = new Date(d);
-  nextDay.setDate(d.getDate() + 1);
-  return d.getMonth() !== nextDay.getMonth();
+  // Date को IST timezone में convert करें
+  const istDate = new Date(
+    date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+  
+  // IST के हिसाब से आज की date
+  const todayIst = istDate.getDate();
+  
+  // कल की date (IST में)
+  const tomorrowIst = new Date(istDate);
+  tomorrowIst.setDate(tomorrowIst.getDate() + 1);
+  
+  // अगर कल का month अलग है, तो आज month का last day है
+  const result = istDate.getMonth() !== tomorrowIst.getMonth();
+  
+  console.log(`📅 IST Date: ${istDate.toLocaleDateString()}`);
+  console.log(`📅 Tomorrow IST: ${tomorrowIst.toLocaleDateString()}`);
+  console.log(`✅ Is last day of month in IST? ${result}`);
+  
+  return result;
 };
 
 export const getMonthEndDate = (date = new Date()) => {

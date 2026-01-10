@@ -26,7 +26,7 @@ import invoiceRoutes from "./routes/invoiceRoutes.js";
 import brandsRoutes from "./routes/brandsRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import { startInterestCron } from "./utils/invoiceInterestCron.js";
-import swaggerUi from "swagger-ui-express";
+// import swaggerUi from "swagger-ui-express";
 import fs from "fs";
 import { initSocket } from "./socket/socket.js";
 // import swaggerDocument from "./swagger.json" assert { type: "json" };
@@ -106,8 +106,8 @@ app.use("/api/v1/dashboard", dashboardRoutes); // dashboard routes
 // app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // swagger.json file read karo
-const swaggerDocument = JSON.parse(fs.readFileSync("./swagger.json", "utf-8"));
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+// const swaggerDocument = JSON.parse(fs.readFileSync("./swagger.json", "utf-8"));
+// app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Static files
 app.use(express.static(path.join(__dirname, "./build")));
@@ -142,7 +142,7 @@ io.on("connection", (socket) => {
   });
 });
 
-startInterestCron(); // daily per-day interest
+startInterestCron(); // monthly interest
 
 // Start server with Socket.IO attached
 server.listen(port, () => {

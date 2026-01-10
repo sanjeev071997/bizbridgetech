@@ -1,10 +1,10 @@
 {
   "files": {
     "main.css": "/static/css/main.6a50b01e.css",
-    "main.js": "/static/js/main.d7e9289e.js",
+    "main.js": "/static/js/main.3bc3c0de.js",
     "static/js/239.eab0352a.chunk.js": "/static/js/239.eab0352a.chunk.js",
     "static/js/977.fa8bdf19.chunk.js": "/static/js/977.fa8bdf19.chunk.js",
-    "static/js/667.8a55ad2a.chunk.js": "/static/js/667.8a55ad2a.chunk.js",
+    "static/js/667.d49d5e6e.chunk.js": "/static/js/667.d49d5e6e.chunk.js",
     "static/js/238.76b904d6.chunk.js": "/static/js/238.76b904d6.chunk.js",
     "static/media/christina-wocintechchat-com-Q80LYxv_Tbs-unsplash.jpg": "/static/media/christina-wocintechchat-com-Q80LYxv_Tbs-unsplash.2439ebaa0e4678f9bc1a.jpg",
     "static/media/logo.jpeg": "/static/media/logo.18a86a0084b0e445ae2f.jpeg",
@@ -17,14 +17,14 @@
     "static/media/slick.woff": "/static/media/slick.295183786cd8a1389865.woff",
     "index.html": "/index.html",
     "main.6a50b01e.css.map": "/static/css/main.6a50b01e.css.map",
-    "main.d7e9289e.js.map": "/static/js/main.d7e9289e.js.map",
+    "main.3bc3c0de.js.map": "/static/js/main.3bc3c0de.js.map",
     "239.eab0352a.chunk.js.map": "/static/js/239.eab0352a.chunk.js.map",
     "977.fa8bdf19.chunk.js.map": "/static/js/977.fa8bdf19.chunk.js.map",
-    "667.8a55ad2a.chunk.js.map": "/static/js/667.8a55ad2a.chunk.js.map",
+    "667.d49d5e6e.chunk.js.map": "/static/js/667.d49d5e6e.chunk.js.map",
     "238.76b904d6.chunk.js.map": "/static/js/238.76b904d6.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.6a50b01e.css",
-    "static/js/main.d7e9289e.js"
+    "static/js/main.3bc3c0de.js"
   ]
 }

@@ -88,48 +88,68 @@ export const loginValidation = (req, res, next) => {
 };
 
 // Profile Update Validation
+// export const profileUpdateValidation = (req, res, next) => {
+//   if (req.body.name.length < 3 || req.body.studentName < 3) {
+//     return next(
+//       new Errorhandler(
+//         `${req.body.name} - Full Name should have more than 3 characters`,
+//         403
+//       )
+//     );
+//   }
+
+//   // Email validation
+//   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+//   if (!emailPattern.test(req.body.email)) {
+//     return next(
+//       new Errorhandler(`${req.body.email} - is not a valid email`, 403)
+//     );
+//   }
+
+//   // Only 10-digit number (no +91 required)
+// const phonePattern = /^[0-9]{10}$/;
+
+// if (!phonePattern.test(req.body.phone)) {
+//   return next(
+//     new Errorhandler(
+//       `${req.body.phone} - Invalid phone number format. Please enter a 10-digit phone number like "998XXXXXXX".`,
+//       403
+//     )
+//   );
+// }
+
+
+//   next();
+// };
+
 export const profileUpdateValidation = (req, res, next) => {
-  if (req.body.name.length < 3 || req.body.studentName < 3) {
-    return next(
-      new Errorhandler(
-        `${req.body.name} - Full Name should have more than 3 characters`,
-        403
-      )
-    );
+  const { name, email, phone } = req.body;
+
+  // 1️⃣ Name validation (sirf tab check karo jab name bheja gaya ho)
+  if (name !== undefined && name.length < 3) {
+    return next(new Errorhandler("Full Name should have more than 3 characters", 403));
   }
 
-  // Email validation
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailPattern.test(req.body.email)) {
-    return next(
-      new Errorhandler(`${req.body.email} - is not a valid email`, 403)
-    );
+  // 2️⃣ Email validation (sirf tab check karo jab email bheja gaya ho)
+  if (email) {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      return next(new Errorhandler(`${email} - is not a valid email`, 403));
+    }
   }
 
-  // Phone validation pattern to allow any country code followed by 10 digits
-  // const phonePattern = /^\+\d{1,3}\s?[0-9]{10}$/;
-
-  // if (!phonePattern.test(req.body.phone)) {
-  //   return next(
-  //     new Errorhandler(
-  //       `${req.body.phone} - Invalid phone number format. Please use a valid country code followed by a 10-digit number, like "+91 998XXXXXXX".`,
-  //       403
-  //     )
-  //   );
-  // }
-
-  // Only 10-digit number (no +91 required)
-const phonePattern = /^[0-9]{10}$/;
-
-if (!phonePattern.test(req.body.phone)) {
-  return next(
-    new Errorhandler(
-      `${req.body.phone} - Invalid phone number format. Please enter a 10-digit phone number like "998XXXXXXX".`,
-      403
-    )
-  );
-}
-
+  // 3️⃣ Phone validation (sirf tab check karo jab phone bheja gaya ho)
+  if (phone) {
+    const phonePattern = /^[0-9]{10}$/;
+    if (!phonePattern.test(phone)) {
+      return next(
+        new Errorhandler(
+          `${phone} - Invalid phone number format. Please enter a 10-digit phone number.`,
+          403
+        )
+      );
+    }
+  }
 
   next();
 };

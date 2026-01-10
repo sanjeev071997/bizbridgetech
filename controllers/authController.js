@@ -10,68 +10,47 @@ import ForgotPasswordEmail from "../utils/forgotPasswordEmail.js";
 import sendEmail from "../utils/sendEmail.js";
 import verifyEmail from '../utils/verifyEmail.js';
 import { sendOtp } from '../utils/sendOtp.js';
-
+import { normalizeEmail } from "../utils/emailNormalizer.js"
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-console.log("google client Id", client);
-// User Registration
-// export const register = catchAsyncErrors(async (req, res, next) => {
-//   const {email, phone, } = req.body;
+import cloudinary from "../utils/cloudinary.js";
 
-//   // Check if user already exists
-//   const userExist = await User.findOne({ email });
-//   if (userExist) {
-//     return next(new Errorhandler("Email already registered", 400));
-//   }
 
-//   // Check if user phone already exists
-//   const userPhoneExist = await User.findOne({ phone });
-//   if (userPhoneExist) {
-//     return next(new Errorhandler("Phone already registered", 400));
-//   }
-
-//   try {
-//     // Create a new user
-//     const user = await User.create(req.body);
-
-//     // Send token (login the user)
-//     sendToken(user, 200, res);
-//   } catch (error) {
-//     // Handle any other errors
-//     return next(
-//       new Errorhandler("Failed to create account. Please try again.", 500)
-//     );
-//   }
-// });
 
 // User Registration
 export const register = catchAsyncErrors(async (req, res, next) => {
-  const { email, phone } = req.body;
+  const { email: rawEmail, phone } = req.body;
 
-  // Check if user already exists
+  // ✅ NORMALIZE EMAIL
+  const email = normalizeEmail(rawEmail);
+
+  // Email exists check
   const userExist = await User.findOne({ email });
   if (userExist) {
     return next(new Errorhandler("Email already registered", 400));
   }
 
-  // Check if user phone already exists
-  const userPhoneExist = await User.findOne({ phone });
-  if (userPhoneExist) {
-    return next(new Errorhandler("Phone already registered", 400));
+  // Phone exists check (ignore empty phone)
+  if (phone) {
+    const userPhoneExist = await User.findOne({ phone });
+    if (userPhoneExist) {
+      return next(new Errorhandler("Phone already registered", 400));
+    }
   }
 
   try {
-    // Create user
-    const user = await User.create(req.body);
-    // AUTO CREATE BUYER CATEGORY (KIOSK) FOR NEW USER
-    await BuyerCategory.create({
-       user: user._id,
-       name: "Kiosk",
-       discount: 0,
+    // 👇 ensure normalized email is saved
+    const user = await User.create({
+      ...req.body,
+      email,
     });
 
-    // Send token (login the user)
-    sendToken(user, 200, res);
+    await BuyerCategory.create({
+      user: user._id,
+      name: "Kiosk",
+      discount: 0,
+    });
 
+    sendToken(user, 200, res);
   } catch (error) {
     return next(
       new Errorhandler("Failed to create account. Please try again.", 500)
@@ -79,14 +58,49 @@ export const register = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-
 // user login
+// export const login = catchAsyncErrors(async (req, res, next) => {
+//   const { email, phone, password } = req.body;
+//   // Find user by email or phone
+//   const user = await User.findOne({
+//     $or: [{ email: email || null }, { phone: phone || null }],
+//   }).select("+password");
+
+//   if (!user) {
+//     return next(
+//       new Errorhandler("Invalid email/phone or password", 401)
+//     );
+//   }
+
+//   const isPasswordMatched = await user.comparePassword(password);
+
+//   if (!isPasswordMatched) {
+//     return next(
+//       new Errorhandler("Invalid email/phone or password", 401)
+//     );
+//   }
+
+//   // ✅ Send token
+//   sendToken(user, 200, res);
+// });
+
 export const login = catchAsyncErrors(async (req, res, next) => {
   const { email, phone, password } = req.body;
-  // Find user by email or phone
-  const user = await User.findOne({
-    $or: [{ email: email || null }, { phone: phone || null }],
-  }).select("+password");
+  
+  let searchQuery = {};
+  
+  if (email) {
+    // ✅ Login में भी email normalize करें
+    const normalizedEmail = normalizeEmail(email);
+    searchQuery = { email: normalizedEmail };
+  } else if (phone) {
+    searchQuery = { phone };
+  } else {
+    return next(new Errorhandler("Please provide email or phone", 400));
+  }
+
+  // Find user by normalized email or phone
+  const user = await User.findOne(searchQuery).select("+password");
 
   if (!user) {
     return next(
@@ -105,98 +119,70 @@ export const login = catchAsyncErrors(async (req, res, next) => {
   // ✅ Send token
   sendToken(user, 200, res);
 });
-
-// export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
-//   const { tokenId } = req.body; // token from frontend Google login
-//   // Verify Google token
-//   const ticket = await client.verifyIdToken({
-//     idToken: tokenId,
-//     audience: process.env.GOOGLE_CLIENT_ID,
-//   });
-
-//   const { email, name, picture } = ticket.getPayload();
-
-//   // Check if user already exists
-//   const userExist = await User.findOne({ email });
-//   if (userExist) {
-//     return next(new Errorhandler("User already registered. Please login.", 400));
-//   }
-
-//   // Create user with a random password (Google handles login)
-//   const randomPassword = crypto.randomBytes(20).toString("hex");
-
-//   const user = await User.create({
-//     name,
-//     email,
-//     password: randomPassword,
-//     phone: "0000000000", // You can handle phone optional or ask later
-//     emailVerified: true, // Since Google verified
-//   });
-
-//   // AUTO CREATE BUYER CATEGORY (KIOSK) FOR NEW USER
-//   await BuyerCategory.create({
-//     user: user._id,
-//     name: "Kiosk",
-//     discount: 0,
-//   });
-
-//   // Send JWT token
-//   sendToken(user, 200, res);
-// });
-
-
 export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
-  const { tokenId } = req.body; // token from frontend Google login
+  const { tokenId } = req.body;
 
-  // Verify Google token
   const ticket = await client.verifyIdToken({
     idToken: tokenId,
     audience: process.env.GOOGLE_CLIENT_ID,
   });
 
-  const { email, name, picture, phone_number } = ticket.getPayload(); // phone_number may be available
+  // 🔹 payload se raw email lo
+  const { email: rawEmail, name } = ticket.getPayload();
 
-  // Check if user already exists
+  // ✅ normalize gmail (dot + plus + lowercase)
+  const email = normalizeEmail(rawEmail);
+
+  // 🔒 already registered check
   const userExist = await User.findOne({ email });
   if (userExist) {
-    return next(new Errorhandler("User already registered. Please login.", 400));
+    return next(
+      new Errorhandler("This Gmail account is already registered. Please login.", 400)
+    );
   }
 
-  // Create user with a random password (Google handles login)
   const randomPassword = crypto.randomBytes(20).toString("hex");
 
-  let phoneToSave = phone_number;
-
-  // If phone not provided by Google, generate a random unique 10-digit number
-  if (!phoneToSave) {
-    let randomPhone;
-    let phoneExists;
-    do {
-      randomPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-      phoneExists = await User.findOne({ phone: randomPhone });
-    } while (phoneExists);
-    phoneToSave = randomPhone;
-  }
-
-  const user = await User.create({
+  const user = new User({
     name,
-    email,
+    email, // ✅ normalized email save
     password: randomPassword,
-    phone: phoneToSave,
-    emailVerified: true, // Google verified
+    emailVerified: true,
+    phoneVerified: false,
   });
 
-  // AUTO CREATE BUYER CATEGORY (KIOSK) FOR NEW USER
+  // phone required bypass
+  await user.save({ validateBeforeSave: false });
+
   await BuyerCategory.create({
     user: user._id,
     name: "Kiosk",
     discount: 0,
   });
 
-  // Send JWT token
   sendToken(user, 200, res);
 });
 
+// export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
+//   const { tokenId } = req.body;
+
+//   const ticket = await client.verifyIdToken({
+//     idToken: tokenId,
+//     audience: process.env.GOOGLE_CLIENT_ID,
+//   });
+
+//   const { email } = ticket.getPayload();
+
+//   const user = await User.findOne({ email });
+//   if (!user) {
+//     return next(new Errorhandler("User not found. Please register.", 404));
+//   }
+
+//   // Send JWT token
+//   sendToken(user, 200, res);
+// });
+
+// Refresh Access Token
 
 export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
   const { tokenId } = req.body;
@@ -206,7 +192,10 @@ export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
     audience: process.env.GOOGLE_CLIENT_ID,
   });
 
-  const { email } = ticket.getPayload();
+  const { email: rawEmail } = ticket.getPayload();
+  
+  // ✅ Google login में भी email normalize करें
+  const email = normalizeEmail(rawEmail);
 
   const user = await User.findOne({ email });
   if (!user) {
@@ -217,8 +206,6 @@ export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
   sendToken(user, 200, res);
 });
 
-
-// Refresh Access Token
 export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {
   const { refreshToken } = req.cookies;
   
@@ -283,21 +270,54 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
 
 // user profile update
 export const profileUpdate = catchAsyncErrors(async (req, res, next) => {
-  let user = await User.findByIdAndUpdate(req.user.id, req.body, {
-    new: true,
-    runValidators: true,
-    useFindAndModify: false,
+
+  const newData = {};
+
+  // 1️⃣ Top-level fields clean
+  Object.keys(req.body).forEach((key) => {
+    if (
+      req.body[key] !== "" &&
+      req.body[key] !== null &&
+      req.body[key] !== undefined &&
+      key !== "bankDetails"
+    ) {
+      newData[key] = req.body[key];
+    }
   });
-  if (!user) {
-    user = await User.findByIdAndUpdate(req.user.id, req.body, {
+
+  // 2️⃣ bankDetails clean separately
+  if (req.body.bankDetails) {
+    const cleanBankDetails = {};
+
+    Object.keys(req.body.bankDetails).forEach((key) => {
+      if (
+        req.body.bankDetails[key] !== "" &&
+        req.body.bankDetails[key] !== null &&
+        req.body.bankDetails[key] !== undefined
+      ) {
+        cleanBankDetails[key] = req.body.bankDetails[key];
+      }
+    });
+
+    // sirf tab add karo jab kuch valid ho
+    if (Object.keys(cleanBankDetails).length > 0) {
+      newData.bankDetails = cleanBankDetails;
+    }
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    { $set: newData },
+    {
       new: true,
       runValidators: true,
-      useFindAndModify: false,
-    });
-  }
+    }
+  );
+
   res.status(200).json({
     success: true,
     user,
+    message: "Profile updated successfully!",
   });
 });
 
@@ -721,4 +741,115 @@ export const deleteUser = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler(error.message, 500))
   }
 });
+
+
+// export 
+// Upload Profile Image
+export const uploadProfileImage = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Check if file is uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload an image"
+      });
+    }
+
+    // Upload image to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: 'profile-images',
+      transformation: [
+        { width: 500, height: 500, crop: "limit" },
+        { quality: "auto:good" }
+      ]
+    });
+
+    // Delete old image from Cloudinary if exists
+    if (user.profileImage && user.profileImage.public_id) {
+      await cloudinary.uploader.destroy(user.profileImage.public_id);
+    }
+
+    // Update user with new image
+    user.profileImage = {
+      url: result.secure_url,
+      public_id: result.public_id
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Profile image uploaded successfully",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        profileImage: user.profileImage
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Image upload failed"
+    });
+  }
+};
+
+// Delete Profile Image
+export const deleteProfileImage = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Check if user has a profile image
+    if (!user.profileImage || !user.profileImage.public_id) {
+      return res.status(400).json({
+        success: false,
+        message: "No profile image found"
+      });
+    }
+
+    // Delete image from Cloudinary
+    await cloudinary.uploader.destroy(user.profileImage.public_id);
+
+    // Remove image from user document
+    user.profileImage = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Profile image deleted successfully",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        profileImage: null
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete profile image error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Image deletion failed"
+    });
+  }
+};
+
 

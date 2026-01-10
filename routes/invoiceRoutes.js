@@ -12,6 +12,7 @@ import {
   updatePaymentStatus,
   deleteBankStatementEntry,
   getInvoiceBySellerBuyer,
+  testMonthEndInterest
 } from "../controllers/invoiceController.js";
 import { isAuthenticatedUser, isAdmin} from "../middlewares/authMiddleware.js";
 
@@ -51,5 +52,10 @@ router.delete("/buyer/bank-statement", isAuthenticatedUser, deleteBankStatementE
 
 // Get Invoice Seller and buyer (id)
 router.post("/buyer", isAuthenticatedUser, getInvoiceBySellerBuyer) // Seller side 
+
+
+
+// routes Test 
+router.post('/test-month-end-interest', testMonthEndInterest);
 
 export default router;
