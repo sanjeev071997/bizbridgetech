@@ -361,8 +361,8 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
     const totalConnections = await BuyerSellerConnection.countDocuments(connectionFilter);
 
     const connections = await BuyerSellerConnection.find(connectionFilter)
-      .populate("buyer", "name email phone businessAddress businessName lastSeen ProfileImage")
-      .populate("seller", "name email phone businessAddress businessName lastSeen ProfileImage")
+      .populate("buyer", "name email phone businessAddress businessName lastSeen profileImage")
+      .populate("seller", "name email phone businessAddress businessName lastSeen profileImage")
       .populate("buyerCategory", "name _id discount")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -387,7 +387,7 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
               businessAddress: otherUser.businessAddress || null,
               businessName: otherUser.businessName || null,
               lastSeen: otherUser.lastSeen,
-              profileImage: otherUser.ProfileImage?.url
+              profileImage: otherUser.profileImage?.url
             }
           : null,
         createdAt: conn.createdAt,
@@ -777,7 +777,7 @@ export const viewMembers = catchAsyncErrors(async (req, res, next) => {
 
     const [members, totalCount] = await Promise.all([
       BuyerSellerConnection.find(filter)
-        .populate("buyer", "name email phone ProfileImage.url")
+        .populate("buyer", "name email phone profileImage.url")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageLimit),

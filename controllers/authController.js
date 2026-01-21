@@ -251,6 +251,23 @@ export const logout = catchAsyncErrors(async (req, res, next) => {
 });
 
 // user profile (Get User Details)
+// export const profileDetails = catchAsyncErrors(async (req, res, next) => {
+//   try {
+//     const user = await User.findById(req.user.id).select("-password");
+
+//     if (!user) {
+//       return next(new Errorhandler("User not found!", 404));
+//     }
+//     res.status(200).json({
+//       success: true,
+//       user,
+//       message: "User info fetched successfully",
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// });
+
 export const profileDetails = catchAsyncErrors(async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
@@ -258,9 +275,260 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
     if (!user) {
       return next(new Errorhandler("User not found!", 404));
     }
+
+    // Calculate profile completion percentage
+    const calculateProfileCompletion = (user) => {
+      let totalFields = 0;
+      let completedFields = 0;
+
+      // Define required fields based on user mode
+      const requiredFields = {
+        basic: ["name", "email", "phone"],
+        allModes: ["businessName", "businessAddress"],
+        seller: ["gstNumber"],
+      };
+
+      // Bank details fields (for sellers or users who need payment info)
+      const bankFields = [
+        "upiId",
+        "bankName",
+        "accountName",
+        "accountNumber",
+        "ifscCode",
+        "branchName",
+      ];
+
+      // Check basic fields
+      requiredFields.basic.forEach(field => {
+        totalFields++;
+        if (user[field] && user[field].toString().trim() !== "") {
+          completedFields++;
+        }
+      });
+
+      // Check business fields (common for both buyer and seller)
+      requiredFields.allModes.forEach(field => {
+        totalFields++;
+        if (user[field] && user[field].toString().trim() !== "") {
+          completedFields++;
+        }
+      });
+
+      // If user is seller, check GST number
+      if (user.mode === "seller") {
+        requiredFields.seller.forEach(field => {
+          totalFields++;
+          if (user[field] && user[field].toString().trim() !== "") {
+            completedFields++;
+          }
+        });
+
+        // For sellers, check bank details (optional but important)
+        // You can adjust this based on your requirements
+        bankFields.forEach(field => {
+          totalFields += 0.5; // Give half weight to each bank field
+          if (user.bankDetails && user.bankDetails[field] && 
+              user.bankDetails[field].toString().trim() !== "") {
+            completedFields += 0.5;
+          }
+        });
+
+        // Check if bank account is verified
+        // totalFields++;
+        // if (user.bankDetails && user.bankDetails.accountVerified) {
+        //   completedFields++;
+        // }
+      }
+
+      // Check profile image (optional but adds to completion)
+      totalFields++;
+      if (user.profileImage && user.profileImage.url) {
+        completedFields++;
+      }
+
+      // Check phone verification
+      // totalFields++;
+      // if (user.phoneVerified) {
+      //   completedFields++;
+      // }
+
+      // // Check email verification
+      // totalFields++;
+      // if (user.emailVerified) {
+      //   completedFields++;
+      // }
+
+      // Calculate percentage
+      const percentage = Math.round((completedFields / totalFields) * 100);
+      return Math.min(percentage, 100); // Ensure it doesn't exceed 100%
+    };
+
+    const completionPercentage = calculateProfileCompletion(user);
+
+    // Get missing fields list
+    const getMissingFields = (user) => {
+      const missingFields = [];
+
+      const checkField = (fieldName, fieldValue, fieldLabel) => {
+        if (!fieldValue || fieldValue.toString().trim() === "") {
+          missingFields.push(fieldLabel);
+        }
+      };
+
+      const checkBankField = (fieldName, fieldValue, fieldLabel) => {
+        if (!fieldValue || fieldValue.toString().trim() === "") {
+          missingFields.push(fieldLabel);
+        }
+      };
+
+      // Basic fields
+      checkField("name", user.name, "Full Name");
+      checkField("email", user.email, "Email");
+      checkField("phone", user.phone, "Phone Number");
+      
+      // Business fields
+      checkField("businessName", user.businessName, "Business Name");
+      checkField("businessAddress", user.businessAddress, "Business Address");
+      
+      // Seller specific
+      if (user.mode === "seller") {
+        checkField("gstNumber", user.gstNumber, "GST Number");
+
+        // Bank details for sellers
+        if (!user.bankDetails || Object.keys(user.bankDetails).length === 0) {
+          missingFields.push("Bank Details");
+        } else {
+          if (!user.bankDetails.bankName || user.bankDetails.bankName.trim() === "") {
+            missingFields.push("Bank Name");
+          }
+          if (!user.bankDetails.accountName || user.bankDetails.accountName.trim() === "") {
+            missingFields.push("Account Holder Name");
+          }
+          if (!user.bankDetails.accountNumber || user.bankDetails.accountNumber.trim() === "") {
+            missingFields.push("Account Number");
+          }
+          if (!user.bankDetails.ifscCode || user.bankDetails.ifscCode.trim() === "") {
+            missingFields.push("IFSC Code");
+          }
+          // if (!user.bankDetails.accountVerified) {
+          //   missingFields.push("Bank Account Verification");
+          // }
+        }
+      }
+
+      // Profile image
+      if (!user.profileImage || !user.profileImage.url) {
+        missingFields.push("Profile Picture");
+      }
+
+      // Verifications
+      // if (!user.phoneVerified) {
+      //   missingFields.push("Phone Verification");
+      // }
+      // if (!user.emailVerified) {
+      //   missingFields.push("Email Verification");
+      // }
+
+      return missingFields;
+    };
+
+    const missingFields = getMissingFields(user);
+
+    // Get completion status for different sections
+    const getSectionCompletion = (user) => {
+      const sections = {
+        basicInfo: {
+          name: "Basic Information",
+          completed: 0,
+          total: 3, // name, email, phone
+          fields: [
+            { field: "name", label: "Full Name", completed: !!(user.name && user.name.trim()) },
+            { field: "email", label: "Email", completed: !!(user.email && user.email.trim()) },
+            { field: "phone", label: "Phone", completed: !!(user.phone && user.phone.trim()) },
+          ]
+        },
+        businessInfo: {
+          name: "Business Information",
+          completed: 0,
+          total: 2, // businessName, businessAddress
+          fields: [
+            { field: "businessName", label: "Business Name", completed: !!(user.businessName && user.businessName.trim()) },
+            { field: "businessAddress", label: "Business Address", completed: !!(user.businessAddress && user.businessAddress.trim()) },
+          ]
+        },
+        // verification: {
+        //   name: "Verifications",
+        //   completed: 0,
+        //   total: 2, // phoneVerified, emailVerified
+        //   fields: [
+        //     { field: "phoneVerified", label: "Phone Verification", completed: !!user.phoneVerified },
+        //     { field: "emailVerified", label: "Email Verification", completed: !!user.emailVerified },
+        //   ]
+        // },
+        profile: {
+          name: "Profile",
+          completed: 0,
+          total: 1, // profileImage
+          fields: [
+            { field: "profileImage", label: "Profile Picture", completed: !!(user.profileImage && user.profileImage.url) },
+          ]
+        }
+      };
+
+      // Calculate completed for each section
+      Object.keys(sections).forEach(sectionKey => {
+        const section = sections[sectionKey];
+        section.completed = section.fields.filter(f => f.completed).length;
+        section.percentage = Math.round((section.completed / section.total) * 100);
+      });
+
+      // Add seller specific sections
+      if (user.mode === "seller") {
+        sections.taxInfo = {
+          name: "Tax Information",
+          completed: !!(user.gstNumber && user.gstNumber.trim()) ? 1 : 0,
+          total: 1,
+          percentage: !!(user.gstNumber && user.gstNumber.trim()) ? 100 : 0,
+          fields: [
+            { field: "gstNumber", label: "GST Number", completed: !!(user.gstNumber && user.gstNumber.trim()) },
+          ]
+        };
+
+        sections.bankInfo = {
+          name: "Bank Details",
+          completed: 0,
+          total: 7, // all bank fields + verification
+          fields: [
+            { field: "upiId", label: "UPI ID", completed: !!(user.bankDetails && user.bankDetails.upiId && user.bankDetails.upiId.trim()) },
+            { field: "bankName", label: "Bank Name", completed: !!(user.bankDetails && user.bankDetails.bankName && user.bankDetails.bankName.trim()) },
+            { field: "accountName", label: "Account Holder", completed: !!(user.bankDetails && user.bankDetails.accountName && user.bankDetails.accountName.trim()) },
+            { field: "accountNumber", label: "Account Number", completed: !!(user.bankDetails && user.bankDetails.accountNumber && user.bankDetails.accountNumber.trim()) },
+            { field: "ifscCode", label: "IFSC Code", completed: !!(user.bankDetails && user.bankDetails.ifscCode && user.bankDetails.ifscCode.trim()) },
+            { field: "branchName", label: "Branch Name", completed: !!(user.bankDetails && user.bankDetails.branchName && user.bankDetails.branchName.trim()) },
+            // { field: "accountVerified", label: "Account Verified", completed: !!(user.bankDetails && user.bankDetails.accountVerified) },
+          ]
+        };
+
+        // Calculate bank info completion
+        sections.bankInfo.completed = sections.bankInfo.fields.filter(f => f.completed).length;
+        sections.bankInfo.percentage = Math.round((sections.bankInfo.completed / sections.bankInfo.total) * 100);
+      }
+
+      return sections;
+    };
+
+    const sectionCompletion = getSectionCompletion(user);
+
     res.status(200).json({
       success: true,
       user,
+      profileCompletion: {
+        percentage: completionPercentage,
+        missingFields: missingFields,
+        // sectionCompletion: sectionCompletion,
+        isProfileComplete: completionPercentage >= 80, // 80% threshold
+        nextSteps: missingFields.slice(0, 3), // Top 3 priority items
+      },
       message: "User info fetched successfully",
     });
   } catch (error) {

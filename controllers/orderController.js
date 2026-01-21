@@ -64,7 +64,7 @@
 //         gstAmount: gstAmount,
 //         finalPrice: finalPrice,
 //         subTotal: subTotal,
-//         discountFromPayment: 0, 
+//         discountFromPayment: 0,
 //         seller: i.product.user,
 
 //         category: i.category
@@ -218,7 +218,7 @@
 // export const updateProcessStep = catchAsyncErrors(async (req, res, next) => {
 //   const { orderId } = req.params;
 //   const { step, itemId } = req.body;
-//   const sellerId = req.user._id; 
+//   const sellerId = req.user._id;
 
 //   if (!mongoose.Types.ObjectId.isValid(orderId))
 //     return next(new ErrorHandler("Invalid Order ID", 400));
@@ -249,7 +249,7 @@
 //     processFlow: order.processFlow,
 //   });
 // });
- 
+
 // // Delete Order (Admin or Buyer can cancel)
 // export const deleteOrder = catchAsyncErrors(async (req, res, next) => {
 //   const { id } = req.params;
@@ -684,7 +684,7 @@ import ErrorHandler from "../utils/Errorhandler.js";
 import { generateQRCode } from "../utils/generateQRCode.js";
 
 // Create Order
-export const createOrder = async (req, res) => {
+export const createOrder = async (req, res, next) => {
   try {
     const { seller, selectPaymentType } = req.body;
 
@@ -709,6 +709,16 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    // ❗ REMOVE invalid/deleted products
+    const validItems = cart.items.filter((i) => i.product);
+
+    if (!validItems.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Products in cart are no longer available",
+      });
+    }
+
     const defaultSteps = [
       { step: "Enquiry Received" },
       { step: "Proforma Invoice" },
@@ -719,8 +729,10 @@ export const createOrder = async (req, res) => {
       { step: "Dispatch" },
       { step: "Delivered" },
     ];
+
     let orderSubTotal = 0;
-    const orderItems = cart.items.map((i) => {
+
+    const orderItems = validItems.map((i) => {
       const base = Number(i.discountPrice || 0);
       const gstPercent = Number(i?.category?.gst || 0);
 
@@ -738,9 +750,9 @@ export const createOrder = async (req, res) => {
         mrp: i.mrp,
         quantity: i.quantity,
         discountPrice: i.discountPrice,
-        gstAmount: gstAmount,
-        finalPrice: finalPrice,
-        subTotal: subTotal,
+        gstAmount,
+        finalPrice,
+        subTotal,
         discountFromPayment: 0,
         seller: i.product.user,
 
@@ -754,21 +766,20 @@ export const createOrder = async (req, res) => {
       };
     });
 
-    // Order level totals
     const discount = Number(cart.discountFromPayment || 0);
     const orderTotal = orderSubTotal - discount;
+
     const newOrder = await Order.create({
-      buyer: cart.user._id,
+      buyer: cart.user?._id,
       items: orderItems,
       subTotal: orderSubTotal,
       discountFromPayment: discount,
       total: orderTotal,
       paymentOption: cart.paymentOption?._id,
       processFlow: defaultSteps,
-      selectPaymentType
+      selectPaymentType,
     });
 
-    // Fetch clean populated order
     const order = await Order.findById(newOrder._id)
       .populate("buyer", "name mode")
       .populate({
@@ -776,7 +787,6 @@ export const createOrder = async (req, res) => {
         select: "name mode",
       });
 
-    // Remove cart
     await Cart.findByIdAndDelete(cart._id);
 
     res.status(201).json({
@@ -785,12 +795,34 @@ export const createOrder = async (req, res) => {
       order,
     });
   } catch (error) {
+    console.error(error.stack);
     return next(new ErrorHandler(error.message, 500));
   }
 };
+// // Get Buyer Orders
+// export const getBuyerOrders = catchAsyncErrors(async (req, res) => {
+//   const orders = await Order.find({ buyer: req.user._id })
+//     .populate({
+//       path: "items.seller",
+//       select: "name phone mode",
+//     })
+//     .populate("paymentOption", "paymentType")
+//     .populate("buyer", "name phone mode")
+//     .sort({ createdAt: -1 });
 
-// Get Buyer Orders
-export const getBuyerOrders = catchAsyncErrors(async (req, res, next) => {
+//   res.status(200).json({
+//     success: true,
+//     orders,
+//   });
+// });
+
+// Get Buyer Orders with Pagination
+export const getBuyerOrders = catchAsyncErrors(async (req, res) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+
   const orders = await Order.find({ buyer: req.user._id })
     .populate({
       path: "items.seller",
@@ -800,14 +832,68 @@ export const getBuyerOrders = catchAsyncErrors(async (req, res, next) => {
     .populate("buyer", "name phone mode")
     .sort({ createdAt: -1 });
 
+  // 👉 pagination
+  const paginatedOrders = orders.slice(startIndex, endIndex);
+
   res.status(200).json({
     success: true,
-    orders,
+    page,
+    limit,
+    totalOrders: orders.length,
+    totalPages: Math.ceil(orders.length / limit),
+    orders: paginatedOrders,
   });
 });
 
-// Get Seller Orders
+// // Get Seller Orders
+// export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
+//   const orders = await Order.find()
+//     .populate("buyer", "name phone mode")
+//     .populate("paymentOption", "paymentType")
+//     .populate("items.seller", "name phone mode")
+//     .sort({ createdAt: -1 });
+
+//   const sellerOrders = orders
+//     .map((order) => {
+//       const sellerItems = order.items.filter(
+//         (item) =>
+//           item.seller && item.seller._id.toString() === req.user._id.toString()
+//       );
+
+//       if (sellerItems.length > 0) {
+//         return {
+//           ...order._doc,
+//           items: sellerItems.map((item) => ({
+//             _id: item._id,
+//             name: item.name,
+//             image: item.image,
+//             price: item.price,
+//             mrp: item.mrp,
+//             quantity: item.quantity,
+//             discountPrice: item.discountPrice,
+//             gstAmount: item.gstAmount,
+//             finalPrice: item.finalPrice,
+//             seller: item.seller,
+//             category: item.category,
+//           })),
+//         };
+//       }
+//       return null;
+//     })
+//     .filter((o) => o !== null);
+
+//   res.status(200).json({
+//     success: true,
+//     orders: sellerOrders,
+//   });
+// });
+
 export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+
   const orders = await Order.find()
     .populate("buyer", "name phone mode")
     .populate("paymentOption", "paymentType")
@@ -818,7 +904,8 @@ export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
     .map((order) => {
       const sellerItems = order.items.filter(
         (item) =>
-          item.seller && item.seller._id.toString() === req.user._id.toString()
+          item.seller &&
+          item.seller._id.toString() === req.user._id.toString()
       );
 
       if (sellerItems.length > 0) {
@@ -841,11 +928,18 @@ export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
       }
       return null;
     })
-    .filter((o) => o !== null);
+    .filter(Boolean);
+
+  // 👉 pagination AFTER seller filtering
+  const paginatedOrders = sellerOrders.slice(startIndex, endIndex);
 
   res.status(200).json({
     success: true,
-    orders: sellerOrders,
+    page,
+    limit,
+    totalOrders: sellerOrders.length,
+    totalPages: Math.ceil(sellerOrders.length / limit),
+    orders: paginatedOrders,
   });
 });
 
@@ -952,19 +1046,19 @@ const getFinalPaymentType = (paymentOption, order) => {
 // Helper function to get next month-end date
 const getNextMonthEndDate = (date) => {
   if (!date) return null;
-  
+
   const d = new Date(date);
   const year = d.getFullYear();
   const month = d.getMonth();
-  
+
   // Get last day of current month
   const lastDay = new Date(year, month + 1, 0);
-  
+
   // If date is already past current month-end, get next month's end
   if (d > lastDay) {
     return new Date(year, month + 2, 0);
   }
-  
+
   return lastDay;
 };
 
@@ -975,6 +1069,429 @@ const isLastDayOfMonth = (date) => {
   nextDay.setDate(d.getDate() + 1);
   return d.getMonth() !== nextDay.getMonth();
 };
+
+// Update Order Process Step
+// export const updateOrderProcessStep = async (req, res, next) => {
+//   try {
+//     const { orderId, step, actionBy } = req.body;
+
+//     if (!mongoose.Types.ObjectId.isValid(orderId))
+//       return next(new ErrorHandler("Invalid Order ID", 400));
+
+//     const order = await Order.findById(orderId)
+//       .populate("paymentOption")
+//       .populate({
+//         path: "items.seller",
+//         select: "name email bankDetails accountName upiId",
+//         populate: {
+//           path: "bankDetails",
+//           select:
+//             "bankName accountName upiId accountNumber ifscCode branchName branchAddress",
+//         },
+//       })
+//       .populate("buyer");
+
+//     if (!order)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Order not found" });
+
+//     const finalPaymentType = getFinalPaymentType(order.paymentOption, order);
+
+//     if (!finalPaymentType)
+//       return next(new ErrorHandler("Unable to determine payment type", 400));
+
+//     const markStepComplete = (stepName, extraData = {}) => {
+//       let stepObj = order.processFlow.find((s) => s.step === stepName);
+//       if (!stepObj) {
+//         order.processFlow.push({
+//           step: stepName,
+//           completed: true,
+//           completedAt: new Date(),
+//           ...extraData,
+//         });
+//       } else {
+//         stepObj.completed = true;
+//         stepObj.completedAt = new Date();
+//         Object.assign(stepObj, extraData);
+//       }
+//     };
+
+//     const createStepIfNotExists = (stepName, extraData = {}) => {
+//       let stepObj = order.processFlow.find((s) => s.step === stepName);
+//       if (!stepObj) {
+//         order.processFlow.push({
+//           step: stepName,
+//           completed: false,
+//           ...extraData,
+//         });
+//       } else {
+//         Object.keys(extraData).forEach((key) => {
+//           stepObj[key] = extraData[key];
+//         });
+//       }
+//     };
+
+//     // UPDATED INVOICE CREATION LOGIC FOR CREDIT
+//     const createInvoiceOnEnquiry = async () => {
+//       const existing = await Invoice.findOne({ order: order._id });
+//       if (existing) return;
+
+//       if (!order.paymentOption)
+//         throw new Error("Payment Option not found for this order");
+
+//       let invoiceData = {
+//         order: order._id,
+//         buyer: order.buyer._id,
+//         seller: order.items[0]?.seller?._id,
+//         amount: order.total,
+//         status: "Pending",
+//         bankStatement: [],
+//         paymentType: finalPaymentType,
+//       };
+
+//       // CASH → INVOICE PAID
+//       if (finalPaymentType === "Cash") {
+//         invoiceData.status = "Paid";
+//         invoiceData.paidAt = new Date();
+
+//         invoiceData.bankStatement.push({
+//           date: new Date(),
+//           description: "Cash Payment Received",
+//           debit: 0,
+//           credit: order.total,
+//           balance: 0,
+//         });
+//       }
+
+//       // CREDIT → CREDIT TERMS WITH CORRECT LOGIC
+//       if (finalPaymentType === "Credit") {
+//         const pay = order.paymentOption;
+
+//         invoiceData.creditPeriodDays = pay.creditPayment.creditPeriodDays;
+//         invoiceData.interestRatePerYear = pay.creditPayment.interestRatePerYear;
+//         invoiceData.interestStartAfterDays =
+//           pay.creditPayment.interestStartAfterDays;
+
+//         // Calculate dueDate (invoice date + creditPeriodDays)
+//         const invoiceDate = new Date();
+//         const dueDate = new Date(invoiceDate);
+//         dueDate.setDate(dueDate.getDate() + pay.creditPayment.creditPeriodDays);
+//         invoiceData.dueDate = dueDate;
+
+//         // CORRECTION: interestAccrualStartDate = dueDate (not dueDate + interestStartAfterDays)
+//         // Because interest starts immediately after due date
+//         invoiceData.interestAccrualStartDate = dueDate;
+
+//         // Store interestStartAfterDays for reference (30 days)
+//         // This is the grace period before interest actually accrues
+//         invoiceData.gracePeriodDays = pay.creditPayment.interestStartAfterDays;
+
+//         // First interest application will be on next month-end after dueDate
+//         const firstInterestDate = getNextMonthEndDate(dueDate);
+//         invoiceData.nextInterestApplicationDate = firstInterestDate;
+
+//         // Initial bank statement entry
+//         invoiceData.bankStatement.push({
+//           date: new Date(),
+//           description: "Invoice Created (Credit)",
+//           debit: order.total,
+//           credit: 0,
+//           balance: order.total,
+//           paymentStatus: "Approved",
+//         });
+//       }
+
+//       await Invoice.create(invoiceData);
+//     };
+
+//     const generateQRCodeForPayment = async () => {
+//       const sellerBank = order.items[0]?.seller?.bankDetails;
+
+//       if (!sellerBank?.upiId) throw new Error("Seller UPI ID not found.");
+
+//       if (finalPaymentType === "Cash") {
+//         return await generateQRCode(sellerBank.upiId, order.total);
+//       }
+
+//       return null;
+//     };
+
+//     switch (step) {
+//       case "Enquiry Received":
+//         if (actionBy !== "seller")
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can send Enquiry Received",
+//           });
+
+//         // Seller Enquiry Received complete करते ही
+//         markStepComplete("Enquiry Received", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+
+//         // Order status set to "Pending"
+//         order.orderStatus = "Pending";
+
+//         // Proforma Invoice auto true - both sides
+//         markStepComplete("Proforma Invoice", {
+//           visibleTo: ["buyer", "seller"],
+//           autoCompleted: true,
+//           completedMessage: "Auto-generated after Enquiry Received",
+//         });
+
+//         // Proforma Accepted auto true - both sides
+//         markStepComplete("Proforma Accepted", {
+//           visibleTo: ["buyer", "seller"],
+//           autoCompleted: true,
+//           completedMessage: "Auto-accepted after Enquiry Received",
+//         });
+//         order.orderStatus = "Processing";
+        
+//         // COMMON LOGIC FOR BOTH CASH AND CREDIT
+//         // Payment QR Generated - CREATE BUT DON'T COMPLETE (buyer will complete for both)
+//         if (finalPaymentType === "Credit") {
+//           const pay = order.paymentOption;
+//           const dueDate = new Date();
+//           dueDate.setDate(
+//             dueDate.getDate() + (pay.creditPayment?.creditPeriodDays || 0)
+//           );
+//           const firstInterestDate = getNextMonthEndDate(dueDate);
+
+//           const creditDetails = {
+//             paymentType: "Credit",
+//             totalAmount: order.total,
+//             creditPeriodDays: pay.creditPayment.creditPeriodDays,
+//             interestRatePerYear: pay.creditPayment.interestRatePerYear,
+//             interestStartAfterDays: pay.creditPayment.interestStartAfterDays,
+//             dueDate,
+//             interestStartDate: dueDate,
+//             firstInterestApplicationDate: firstInterestDate,
+//             nextInterestApplicationDate: firstInterestDate,
+//           };
+
+//           createStepIfNotExists("Payment QR Generated", {
+//             visibleTo: ["buyer", "seller"],
+//             creditDetails,
+//             qrCodeUrl: null,
+//             paymentType: "Credit",
+//             awaitingBuyerAction: true,
+//           });
+
+//           order.creditPaymentDetails = creditDetails;
+//         }
+
+//         if (finalPaymentType === "Cash") {
+//           // Generate QR Code for Cash payment
+//           const qrCode = await generateQRCodeForPayment();
+          
+//           createStepIfNotExists("Payment QR Generated", {
+//             visibleTo: ["buyer", "seller"],
+//             qrCodeUrl: qrCode,
+//             paymentType: "Cash",
+//             awaitingBuyerAction: true, // ✅ Buyer will complete this step
+//           });
+
+//           order.qrCodeData = qrCode;
+//         }
+
+//         // FOR BOTH CASH AND CREDIT - Create next steps but don't complete
+//         if (finalPaymentType === "Cash" || finalPaymentType === "Credit") {
+//           // Payment Received - CREATE BUT DON'T COMPLETE
+//           createStepIfNotExists("Payment Received", {
+//             visibleTo: ["buyer", "seller"],
+//             paymentType: finalPaymentType,
+//             awaitingAutoCompletion: true,
+//           });
+
+//           // Invoice Uploaded - CREATE BUT DON'T COMPLETE
+//           const itemSummary = order.items.map((i) => i.productName).join(", ");
+//           const totalItems = order.items.length;
+//           const totalAmount = order.total;
+
+//           createStepIfNotExists("Invoice Uploaded", {
+//             visibleTo: ["buyer", "seller"],
+//             invoiceSummary: { itemSummary, totalItems, totalAmount },
+//             awaitingAutoCompletion: true,
+//           });
+
+//           // Dispatch - NOT auto complete (seller manually करेगा)
+//           createStepIfNotExists("Dispatch", {
+//             visibleTo: ["buyer", "seller"],
+//             awaitingSellerAction: true,
+//           });
+
+//           // Delivered - NOT auto complete (seller manually करेगा)
+//           createStepIfNotExists("Delivered", {
+//             visibleTo: ["buyer", "seller"],
+//             awaitingBuyerAction: true,
+//           });
+//         }
+
+//         await createInvoiceOnEnquiry();
+//         break;
+
+//       case "Payment QR Generated":
+//         // ✅ COMMON LOGIC FOR BOTH CASH AND CREDIT: Only buyer can complete
+//         if (actionBy !== "buyer") {
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only buyer can complete Payment QR Generated step",
+//           });
+//         }
+
+//         const existingStep = order.processFlow.find(
+//           (s) => s.step === "Payment QR Generated"
+//         );
+
+//         // Order status set to "Processing"
+//         order.orderStatus = "Processing";
+
+//         // Complete Payment QR Generated
+//         markStepComplete("Payment QR Generated", {
+//           ...existingStep,
+//           visibleTo: ["buyer", "seller"],
+//           paymentType: finalPaymentType,
+//           buyerAccepted: true,
+//           acceptedAt: new Date(),
+//         });
+
+//         // AUTO COMPLETE Payment Received after Payment QR Generated (for both)
+//         markStepComplete("Payment Received", {
+//           visibleTo: ["buyer", "seller"],
+//           paymentType: finalPaymentType,
+//           autoCompleted: true,
+//           message: `Auto-completed after Payment QR Generated for ${finalPaymentType.toLowerCase()} payment`,
+//         });
+
+//         // AUTO COMPLETE Invoice Uploaded after Payment QR Generated (for both)
+//         const itemSummary = order.items.map((i) => i.productName).join(", ");
+//         const totalItems = order.items.length;
+//         const totalAmount = order.total;
+
+//         markStepComplete("Invoice Uploaded", {
+//           visibleTo: ["buyer", "seller"],
+//           invoiceSummary: { itemSummary, totalItems, totalAmount },
+//           autoCompleted: true,
+//           message: `Auto-completed after Payment QR Generated for ${finalPaymentType.toLowerCase()} payment`,
+//         });
+//         break;
+
+//       case "Payment Received":
+//         // ✅ BOTH CASH AND CREDIT - Already auto-completed in Payment QR Generated
+//         return res.status(400).json({
+//           success: false,
+//           message: `Payment Received is auto-completed for ${finalPaymentType.toLowerCase()} payments after Payment QR Generated`,
+//         });
+//         break;
+
+//       case "Invoice Uploaded":
+//         // ✅ BOTH CASH AND CREDIT - Already auto-completed in Payment QR Generated
+//         return res.status(400).json({
+//           success: false,
+//           message: `Invoice Uploaded is auto-completed for ${finalPaymentType.toLowerCase()} payments after Payment QR Generated`,
+//         });
+//         break;
+
+//       case "Dispatch":
+//         // BOTH CREDIT AND CASH - Seller manually completes
+//         if (actionBy !== "seller") {
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller can dispatch order",
+//           });
+//         }
+
+//         // Order status remains "Processing" during Dispatch
+//         if (order.orderStatus !== "Completed") {
+//           order.orderStatus = "Processing";
+//         }
+
+//         markStepComplete("Dispatch", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+//         break;
+
+//       case "Delivered":
+//         // BOTH CREDIT AND CASH - Buyer manually completes
+//         if (actionBy !== "buyer") {
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only buyer can mark as delivered",
+//           });
+//         }
+
+//         // Order status set to "Completed"
+//         order.orderStatus = "Completed";
+
+//         markStepComplete("Delivered", {
+//           visibleTo: ["buyer", "seller"],
+//         });
+//         break;
+
+//       // Add a case for Cancelled order
+//       case "Cancelled":
+//         // Either seller or buyer can cancel order
+//         if (!["seller", "buyer"].includes(actionBy)) {
+//           return res.status(403).json({
+//             success: false,
+//             message: "Only seller or buyer can cancel order",
+//           });
+//         }
+
+//         // Order status set to "Cancelled"
+//         order.orderStatus = "Cancelled";
+
+//         // Mark all steps as cancelled
+//         const cancelledSteps = [
+//           "Enquiry Received",
+//           "Proforma Invoice",
+//           "Proforma Accepted",
+//           "Payment QR Generated",
+//           "Payment Received",
+//           "Invoice Uploaded",
+//           "Dispatch",
+//           "Delivered",
+//         ];
+
+//         cancelledSteps.forEach((stepName) => {
+//           const stepObj = order.processFlow.find((s) => s.step === stepName);
+//           if (stepObj) {
+//             stepObj.cancelled = true;
+//             stepObj.cancelledAt = new Date();
+//             stepObj.cancelledBy = actionBy;
+//             stepObj.completed = false;
+//           }
+//         });
+
+//         // Add a cancelled step to process flow
+//         markStepComplete("Order Cancelled", {
+//           visibleTo: ["buyer", "seller"],
+//           cancelled: true,
+//           cancelledBy: actionBy,
+//           cancelledAt: new Date(),
+//           reason: req.body.reason || "Order cancelled by " + actionBy,
+//         });
+//         break;
+
+//       default:
+//         return res
+//           .status(400)
+//           .json({ success: false, message: "Invalid step" });
+//     }
+
+//     await order.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: `${step} marked as completed.`,
+//       paymentTypeUsed: finalPaymentType,
+//       data: order,
+//     });
+//   } catch (err) {
+//     return next(new ErrorHandler(err.message, 500));
+//   }
+// };
 
 export const updateOrderProcessStep = async (req, res, next) => {
   try {
@@ -1081,9 +1598,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
         // Calculate dueDate (invoice date + creditPeriodDays)
         const invoiceDate = new Date();
         const dueDate = new Date(invoiceDate);
-        dueDate.setDate(
-          dueDate.getDate() + pay.creditPayment.creditPeriodDays
-        );
+        dueDate.setDate(dueDate.getDate() + pay.creditPayment.creditPeriodDays);
         invoiceData.dueDate = dueDate;
 
         // CORRECTION: interestAccrualStartDate = dueDate (not dueDate + interestStartAfterDays)
@@ -1115,8 +1630,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
     const generateQRCodeForPayment = async () => {
       const sellerBank = order.items[0]?.seller?.bankDetails;
 
-      if (!sellerBank?.upiId)
-        throw new Error("Seller UPI ID not found.");
+      if (!sellerBank?.upiId) throw new Error("Seller UPI ID not found.");
 
       if (finalPaymentType === "Cash") {
         return await generateQRCode(sellerBank.upiId, order.total);
@@ -1133,60 +1647,37 @@ export const updateOrderProcessStep = async (req, res, next) => {
             message: "Only seller can send Enquiry Received",
           });
 
+        // Seller Enquiry Received complete करते ही
         markStepComplete("Enquiry Received", {
           visibleTo: ["buyer", "seller"],
         });
 
-        await createInvoiceOnEnquiry();
-        break;
+        // Order status set to "Pending"
+        order.orderStatus = "Pending";
 
-      case "Proforma Invoice":
-        if (actionBy !== "seller")
-          return res.status(403).json({
-            success: false,
-            message: "Only seller can send Proforma Invoice",
-          });
-
+        // Proforma Invoice auto true - both sides
         markStepComplete("Proforma Invoice", {
           visibleTo: ["buyer", "seller"],
+          autoCompleted: true,
+          completedMessage: "Auto-generated after Enquiry Received",
         });
-        break;
 
-      case "Proforma Accepted":
-        if (actionBy !== "buyer")
-          return res.status(403).json({
-            success: false,
-            message: "Only buyer can accept Proforma",
-          });
-
-        order.orderStatus = "Processing";
-
+        // Proforma Accepted auto true - both sides
         markStepComplete("Proforma Accepted", {
           visibleTo: ["buyer", "seller"],
+          autoCompleted: true,
+          completedMessage: "Auto-accepted after Enquiry Received",
         });
-
-        if (finalPaymentType === "Cash") {
-          const qrCode = await generateQRCodeForPayment();
-
-          markStepComplete("Payment QR Generated", {
-            visibleTo: ["buyer", "seller"],
-            qrCodeUrl: qrCode,
-            paymentType: "Cash",
-          });
-
-          order.qrCodeData = qrCode;
-        }
-
+        order.orderStatus = "Processing";
+        
+        // COMMON LOGIC FOR BOTH CASH AND CREDIT
+        // Payment QR Generated - CREATE BUT DON'T COMPLETE (buyer will complete for both)
         if (finalPaymentType === "Credit") {
           const pay = order.paymentOption;
-
-          // Calculate dates for credit payment
           const dueDate = new Date();
           dueDate.setDate(
             dueDate.getDate() + (pay.creditPayment?.creditPeriodDays || 0)
           );
-
-          // First interest application date (next month-end after due date)
           const firstInterestDate = getNextMonthEndDate(dueDate);
 
           const creditDetails = {
@@ -1196,7 +1687,6 @@ export const updateOrderProcessStep = async (req, res, next) => {
             interestRatePerYear: pay.creditPayment.interestRatePerYear,
             interestStartAfterDays: pay.creditPayment.interestStartAfterDays,
             dueDate,
-            // Interest starts from dueDate
             interestStartDate: dueDate,
             firstInterestApplicationDate: firstInterestDate,
             nextInterestApplicationDate: firstInterestDate,
@@ -1207,73 +1697,116 @@ export const updateOrderProcessStep = async (req, res, next) => {
             creditDetails,
             qrCodeUrl: null,
             paymentType: "Credit",
+            awaitingBuyerAction: true,
           });
 
           order.creditPaymentDetails = creditDetails;
         }
+
+        if (finalPaymentType === "Cash") {
+          // Generate QR Code for Cash payment
+          const qrCode = await generateQRCodeForPayment();
+          
+          createStepIfNotExists("Payment QR Generated", {
+            visibleTo: ["buyer", "seller"],
+            qrCodeUrl: qrCode,
+            paymentType: "Cash",
+            awaitingBuyerAction: true, // ✅ Buyer will complete this step
+          });
+
+          order.qrCodeData = qrCode;
+        }
+
+        // FOR BOTH CASH AND CREDIT - Create next steps but don't complete
+        if (finalPaymentType === "Cash" || finalPaymentType === "Credit") {
+          // ✅ IMPORTANT CHANGE: Payment Received - DIFFERENT LOGIC FOR CASH AND CREDIT
+          createStepIfNotExists("Payment Received", {
+            visibleTo: ["buyer", "seller"],
+            paymentType: finalPaymentType,
+            // CASH: Seller manually complete karega
+            // CREDIT: Auto-complete hoga
+            ...(finalPaymentType === "Cash" 
+              ? { awaitingSellerAction: true }  // ✅ Cash mein seller manually mark karega
+              : { awaitingAutoCompletion: true } // ✅ Credit mein auto-complete
+            ),
+          });
+
+          // Invoice Uploaded - CREATE BUT DON'T COMPLETE
+          const itemSummary = order.items.map((i) => i.productName).join(", ");
+          const totalItems = order.items.length;
+          const totalAmount = order.total;
+
+          createStepIfNotExists("Invoice Uploaded", {
+            visibleTo: ["buyer", "seller"],
+            invoiceSummary: { itemSummary, totalItems, totalAmount },
+            awaitingAutoCompletion: true,
+          });
+
+          // Dispatch - NOT auto complete (seller manually करेगा)
+          createStepIfNotExists("Dispatch", {
+            visibleTo: ["buyer", "seller"],
+            awaitingSellerAction: true,
+          });
+
+          // Delivered - NOT auto complete (seller manually करेगा)
+          createStepIfNotExists("Delivered", {
+            visibleTo: ["buyer", "seller"],
+            awaitingBuyerAction: true,
+          });
+        }
+
+        await createInvoiceOnEnquiry();
         break;
 
       case "Payment QR Generated":
-        if (finalPaymentType === "Credit") {
-          if (actionBy !== "buyer")
-            return res.status(403).json({
-              success: false,
-              message:
-                "For credit payments, only buyer can complete this step",
-            });
-
-          const existingStep = order.processFlow.find(
-            (s) => s.step === "Payment QR Generated"
-          );
-
-          markStepComplete("Payment QR Generated", {
-            ...existingStep,
-            visibleTo: ["buyer", "seller"],
-            paymentType: "Credit",
-            qrCodeUrl: null,
-          });
-        }
-
-        if (finalPaymentType === "Cash") {
-          if (actionBy !== "seller")
-            return res.status(403).json({
-              success: false,
-              message:
-                "For cash payments, only seller can complete this step",
-            });
-
-          const qr = await generateQRCodeForPayment();
-
-          markStepComplete("Payment QR Generated", {
-            visibleTo: ["buyer", "seller"],
-            qrCodeUrl: qr,
-            paymentType: "Cash",
-          });
-
-          order.qrCodeData = qr;
-        }
-        break;
-
-      case "Payment Received":
-        if (actionBy !== "seller")
+        // ✅ COMMON LOGIC FOR BOTH CASH AND CREDIT: Only buyer can complete
+        if (actionBy !== "buyer") {
           return res.status(403).json({
             success: false,
-            message: "Only seller can confirm payment",
+            message: "Only buyer can complete Payment QR Generated step",
           });
+        }
 
-        markStepComplete("Payment Received", {
+        const existingStep = order.processFlow.find(
+          (s) => s.step === "Payment QR Generated"
+        );
+
+        // Order status set to "Processing"
+        order.orderStatus = "Processing";
+
+        // Complete Payment QR Generated
+        markStepComplete("Payment QR Generated", {
+          ...existingStep,
           visibleTo: ["buyer", "seller"],
           paymentType: finalPaymentType,
+          buyerAccepted: true,
+          acceptedAt: new Date(),
         });
-        break;
 
-      case "Invoice Uploaded":
-        if (actionBy !== "seller")
-          return res.status(403).json({
-            success: false,
-            message: "Only seller can upload invoice",
+        // ✅ CREDIT: AUTO COMPLETE Payment Received after Payment QR Generated
+        if (finalPaymentType === "Credit") {
+          markStepComplete("Payment Received", {
+            visibleTo: ["buyer", "seller"],
+            paymentType: finalPaymentType,
+            autoCompleted: true,
+            message: `Auto-completed after Payment QR Generated for Credit payment`,
           });
+        }
 
+        // ✅ CASH: Payment Received NOT auto-complete - Seller manually mark karega
+        if (finalPaymentType === "Cash") {
+          // Find Payment Received step and mark as awaiting seller action
+          const paymentReceivedStep = order.processFlow.find(
+            (s) => s.step === "Payment Received"
+          );
+          
+          if (paymentReceivedStep) {
+            paymentReceivedStep.awaitingSellerAction = true;
+            paymentReceivedStep.paymentType = "Cash";
+          }
+        }
+
+        // AUTO COMPLETE Invoice Uploaded after Payment QR Generated (for both)
         const itemSummary = order.items.map((i) => i.productName).join(", ");
         const totalItems = order.items.length;
         const totalAmount = order.total;
@@ -1281,30 +1814,156 @@ export const updateOrderProcessStep = async (req, res, next) => {
         markStepComplete("Invoice Uploaded", {
           visibleTo: ["buyer", "seller"],
           invoiceSummary: { itemSummary, totalItems, totalAmount },
+          autoCompleted: true,
+          message: `Auto-completed after Payment QR Generated for ${finalPaymentType.toLowerCase()} payment`,
+        });
+        break;
+
+      case "Payment Received":
+        // ✅ CASH: Only seller can complete Payment Received
+        if (finalPaymentType === "Cash") {
+          if (actionBy !== "seller") {
+            return res.status(403).json({
+              success: false,
+              message: "Only seller can mark Payment Received for Cash payment",
+            });
+          }
+
+          // Check if Payment QR Generated is completed first
+          const paymentQRStep = order.processFlow.find(
+            (s) => s.step === "Payment QR Generated" && s.completed
+          );
+          
+          if (!paymentQRStep) {
+            return res.status(400).json({
+              success: false,
+              message: "Please complete Payment QR Generated first",
+            });
+          }
+
+          // Mark Payment Received as complete
+          markStepComplete("Payment Received", {
+            visibleTo: ["buyer", "seller"],
+            paymentType: "Cash",
+            paymentConfirmedBySeller: true,
+            confirmedAt: new Date(),
+            paymentMethod: "Cash",
+            paymentReference: req.body.paymentReference || "Cash Payment",
+          });
+
+          // Update order status
+          order.orderStatus = "Processing";
+        }
+        
+        // ✅ CREDIT: Already auto-completed in Payment QR Generated
+        else if (finalPaymentType === "Credit") {
+          return res.status(400).json({
+            success: false,
+            message: `Payment Received is auto-completed for Credit payments after Payment QR Generated`,
+          });
+        }
+        break;
+
+      case "Invoice Uploaded":
+        // ✅ BOTH CASH AND CREDIT - Already auto-completed in Payment QR Generated
+        return res.status(400).json({
+          success: false,
+          message: `Invoice Uploaded is auto-completed for ${finalPaymentType.toLowerCase()} payments after Payment QR Generated`,
         });
         break;
 
       case "Dispatch":
-        if (actionBy !== "seller")
+        // BOTH CREDIT AND CASH - Seller manually completes
+        if (actionBy !== "seller") {
           return res.status(403).json({
             success: false,
             message: "Only seller can dispatch order",
           });
+        }
 
-        markStepComplete("Dispatch", { visibleTo: ["buyer", "seller"] });
+        // Check if Payment Received is completed first (for Cash)
+        if (finalPaymentType === "Cash") {
+          const paymentReceivedStep = order.processFlow.find(
+            (s) => s.step === "Payment Received" && s.completed
+          );
+          
+          if (!paymentReceivedStep) {
+            return res.status(400).json({
+              success: false,
+              message: "Please complete Payment Received first for Cash payment",
+            });
+          }
+        }
+
+        // Order status remains "Processing" during Dispatch
+        if (order.orderStatus !== "Completed") {
+          order.orderStatus = "Processing";
+        }
+
+        markStepComplete("Dispatch", {
+          visibleTo: ["buyer", "seller"],
+        });
         break;
 
       case "Delivered":
-        if (actionBy !== "seller")
+        // BOTH CREDIT AND CASH - Buyer manually completes
+        if (actionBy !== "buyer") {
           return res.status(403).json({
             success: false,
-            message: "Only seller can mark as delivered",
+            message: "Only buyer can mark as delivered",
           });
+        }
 
+        // Order status set to "Completed"
         order.orderStatus = "Completed";
 
         markStepComplete("Delivered", {
           visibleTo: ["buyer", "seller"],
+        });
+        break;
+
+      // Add a case for Cancelled order
+      case "Cancelled":
+        // Either seller or buyer can cancel order
+        if (!["seller", "buyer"].includes(actionBy)) {
+          return res.status(403).json({
+            success: false,
+            message: "Only seller or buyer can cancel order",
+          });
+        }
+
+        // Order status set to "Cancelled"
+        order.orderStatus = "Cancelled";
+
+        // Mark all steps as cancelled
+        const cancelledSteps = [
+          "Enquiry Received",
+          "Proforma Invoice",
+          "Proforma Accepted",
+          "Payment QR Generated",
+          "Payment Received",
+          "Invoice Uploaded",
+          "Dispatch",
+          "Delivered",
+        ];
+
+        cancelledSteps.forEach((stepName) => {
+          const stepObj = order.processFlow.find((s) => s.step === stepName);
+          if (stepObj) {
+            stepObj.cancelled = true;
+            stepObj.cancelledAt = new Date();
+            stepObj.cancelledBy = actionBy;
+            stepObj.completed = false;
+          }
+        });
+
+        // Add a cancelled step to process flow
+        markStepComplete("Order Cancelled", {
+          visibleTo: ["buyer", "seller"],
+          cancelled: true,
+          cancelledBy: actionBy,
+          cancelledAt: new Date(),
+          reason: req.body.reason || "Order cancelled by " + actionBy,
         });
         break;
 
@@ -1326,7 +1985,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
     return next(new ErrorHandler(err.message, 500));
   }
 };
-
+// Update Order Items
 export const updateOrderItem = async (req, res, next) => {
   try {
     const { orderId, items } = req.body;
@@ -1353,8 +2012,7 @@ export const updateOrderItem = async (req, res, next) => {
       const qty = reqItem.quantity;
       item.quantity = qty;
 
-      const perUnitFinal =
-        (item.discountPrice || 0) + (item.gstAmount || 0);
+      const perUnitFinal = (item.discountPrice || 0) + (item.gstAmount || 0);
 
       const updatedFinal = perUnitFinal * qty;
       item.finalPrice = Number(updatedFinal.toFixed(2));
@@ -1368,7 +2026,9 @@ export const updateOrderItem = async (req, res, next) => {
     const newDiscount = newSubTotal * discountRatio;
     order.subTotal = Number(newSubTotal.toFixed(2));
     order.discountFromPayment = Number(newDiscount.toFixed(2));
-    order.total = Number((order.subTotal - order.discountFromPayment).toFixed(2));
+    order.total = Number(
+      (order.subTotal - order.discountFromPayment).toFixed(2)
+    );
 
     await order.save();
 
@@ -1404,8 +2064,9 @@ export const getOrderInvoice = catchAsyncErrors(async (req, res, next) => {
       invoice,
       latestBalance,
       // Add next interest date for credit invoices
-      nextInterestDate: invoice.nextInterestApplicationDate || 
-        (invoice.dueDate ? getNextMonthEndDate(invoice.dueDate) : null)
+      nextInterestDate:
+        invoice.nextInterestApplicationDate ||
+        (invoice.dueDate ? getNextMonthEndDate(invoice.dueDate) : null),
     },
   });
 });
