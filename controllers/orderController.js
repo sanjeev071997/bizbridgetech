@@ -709,7 +709,7 @@ export const createOrder = async (req, res, next) => {
       });
     }
 
-    // ❗ REMOVE invalid/deleted products
+    //  REMOVE invalid/deleted products
     const validItems = cart.items.filter((i) => i.product);
 
     if (!validItems.length) {
@@ -755,7 +755,6 @@ export const createOrder = async (req, res, next) => {
         subTotal,
         discountFromPayment: 0,
         seller: i.product.user,
-
         category: i.category
           ? {
               _id: i.category._id,
@@ -766,7 +765,12 @@ export const createOrder = async (req, res, next) => {
       };
     });
 
-    const discount = Number(cart.discountFromPayment || 0);
+    // const discount = Number(cart.discountFromPayment || 0);
+    const discount =
+      selectPaymentType === "Credit"
+        ? 0
+        : Number(cart.discountFromPayment || 0);
+
     const orderTotal = orderSubTotal - discount;
 
     const newOrder = await Order.create({
@@ -799,22 +803,6 @@ export const createOrder = async (req, res, next) => {
     return next(new ErrorHandler(error.message, 500));
   }
 };
-// // Get Buyer Orders
-// export const getBuyerOrders = catchAsyncErrors(async (req, res) => {
-//   const orders = await Order.find({ buyer: req.user._id })
-//     .populate({
-//       path: "items.seller",
-//       select: "name phone mode",
-//     })
-//     .populate("paymentOption", "paymentType")
-//     .populate("buyer", "name phone mode")
-//     .sort({ createdAt: -1 });
-
-//   res.status(200).json({
-//     success: true,
-//     orders,
-//   });
-// });
 
 // Get Buyer Orders with Pagination
 export const getBuyerOrders = catchAsyncErrors(async (req, res) => {
@@ -845,49 +833,7 @@ export const getBuyerOrders = catchAsyncErrors(async (req, res) => {
   });
 });
 
-// // Get Seller Orders
-// export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
-//   const orders = await Order.find()
-//     .populate("buyer", "name phone mode")
-//     .populate("paymentOption", "paymentType")
-//     .populate("items.seller", "name phone mode")
-//     .sort({ createdAt: -1 });
-
-//   const sellerOrders = orders
-//     .map((order) => {
-//       const sellerItems = order.items.filter(
-//         (item) =>
-//           item.seller && item.seller._id.toString() === req.user._id.toString()
-//       );
-
-//       if (sellerItems.length > 0) {
-//         return {
-//           ...order._doc,
-//           items: sellerItems.map((item) => ({
-//             _id: item._id,
-//             name: item.name,
-//             image: item.image,
-//             price: item.price,
-//             mrp: item.mrp,
-//             quantity: item.quantity,
-//             discountPrice: item.discountPrice,
-//             gstAmount: item.gstAmount,
-//             finalPrice: item.finalPrice,
-//             seller: item.seller,
-//             category: item.category,
-//           })),
-//         };
-//       }
-//       return null;
-//     })
-//     .filter((o) => o !== null);
-
-//   res.status(200).json({
-//     success: true,
-//     orders: sellerOrders,
-//   });
-// });
-
+// Get Seller Orders
 export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 10;
@@ -904,8 +850,7 @@ export const getSellerOrders = catchAsyncErrors(async (req, res, next) => {
     .map((order) => {
       const sellerItems = order.items.filter(
         (item) =>
-          item.seller &&
-          item.seller._id.toString() === req.user._id.toString()
+          item.seller && item.seller._id.toString() === req.user._id.toString(),
       );
 
       if (sellerItems.length > 0) {
@@ -954,15 +899,15 @@ export const updateOrderStatus = catchAsyncErrors(async (req, res, next) => {
   }
 
   const sellerOwnsItem = order.items.some(
-    (item) => item.seller.toString() === seller
+    (item) => item.seller.toString() === seller,
   );
 
   if (!sellerOwnsItem) {
     return next(
       new ErrorHandler(
         "You cannot update order status for items that are not yours",
-        403
-      )
+        403,
+      ),
     );
   }
 
@@ -989,7 +934,7 @@ export const updateProcessStep = catchAsyncErrors(async (req, res, next) => {
   if (!order) return next(new ErrorHandler("Order not found", 404));
 
   const item = order.items.find(
-    (i) => i.seller.toString() === sellerId.toString()
+    (i) => i.seller.toString() === sellerId.toString(),
   );
 
   if (!item) return next(new ErrorHandler("You cannot update this item", 403));
@@ -1036,7 +981,7 @@ const getFinalPaymentType = (paymentOption, order) => {
     if (selected === "cash") return "Cash";
     if (selected === "credit") return "Credit";
     throw new Error(
-      "Order has payment type 'Both' but no valid selectPaymentType found (must be 'cash' or 'credit')"
+      "Order has payment type 'Both' but no valid selectPaymentType found (must be 'cash' or 'credit')",
     );
   }
   if (type === "Cash" || type === "Credit") return type;
@@ -1247,7 +1192,7 @@ const isLastDayOfMonth = (date) => {
 //           completedMessage: "Auto-accepted after Enquiry Received",
 //         });
 //         order.orderStatus = "Processing";
-        
+
 //         // COMMON LOGIC FOR BOTH CASH AND CREDIT
 //         // Payment QR Generated - CREATE BUT DON'T COMPLETE (buyer will complete for both)
 //         if (finalPaymentType === "Credit") {
@@ -1284,7 +1229,7 @@ const isLastDayOfMonth = (date) => {
 //         if (finalPaymentType === "Cash") {
 //           // Generate QR Code for Cash payment
 //           const qrCode = await generateQRCodeForPayment();
-          
+
 //           createStepIfNotExists("Payment QR Generated", {
 //             visibleTo: ["buyer", "seller"],
 //             qrCodeUrl: qrCode,
@@ -1669,14 +1614,14 @@ export const updateOrderProcessStep = async (req, res, next) => {
           completedMessage: "Auto-accepted after Enquiry Received",
         });
         order.orderStatus = "Processing";
-        
+
         // COMMON LOGIC FOR BOTH CASH AND CREDIT
         // Payment QR Generated - CREATE BUT DON'T COMPLETE (buyer will complete for both)
         if (finalPaymentType === "Credit") {
           const pay = order.paymentOption;
           const dueDate = new Date();
           dueDate.setDate(
-            dueDate.getDate() + (pay.creditPayment?.creditPeriodDays || 0)
+            dueDate.getDate() + (pay.creditPayment?.creditPeriodDays || 0),
           );
           const firstInterestDate = getNextMonthEndDate(dueDate);
 
@@ -1706,7 +1651,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
         if (finalPaymentType === "Cash") {
           // Generate QR Code for Cash payment
           const qrCode = await generateQRCodeForPayment();
-          
+
           createStepIfNotExists("Payment QR Generated", {
             visibleTo: ["buyer", "seller"],
             qrCodeUrl: qrCode,
@@ -1725,10 +1670,9 @@ export const updateOrderProcessStep = async (req, res, next) => {
             paymentType: finalPaymentType,
             // CASH: Seller manually complete karega
             // CREDIT: Auto-complete hoga
-            ...(finalPaymentType === "Cash" 
-              ? { awaitingSellerAction: true }  // ✅ Cash mein seller manually mark karega
-              : { awaitingAutoCompletion: true } // ✅ Credit mein auto-complete
-            ),
+            ...(finalPaymentType === "Cash"
+              ? { awaitingSellerAction: true } // ✅ Cash mein seller manually mark karega
+              : { awaitingAutoCompletion: true }), // ✅ Credit mein auto-complete
           });
 
           // Invoice Uploaded - CREATE BUT DON'T COMPLETE
@@ -1768,7 +1712,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
         }
 
         const existingStep = order.processFlow.find(
-          (s) => s.step === "Payment QR Generated"
+          (s) => s.step === "Payment QR Generated",
         );
 
         // Order status set to "Processing"
@@ -1797,9 +1741,9 @@ export const updateOrderProcessStep = async (req, res, next) => {
         if (finalPaymentType === "Cash") {
           // Find Payment Received step and mark as awaiting seller action
           const paymentReceivedStep = order.processFlow.find(
-            (s) => s.step === "Payment Received"
+            (s) => s.step === "Payment Received",
           );
-          
+
           if (paymentReceivedStep) {
             paymentReceivedStep.awaitingSellerAction = true;
             paymentReceivedStep.paymentType = "Cash";
@@ -1831,9 +1775,9 @@ export const updateOrderProcessStep = async (req, res, next) => {
 
           // Check if Payment QR Generated is completed first
           const paymentQRStep = order.processFlow.find(
-            (s) => s.step === "Payment QR Generated" && s.completed
+            (s) => s.step === "Payment QR Generated" && s.completed,
           );
-          
+
           if (!paymentQRStep) {
             return res.status(400).json({
               success: false,
@@ -1854,7 +1798,7 @@ export const updateOrderProcessStep = async (req, res, next) => {
           // Update order status
           order.orderStatus = "Processing";
         }
-        
+
         // ✅ CREDIT: Already auto-completed in Payment QR Generated
         else if (finalPaymentType === "Credit") {
           return res.status(400).json({
@@ -1884,13 +1828,14 @@ export const updateOrderProcessStep = async (req, res, next) => {
         // Check if Payment Received is completed first (for Cash)
         if (finalPaymentType === "Cash") {
           const paymentReceivedStep = order.processFlow.find(
-            (s) => s.step === "Payment Received" && s.completed
+            (s) => s.step === "Payment Received" && s.completed,
           );
-          
+
           if (!paymentReceivedStep) {
             return res.status(400).json({
               success: false,
-              message: "Please complete Payment Received first for Cash payment",
+              message:
+                "Please complete Payment Received first for Cash payment",
             });
           }
         }
@@ -2027,7 +1972,7 @@ export const updateOrderItem = async (req, res, next) => {
     order.subTotal = Number(newSubTotal.toFixed(2));
     order.discountFromPayment = Number(newDiscount.toFixed(2));
     order.total = Number(
-      (order.subTotal - order.discountFromPayment).toFixed(2)
+      (order.subTotal - order.discountFromPayment).toFixed(2),
     );
 
     await order.save();

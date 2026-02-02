@@ -698,6 +698,52 @@ export const getBuyerAllInvoices = async (req, res) => {
   }
 };
 
+// // Update credit entry (only by buyer)
+// export const updateCredit = async (req, res) => {
+//   try {
+//     if (req.user.mode !== "buyer") {
+//       return res
+//         .status(403)
+//         .json({ success: false, message: "Only buyers can update credit" });
+//     }
+
+//     const { id } = req.params; // bankStatement _id
+//     const { credit } = req.body;
+
+//     if (!mongoose.Types.ObjectId.isValid(id)) {
+//       return res.status(400).json({ success: false, message: "Invalid ID" });
+//     }
+
+//     const invoice = await Invoice.findOne({ "bankStatement._id": id });
+//     if (!invoice) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Entry not found" });
+//     }
+
+//     const entry = invoice.bankStatement.id(id);
+//     if (credit === undefined) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "Credit value required" });
+//     }
+
+//     entry.credit = credit;
+//     await invoice.save();
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Credit updated successfully",
+//       data: entry,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res
+//       .status(500)
+//       .json({ success: false, message: "Internal server error" });
+//   }
+// };
+
 // Update credit entry (only by buyer)
 export const updateCredit = async (req, res) => {
   try {
@@ -728,7 +774,33 @@ export const updateCredit = async (req, res) => {
         .json({ success: false, message: "Credit value required" });
     }
 
+    // Update the credit value
     entry.credit = credit;
+    
+    // Recalculate running balance for all entries
+    let runningBalance = 0;
+    
+    // Sort entries by date (oldest first)
+    const sortedEntries = [...invoice.bankStatement].sort((a, b) => 
+      new Date(a.date) - new Date(b.date)
+    );
+    
+    // Calculate new balances
+    for (let i = 0; i < sortedEntries.length; i++) {
+      const currentEntry = sortedEntries[i];
+      if (i === 0) {
+        // First entry: starting balance based on debit/credit
+        runningBalance = currentEntry.debit - currentEntry.credit;
+      } else {
+        // Subsequent entries: add/subtract from previous balance
+        runningBalance = runningBalance + currentEntry.debit - currentEntry.credit;
+      }
+      
+      // Update the balance for this entry
+      currentEntry.balance = runningBalance;
+    }
+    
+    // Save the invoice
     await invoice.save();
 
     return res.status(200).json({
@@ -958,7 +1030,7 @@ export const getInvoiceBySellerBuyer = async (req, res) => {
     const invoices = await Invoice.find(query)
       .populate("order", "items total")
       .populate("buyer", "name phone mode")
-      .populate("seller", "name phone mode")
+      .populate("seller", "name phone mode bankDetails")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit));

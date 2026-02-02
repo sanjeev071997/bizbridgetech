@@ -53,8 +53,6 @@ router.delete("/buyer/bank-statement", isAuthenticatedUser, deleteBankStatementE
 // Get Invoice Seller and buyer (id)
 router.post("/buyer", isAuthenticatedUser, getInvoiceBySellerBuyer) // Seller side 
 
-
-
 // routes Test 
 router.post('/test-month-end-interest', testMonthEndInterest);
 

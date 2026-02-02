@@ -429,13 +429,103 @@ export const getAllProducts = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-// Toggle All Product hide
+// Toggle All Product hide True And False
+// export const toggleProductsVisibilityByBuyerCategory = catchAsyncErrors(
+//   async (req, res, next) => {
+//     const { buyerCategoryId, productCategoryId } = req.body;
+//     const user = req.user._id;
+
+//     // Validate both IDs
+//     if (!mongoose.Types.ObjectId.isValid(buyerCategoryId)) {
+//       return next(new Errorhandler("Invalid buyerCategory ID", 400));
+//     }
+
+//     if (!mongoose.Types.ObjectId.isValid(productCategoryId)) {
+//       return next(new Errorhandler("Invalid productCategory ID", 400));
+//     }
+
+//     try {
+//       let query = {
+//         "productVisibility.buyerCategory": buyerCategoryId,
+//         category: productCategoryId,
+//         user,
+//       };
+//       const products = await Product.find(query);
+//       if (!products.length) {
+//         return res.status(404).json({
+//           success: false,
+//           message: `No products found for buyer category: ${buyerCategoryId} and product category: ${productCategoryId}`,
+//         });
+//       }
+
+//       // Check current visibility status
+//       let anyVisible = false;
+
+//       products.forEach((product) => {
+//         product.productVisibility.forEach((v) => {
+//           if (
+//             v.buyerCategory &&
+//             v.buyerCategory.toString() === buyerCategoryId.toString() &&
+//             v.visible === true
+//           ) {
+//             anyVisible = true;
+//           }
+//         });
+//       });
+
+//       const newVisibility = !anyVisible;
+//       let updatedCount = 0;
+
+//       // Update each product's visibility
+//       for (const product of products) {
+//         let updated = false;
+
+//         product.productVisibility = product.productVisibility.filter(
+//           (v) => v.buyerCategory
+//         );
+
+//         let visibilityEntry = product.productVisibility.find(
+//           (v) => v.buyerCategory.toString() === buyerCategoryId.toString()
+//         );
+
+//         if (visibilityEntry) {
+//           visibilityEntry.visible = newVisibility;
+//           updated = true;
+//         } else {
+//           product.productVisibility.push({
+//             buyerCategory: buyerCategoryId,
+//             visible: newVisibility,
+//           });
+//           updated = true;
+//         }
+
+//         if (updated) {
+//           await product.save();
+//           updatedCount++;
+//         }
+//       }
+
+//       res.status(200).json({
+//         success: true,
+//         message: `Products visibility set to ${newVisibility} for selected categories`,
+//         newVisibility,
+//         totalProductsUpdated: updatedCount,
+//         buyerCategoryId,
+//         productCategoryId,
+//       });
+//     } catch (error) {
+//       console.error("Toggle visibility error:", error);
+//       return next(new Errorhandler("Error toggling visibility", 500));
+//     }
+//   }
+// );
+
+// All Product hide False only
 export const toggleProductsVisibilityByBuyerCategory = catchAsyncErrors(
   async (req, res, next) => {
     const { buyerCategoryId, productCategoryId } = req.body;
     const user = req.user._id;
 
-    // Validate both IDs
     if (!mongoose.Types.ObjectId.isValid(buyerCategoryId)) {
       return next(new Errorhandler("Invalid buyerCategory ID", 400));
     }
@@ -444,79 +534,48 @@ export const toggleProductsVisibilityByBuyerCategory = catchAsyncErrors(
       return next(new Errorhandler("Invalid productCategory ID", 400));
     }
 
-    try {
-      let query = {
-        "productVisibility.buyerCategory": buyerCategoryId,
-        category: productCategoryId,
-        user,
-      };
-      const products = await Product.find(query);
-      if (!products.length) {
-        return res.status(404).json({
-          success: false,
-          message: `No products found for buyer category: ${buyerCategoryId} and product category: ${productCategoryId}`,
-        });
-      }
+    const products = await Product.find({
+      category: productCategoryId,
+      user,
+    });
 
-      // Check current visibility status
-      let anyVisible = false;
-
-      products.forEach((product) => {
-        product.productVisibility.forEach((v) => {
-          if (
-            v.buyerCategory &&
-            v.buyerCategory.toString() === buyerCategoryId.toString() &&
-            v.visible === true
-          ) {
-            anyVisible = true;
-          }
-        });
+    if (!products.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No products found",
       });
-
-      const newVisibility = !anyVisible;
-      let updatedCount = 0;
-
-      // Update each product's visibility
-      for (const product of products) {
-        let updated = false;
-
-        product.productVisibility = product.productVisibility.filter(
-          (v) => v.buyerCategory
-        );
-
-        let visibilityEntry = product.productVisibility.find(
-          (v) => v.buyerCategory.toString() === buyerCategoryId.toString()
-        );
-
-        if (visibilityEntry) {
-          visibilityEntry.visible = newVisibility;
-          updated = true;
-        } else {
-          product.productVisibility.push({
-            buyerCategory: buyerCategoryId,
-            visible: newVisibility,
-          });
-          updated = true;
-        }
-
-        if (updated) {
-          await product.save();
-          updatedCount++;
-        }
-      }
-
-      res.status(200).json({
-        success: true,
-        message: `Products visibility set to ${newVisibility} for selected categories`,
-        newVisibility,
-        totalProductsUpdated: updatedCount,
-        buyerCategoryId,
-        productCategoryId,
-      });
-    } catch (error) {
-      console.error("Toggle visibility error:", error);
-      return next(new Errorhandler("Error toggling visibility", 500));
     }
+
+    let updatedCount = 0;
+
+    for (const product of products) {
+      let entry = product.productVisibility.find(
+        (v) => v.buyerCategory?.toString() === buyerCategoryId
+      );
+
+      if (entry) {
+        // 🔴 force false
+        entry.visible = false;
+      } else {
+        // 🔴 create entry with false
+        product.productVisibility.push({
+          buyerCategory: buyerCategoryId,
+          visible: false,
+        });
+      }
+
+      await product.save();
+      updatedCount++;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "All products visibility set to FALSE",
+      newVisibility: false,
+      totalProductsUpdated: updatedCount,
+      buyerCategoryId,
+      productCategoryId,
+    });
   }
 );
 
@@ -890,13 +949,13 @@ export const getProductsByBuyerCategoryId = catchAsyncErrors(
 export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
   const user = req.user.id;
 
-  // ✅ Pagination params
+  // Pagination params
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
   try {
-    // ✅ Total count (for frontend pagination)
+    // Total count (for frontend pagination)
     const totalProducts = await Product.countDocuments({ user });
 
     const products = await Product.find({ user })
@@ -914,7 +973,7 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
       return next(new Errorhandler("Product not found", 404));
     }
 
-    // 🔁 Price recalculation logic - ONLY for non-manually set prices
+    // Price recalculation logic - ONLY for non-manually set prices
     for (const product of products) {
       let hasChanges = false;
 
@@ -962,6 +1021,7 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler("Error fetching product", 500));
   }
 });
+
 
 // New Apis IN APIS ME AGR MRP CHANGE HO RHI HAI TO CUSTOM PRICE bhi change hoge
 // Function to update a product - ALL PRICES UPDATE WITH MRP CHANGE
@@ -1183,3 +1243,94 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
 //     }
 //   }
 // );
+
+export const applyGlobalDiscount = catchAsyncErrors(async (req, res, next) => {
+  try {
+    const { buyerCategoryId, productCategoryId, discount } = req.body;
+    const userId = req.user._id;
+
+    // Validation
+    if (!buyerCategoryId || !productCategoryId || discount === undefined) {
+      return next(new Errorhandler("All fields required", 400));
+    }
+
+    const discountPercent = parseFloat(discount);
+    if (isNaN(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+      return next(new Errorhandler("Discount must be 0-100", 400));
+    }
+
+    // Get user's products
+    const products = await Product.find({
+      user: userId,
+      category: productCategoryId
+    }).lean();
+
+    if (products.length === 0) {
+      return next(new Errorhandler("No products found", 404));
+    }
+
+    const discountMultiplier = (100 - discountPercent) / 100;
+    const buyerCatId = new mongoose.Types.ObjectId(buyerCategoryId);
+    const results = [];
+
+    // Update each product
+    for (const product of products) {
+      const newPrice = Math.round((product.mrp * discountMultiplier) * 100) / 100;
+      
+      const hasEntry = product.productVisibility?.some(
+        pv => pv.buyerCategory && pv.buyerCategory.toString() === buyerCategoryId
+      );
+
+      if (hasEntry) {
+        await Product.updateOne(
+          { 
+            _id: product._id,
+            "productVisibility.buyerCategory": buyerCatId 
+          },
+          {
+            $set: {
+              "productVisibility.$.price": newPrice,
+              "productVisibility.$.isPriceManuallySet": true,
+              "productVisibility.$.lastPriceUpdate": new Date()
+            }
+          }
+        );
+      } else {
+        await Product.updateOne(
+          { _id: product._id },
+          {
+            $push: {
+              productVisibility: {
+                buyerCategory: buyerCatId,
+                price: newPrice,
+                visible: true,
+                isPriceManuallySet: true,
+                lastPriceUpdate: new Date()
+              }
+            }
+          }
+        );
+      }
+
+      results.push({
+        productId: product._id,
+        name: product.name,
+        newPrice: newPrice,
+        success: true
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Applied ${discountPercent}% discount to ${results.length} products`,
+      data: {
+        discount: discountPercent,
+        updated: results.length,
+        results: results
+      }
+    });
+
+  } catch (error) {
+    return next(new Errorhandler(error.message, 500));
+  }
+});

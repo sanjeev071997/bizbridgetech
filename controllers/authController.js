@@ -2,19 +2,186 @@ import { OAuth2Client } from "google-auth-library";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
-import BuyerCategory from '../models/buyerCategoriesModel.js';
+import BuyerCategory from "../models/buyerCategoriesModel.js";
+import PaymentOption from "../models/paymentOption.js";
+import Otp from "../models/OTPModel.js";
 import sendToken from "../utils/jwtToken.js";
 import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 import ForgotPasswordEmail from "../utils/forgotPasswordEmail.js";
 import sendEmail from "../utils/sendEmail.js";
-import verifyEmail from '../utils/verifyEmail.js';
-import { sendOtp } from '../utils/sendOtp.js';
-import { normalizeEmail } from "../utils/emailNormalizer.js"
+import verifyEmail from "../utils/verifyEmail.js";
+// import { sendOtp } from "../utils/sendOtp.js";
+
+import { generateOtp } from "../utils/generateOtp.js";
+import { twilioClient } from "../utils/twilio.js";
+
+import { normalizeEmail } from "../utils/emailNormalizer.js";
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 import cloudinary from "../utils/cloudinary.js";
+import axios from "axios";
 
 
+const normalizePhone = (phone) => {
+  if (!phone) return null;
+
+  phone = phone.replace(/\s|-/g, "");
+
+  if (phone.startsWith("+91")) return phone;
+  if (phone.startsWith("91") && phone.length === 12) return `+${phone}`;
+  if (phone.length === 10) return `+91${phone}`;
+
+  return phone;
+};
+
+// MSG91 SMS OTP send
+const sendSmsOtpMSG91 = async (phone, otp) => {
+  const url = "https://api.msg91.com/api/v5/otp";
+
+  const payload = {
+    template_id: "", // default template use kar rahe ho to empty string
+    mobile: phone.replace("+", ""), // MSG91 me + nahi chahiye
+    authkey:"490727A6yLn4bI0Q697a2326P1",
+    //  process.env.MSG91_AUTH_KEY,
+    otp: otp,
+    message: `Your OTP is ${otp}. It will expire in 5 minutes.`,
+    sender: "490727Tv9gu990i6979fe84P1",
+    // process.env.MSG91_SENDER || "BIZOTP", // sender ID
+    expiry: Number(process.env.OTP_EXPIRE_MINUTES) || 10, // minutes
+  };
+
+  await axios.post(url, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+};
+
+// Send OTP API
+export const sendOtp = async (req, res) => {
+  try {
+    let { phone, email } = req.body;
+    phone = normalizePhone(phone);
+
+    if (!phone)
+      return res.status(400).json({
+        success: false,
+        message: "Valid phone number required",
+      });
+
+    const otp = generateOtp();
+    const expiresAt = new Date(
+      Date.now() + Number(process.env.OTP_EXPIRE_MINUTES) * 60 * 1000
+    );
+
+    // Delete old OTPs
+    await Otp.deleteMany({ phone });
+
+    await Otp.create({ phone, email, otp, expiresAt });
+
+    // Send OTP via MSG91
+    await sendSmsOtpMSG91(phone, otp);
+
+    res.status(200).json({
+      success: true,
+      message: "OTP sent successfully via SMS",
+    });
+  } catch (error) {
+    console.error("OTP Send Error:", error.response?.data || error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to send OTP",
+    });
+  }
+};
+
+// Verify OTP API
+export const verifyOtp = async (req, res) => {
+  try {
+    let { phone, otp } = req.body;
+    phone = normalizePhone(phone);
+
+    if (!phone || !otp)
+      return res.status(400).json({
+        success: false,
+        message: "Phone & OTP required",
+      });
+
+    const otpRecord = await Otp.findOne({ phone, otp });
+
+    if (!otpRecord)
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+      });
+
+    if (otpRecord.expiresAt < new Date())
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired",
+      });
+
+    otpRecord.verified = true;
+    await otpRecord.save();
+
+    res.status(200).json({
+      success: true,
+      message: "OTP verified successfully",
+    });
+  } catch (error) {
+    console.error("OTP Verify Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "OTP verification failed",
+    });
+  }
+};
+// User Register
+// export const register = catchAsyncErrors(async (req, res, next) => {
+//   const { email: rawEmail, phone } = req.body;
+//   const email = normalizeEmail(rawEmail);
+
+//   // OTP check → verified?
+//   const otpRecord = await Otp.findOne({ phone, verified: true });
+//   if (!otpRecord)
+//     return next(new Errorhandler("Please verify your phone number first", 400));
+
+//   // Email exists check
+//   const userExist = await User.findOne({ email });
+//   if (userExist) return next(new Errorhandler("Email already registered", 400));
+
+//   // Phone exists check
+//   const userPhoneExist = await User.findOne({ phone });
+//   if (userPhoneExist)
+//     return next(new Errorhandler("Phone already registered", 400));
+
+//   try {
+//     const user = await User.create({ ...req.body, email, phoneVerified: true });
+
+//     // Create Buyer Categories
+//     await BuyerCategory.create([
+//       { user: user._id, name: "Kiosk", discount: 0, color: "blue" },
+//       { user: user._id, name: "Standard", discount: 0, color: "green" },
+//     ]);
+
+//     const buyerCategories = await BuyerCategory.find({ user: user._id });
+//     for (const category of buyerCategories) {
+//       await PaymentOption.create({
+//         paymentType: "Cash",
+//         buyerCategory: category._id,
+//         user: user._id,
+//         cashPayment: { discountPercent: 0 },
+//       });
+//     }
+
+//     // ✅ Delete OTP after successful registration
+//     await Otp.deleteMany({ phone });
+
+//     sendToken(user, 200, res);
+//   } catch (error) {
+//     return next(
+//       new Errorhandler("Failed to create account. Please try again.", 500),
+//     );
+//   }
+// });
 
 // User Registration
 export const register = catchAsyncErrors(async (req, res, next) => {
@@ -44,53 +211,51 @@ export const register = catchAsyncErrors(async (req, res, next) => {
       email,
     });
 
+    // Create Kiosk buyer category
     await BuyerCategory.create({
       user: user._id,
       name: "Kiosk",
       discount: 0,
+      color: "blue",
     });
+
+    // Create Standard buyer category
+    await BuyerCategory.create({
+      user: user._id,
+      name: "Standard",
+      discount: 0,
+      color: "green",
+    });
+
+    // Also create payment options for both categories (with default Cash option)
+    const buyerCategories = await BuyerCategory.find({ user: user._id });
+
+    for (const category of buyerCategories) {
+      await PaymentOption.create({
+        paymentType: "Cash",
+        buyerCategory: category._id,
+        user: user._id,
+        cashPayment: {
+          discountPercent: 0,
+        },
+      });
+    }
 
     sendToken(user, 200, res);
   } catch (error) {
     return next(
-      new Errorhandler("Failed to create account. Please try again.", 500)
+      new Errorhandler("Failed to create account. Please try again.", 500),
     );
   }
 });
 
 // user login
-// export const login = catchAsyncErrors(async (req, res, next) => {
-//   const { email, phone, password } = req.body;
-//   // Find user by email or phone
-//   const user = await User.findOne({
-//     $or: [{ email: email || null }, { phone: phone || null }],
-//   }).select("+password");
-
-//   if (!user) {
-//     return next(
-//       new Errorhandler("Invalid email/phone or password", 401)
-//     );
-//   }
-
-//   const isPasswordMatched = await user.comparePassword(password);
-
-//   if (!isPasswordMatched) {
-//     return next(
-//       new Errorhandler("Invalid email/phone or password", 401)
-//     );
-//   }
-
-//   // ✅ Send token
-//   sendToken(user, 200, res);
-// });
-
 export const login = catchAsyncErrors(async (req, res, next) => {
   const { email, phone, password } = req.body;
-  
+
   let searchQuery = {};
-  
+
   if (email) {
-    // ✅ Login में भी email normalize करें
     const normalizedEmail = normalizeEmail(email);
     searchQuery = { email: normalizedEmail };
   } else if (phone) {
@@ -103,22 +268,20 @@ export const login = catchAsyncErrors(async (req, res, next) => {
   const user = await User.findOne(searchQuery).select("+password");
 
   if (!user) {
-    return next(
-      new Errorhandler("Invalid email/phone or password", 401)
-    );
+    return next(new Errorhandler("Invalid email/phone or password", 401));
   }
 
   const isPasswordMatched = await user.comparePassword(password);
 
   if (!isPasswordMatched) {
-    return next(
-      new Errorhandler("Invalid email/phone or password", 401)
-    );
+    return next(new Errorhandler("Invalid email/phone or password", 401));
   }
 
   // ✅ Send token
   sendToken(user, 200, res);
 });
+
+// Google with register
 export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
   const { tokenId } = req.body;
 
@@ -137,7 +300,10 @@ export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
   const userExist = await User.findOne({ email });
   if (userExist) {
     return next(
-      new Errorhandler("This Gmail account is already registered. Please login.", 400)
+      new Errorhandler(
+        "This Gmail account is already registered. Please login.",
+        400,
+      ),
     );
   }
 
@@ -159,31 +325,88 @@ export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
     name: "Kiosk",
     discount: 0,
   });
+  // Create Standard buyer category
+  await BuyerCategory.create({
+    user: user._id,
+    name: "Standard",
+    discount: 0,
+    color: "green",
+  });
+
+  // Also create payment options for both categories (with default Cash option)
+  const buyerCategories = await BuyerCategory.find({ user: user._id });
+
+  for (const category of buyerCategories) {
+    await PaymentOption.create({
+      paymentType: "Cash",
+      buyerCategory: category._id,
+      user: user._id,
+      cashPayment: {
+        discountPercent: 0,
+      },
+    });
+  }
 
   sendToken(user, 200, res);
 });
 
-// export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
-//   const { tokenId } = req.body;
+// Google with Register OPT Verfiy 
+// export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
+//   const { tokenId, phone } = req.body;
+
+//   if (!phone) return next(new Errorhandler("Phone required", 400));
 
 //   const ticket = await client.verifyIdToken({
-//     idToken: tokenId,
+//     idToken: tokenId, // directly verify
 //     audience: process.env.GOOGLE_CLIENT_ID,
 //   });
 
-//   const { email } = ticket.getPayload();
+//   const { email: rawEmail, name } = ticket.getPayload();
+//   const email = normalizeEmail(rawEmail);
 
-//   const user = await User.findOne({ email });
-//   if (!user) {
-//     return next(new Errorhandler("User not found. Please register.", 404));
+//   const userExist = await User.findOne({ email });
+//   if (userExist)
+//     return next(new Errorhandler("This Gmail is already registered", 400));
+
+//   // OTP check → verified?
+//   const otpRecord = await Otp.findOne({ phone, verified: true });
+//   if (!otpRecord)
+//     return next(new Errorhandler("Please verify your phone number first", 400));
+
+//   const randomPassword = crypto.randomBytes(20).toString("hex");
+
+//   const user = new User({
+//     name,
+//     email,
+//     phone,
+//     password: randomPassword,
+//     emailVerified: true,
+//     phoneVerified: true,
+//   });
+
+//   await user.save({ validateBeforeSave: false });
+
+//   // Categories + PaymentOption same as before
+//   const categories = [
+//     { name: "Kiosk", discount: 0 },
+//     { name: "Standard", discount: 0, color: "green" },
+//   ];
+
+//   for (const cat of categories) {
+//     const category = await BuyerCategory.create({ user: user._id, ...cat });
+//     await PaymentOption.create({
+//       paymentType: "Cash",
+//       buyerCategory: category._id,
+//       user: user._id,
+//       cashPayment: { discountPercent: 0 },
+//     });
 //   }
-
-//   // Send JWT token
+//   // ✅ Delete OTP after successful registration
+//   await Otp.deleteMany({ phone });
 //   sendToken(user, 200, res);
 // });
 
-// Refresh Access Token
-
+// Google with Login
 export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
   const { tokenId } = req.body;
 
@@ -193,7 +416,7 @@ export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
   });
 
   const { email: rawEmail } = ticket.getPayload();
-  
+
   // ✅ Google login में भी email normalize करें
   const email = normalizeEmail(rawEmail);
 
@@ -206,11 +429,13 @@ export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
   sendToken(user, 200, res);
 });
 
+// Refresh Access Token
 export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {
   const { refreshToken } = req.cookies;
-  
-  if (!refreshToken) return next(new Errorhandler("Refresh token missing", 401));
-  
+
+  if (!refreshToken)
+    return next(new Errorhandler("Refresh token missing", 401));
+
   try {
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
     const user = await User.findById(decoded.id);
@@ -241,8 +466,12 @@ export const refreshAccessToken = catchAsyncErrors(async (req, res, next) => {
 
 // Logout
 export const logout = catchAsyncErrors(async (req, res, next) => {
-  res.clearCookie("token", { httpOnly: true, sameSite: 'none', secure: true });
-  res.clearCookie("refreshToken", { httpOnly: true, sameSite: 'none', secure: true });
+  res.clearCookie("token", { httpOnly: true, sameSite: "none", secure: true });
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+  });
 
   res.status(200).json({
     success: true,
@@ -299,7 +528,7 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
       ];
 
       // Check basic fields
-      requiredFields.basic.forEach(field => {
+      requiredFields.basic.forEach((field) => {
         totalFields++;
         if (user[field] && user[field].toString().trim() !== "") {
           completedFields++;
@@ -307,7 +536,7 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
       });
 
       // Check business fields (common for both buyer and seller)
-      requiredFields.allModes.forEach(field => {
+      requiredFields.allModes.forEach((field) => {
         totalFields++;
         if (user[field] && user[field].toString().trim() !== "") {
           completedFields++;
@@ -316,7 +545,7 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
 
       // If user is seller, check GST number
       if (user.mode === "seller") {
-        requiredFields.seller.forEach(field => {
+        requiredFields.seller.forEach((field) => {
           totalFields++;
           if (user[field] && user[field].toString().trim() !== "") {
             completedFields++;
@@ -325,10 +554,13 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
 
         // For sellers, check bank details (optional but important)
         // You can adjust this based on your requirements
-        bankFields.forEach(field => {
+        bankFields.forEach((field) => {
           totalFields += 0.5; // Give half weight to each bank field
-          if (user.bankDetails && user.bankDetails[field] && 
-              user.bankDetails[field].toString().trim() !== "") {
+          if (
+            user.bankDetails &&
+            user.bankDetails[field] &&
+            user.bankDetails[field].toString().trim() !== ""
+          ) {
             completedFields += 0.5;
           }
         });
@@ -385,11 +617,11 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
       checkField("name", user.name, "Full Name");
       checkField("email", user.email, "Email");
       checkField("phone", user.phone, "Phone Number");
-      
+
       // Business fields
       checkField("businessName", user.businessName, "Business Name");
       checkField("businessAddress", user.businessAddress, "Business Address");
-      
+
       // Seller specific
       if (user.mode === "seller") {
         checkField("gstNumber", user.gstNumber, "GST Number");
@@ -398,16 +630,28 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
         if (!user.bankDetails || Object.keys(user.bankDetails).length === 0) {
           missingFields.push("Bank Details");
         } else {
-          if (!user.bankDetails.bankName || user.bankDetails.bankName.trim() === "") {
+          if (
+            !user.bankDetails.bankName ||
+            user.bankDetails.bankName.trim() === ""
+          ) {
             missingFields.push("Bank Name");
           }
-          if (!user.bankDetails.accountName || user.bankDetails.accountName.trim() === "") {
+          if (
+            !user.bankDetails.accountName ||
+            user.bankDetails.accountName.trim() === ""
+          ) {
             missingFields.push("Account Holder Name");
           }
-          if (!user.bankDetails.accountNumber || user.bankDetails.accountNumber.trim() === "") {
+          if (
+            !user.bankDetails.accountNumber ||
+            user.bankDetails.accountNumber.trim() === ""
+          ) {
             missingFields.push("Account Number");
           }
-          if (!user.bankDetails.ifscCode || user.bankDetails.ifscCode.trim() === "") {
+          if (
+            !user.bankDetails.ifscCode ||
+            user.bankDetails.ifscCode.trim() === ""
+          ) {
             missingFields.push("IFSC Code");
           }
           // if (!user.bankDetails.accountVerified) {
@@ -442,19 +686,41 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
           completed: 0,
           total: 3, // name, email, phone
           fields: [
-            { field: "name", label: "Full Name", completed: !!(user.name && user.name.trim()) },
-            { field: "email", label: "Email", completed: !!(user.email && user.email.trim()) },
-            { field: "phone", label: "Phone", completed: !!(user.phone && user.phone.trim()) },
-          ]
+            {
+              field: "name",
+              label: "Full Name",
+              completed: !!(user.name && user.name.trim()),
+            },
+            {
+              field: "email",
+              label: "Email",
+              completed: !!(user.email && user.email.trim()),
+            },
+            {
+              field: "phone",
+              label: "Phone",
+              completed: !!(user.phone && user.phone.trim()),
+            },
+          ],
         },
         businessInfo: {
           name: "Business Information",
           completed: 0,
           total: 2, // businessName, businessAddress
           fields: [
-            { field: "businessName", label: "Business Name", completed: !!(user.businessName && user.businessName.trim()) },
-            { field: "businessAddress", label: "Business Address", completed: !!(user.businessAddress && user.businessAddress.trim()) },
-          ]
+            {
+              field: "businessName",
+              label: "Business Name",
+              completed: !!(user.businessName && user.businessName.trim()),
+            },
+            {
+              field: "businessAddress",
+              label: "Business Address",
+              completed: !!(
+                user.businessAddress && user.businessAddress.trim()
+              ),
+            },
+          ],
         },
         // verification: {
         //   name: "Verifications",
@@ -470,16 +736,22 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
           completed: 0,
           total: 1, // profileImage
           fields: [
-            { field: "profileImage", label: "Profile Picture", completed: !!(user.profileImage && user.profileImage.url) },
-          ]
-        }
+            {
+              field: "profileImage",
+              label: "Profile Picture",
+              completed: !!(user.profileImage && user.profileImage.url),
+            },
+          ],
+        },
       };
 
       // Calculate completed for each section
-      Object.keys(sections).forEach(sectionKey => {
+      Object.keys(sections).forEach((sectionKey) => {
         const section = sections[sectionKey];
-        section.completed = section.fields.filter(f => f.completed).length;
-        section.percentage = Math.round((section.completed / section.total) * 100);
+        section.completed = section.fields.filter((f) => f.completed).length;
+        section.percentage = Math.round(
+          (section.completed / section.total) * 100,
+        );
       });
 
       // Add seller specific sections
@@ -490,8 +762,12 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
           total: 1,
           percentage: !!(user.gstNumber && user.gstNumber.trim()) ? 100 : 0,
           fields: [
-            { field: "gstNumber", label: "GST Number", completed: !!(user.gstNumber && user.gstNumber.trim()) },
-          ]
+            {
+              field: "gstNumber",
+              label: "GST Number",
+              completed: !!(user.gstNumber && user.gstNumber.trim()),
+            },
+          ],
         };
 
         sections.bankInfo = {
@@ -499,19 +775,71 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
           completed: 0,
           total: 7, // all bank fields + verification
           fields: [
-            { field: "upiId", label: "UPI ID", completed: !!(user.bankDetails && user.bankDetails.upiId && user.bankDetails.upiId.trim()) },
-            { field: "bankName", label: "Bank Name", completed: !!(user.bankDetails && user.bankDetails.bankName && user.bankDetails.bankName.trim()) },
-            { field: "accountName", label: "Account Holder", completed: !!(user.bankDetails && user.bankDetails.accountName && user.bankDetails.accountName.trim()) },
-            { field: "accountNumber", label: "Account Number", completed: !!(user.bankDetails && user.bankDetails.accountNumber && user.bankDetails.accountNumber.trim()) },
-            { field: "ifscCode", label: "IFSC Code", completed: !!(user.bankDetails && user.bankDetails.ifscCode && user.bankDetails.ifscCode.trim()) },
-            { field: "branchName", label: "Branch Name", completed: !!(user.bankDetails && user.bankDetails.branchName && user.bankDetails.branchName.trim()) },
+            {
+              field: "upiId",
+              label: "UPI ID",
+              completed: !!(
+                user.bankDetails &&
+                user.bankDetails.upiId &&
+                user.bankDetails.upiId.trim()
+              ),
+            },
+            {
+              field: "bankName",
+              label: "Bank Name",
+              completed: !!(
+                user.bankDetails &&
+                user.bankDetails.bankName &&
+                user.bankDetails.bankName.trim()
+              ),
+            },
+            {
+              field: "accountName",
+              label: "Account Holder",
+              completed: !!(
+                user.bankDetails &&
+                user.bankDetails.accountName &&
+                user.bankDetails.accountName.trim()
+              ),
+            },
+            {
+              field: "accountNumber",
+              label: "Account Number",
+              completed: !!(
+                user.bankDetails &&
+                user.bankDetails.accountNumber &&
+                user.bankDetails.accountNumber.trim()
+              ),
+            },
+            {
+              field: "ifscCode",
+              label: "IFSC Code",
+              completed: !!(
+                user.bankDetails &&
+                user.bankDetails.ifscCode &&
+                user.bankDetails.ifscCode.trim()
+              ),
+            },
+            {
+              field: "branchName",
+              label: "Branch Name",
+              completed: !!(
+                user.bankDetails &&
+                user.bankDetails.branchName &&
+                user.bankDetails.branchName.trim()
+              ),
+            },
             // { field: "accountVerified", label: "Account Verified", completed: !!(user.bankDetails && user.bankDetails.accountVerified) },
-          ]
+          ],
         };
 
         // Calculate bank info completion
-        sections.bankInfo.completed = sections.bankInfo.fields.filter(f => f.completed).length;
-        sections.bankInfo.percentage = Math.round((sections.bankInfo.completed / sections.bankInfo.total) * 100);
+        sections.bankInfo.completed = sections.bankInfo.fields.filter(
+          (f) => f.completed,
+        ).length;
+        sections.bankInfo.percentage = Math.round(
+          (sections.bankInfo.completed / sections.bankInfo.total) * 100,
+        );
       }
 
       return sections;
@@ -538,7 +866,6 @@ export const profileDetails = catchAsyncErrors(async (req, res, next) => {
 
 // user profile update
 export const profileUpdate = catchAsyncErrors(async (req, res, next) => {
-
   const newData = {};
 
   // 1️⃣ Top-level fields clean
@@ -579,7 +906,7 @@ export const profileUpdate = catchAsyncErrors(async (req, res, next) => {
     {
       new: true,
       runValidators: true,
-    }
+    },
   );
 
   res.status(200).json({
@@ -626,7 +953,7 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
   const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
   // Save both OTP and its hashed version (hashed for token, plain for check)
-  user.resetPasswordOtp = otp; 
+  user.resetPasswordOtp = otp;
   user.resetPasswordToken = hashedOtp;
   user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // expires in 10 min
 
@@ -647,7 +974,7 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: `OTP sent to ${user.email}. Please check your email.`,
-      resetPasswordToken: user.resetPasswordToken
+      resetPasswordToken: user.resetPasswordToken,
     });
   } catch (error) {
     user.resetPasswordToken = undefined;
@@ -660,33 +987,38 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Reset Password OTP Verification
-export const resetPasswordverifyOtp = catchAsyncErrors(async (req, res, next) => {
-  const { email, otp } = req.body;
+export const resetPasswordverifyOtp = catchAsyncErrors(
+  async (req, res, next) => {
+    const { email, otp } = req.body;
 
-  const user = await User.findOne({
-    email,
-    resetPasswordExpire: { $gt: Date.now() },
-  });
+    const user = await User.findOne({
+      email,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
 
-  if (!user || user.resetPasswordOtp !== otp) {
-    return next(new Errorhandler("Invalid or expired OTP", 400));
-  }
+    if (!user || user.resetPasswordOtp !== otp) {
+      return next(new Errorhandler("Invalid or expired OTP", 400));
+    }
 
-  // Generate a new secure token (different from OTP)
-  const rawResetToken = crypto.randomBytes(32).toString("hex");
-  const hashedToken = crypto.createHash("sha256").update(rawResetToken).digest("hex");
+    // Generate a new secure token (different from OTP)
+    const rawResetToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(rawResetToken)
+      .digest("hex");
 
-  user.resetPasswordToken = hashedToken;
-  user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 mins more
-  user.resetPasswordOtp = undefined; // remove OTP after verification
-  await user.save({ validateBeforeSave: false });
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 mins more
+    user.resetPasswordOtp = undefined; // remove OTP after verification
+    await user.save({ validateBeforeSave: false });
 
-  res.status(200).json({
-    success: true,
-    message: "OTP verified successfully",
-    resetPasswordToken: rawResetToken, //  return raw token to frontend
-  });
-});
+    res.status(200).json({
+      success: true,
+      message: "OTP verified successfully",
+      resetPasswordToken: rawResetToken, //  return raw token to frontend
+    });
+  },
+);
 
 // Reset Password (confirm password)
 export const resetPassword = catchAsyncErrors(async (req, res, next) => {
@@ -711,7 +1043,7 @@ export const resetPassword = catchAsyncErrors(async (req, res, next) => {
 
     if (!user) {
       return next(
-        new Errorhandler("Reset Password Token is invalid or has expired", 400)
+        new Errorhandler("Reset Password Token is invalid or has expired", 400),
       );
     }
 
@@ -740,7 +1072,9 @@ export const sendEmailVerify = async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ success: false, message: 'Email is required' });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email is required" });
     }
 
     const otp = generateOTP();
@@ -750,12 +1084,12 @@ export const sendEmailVerify = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { email },
       {
-        emailOtp:otp,
+        emailOtp: otp,
         emailOtpExpiry: Date.now() + 10 * 60 * 1000,
       },
-      { new: true, upsert: true }
+      { new: true, upsert: true },
     );
-    const userName = user.name || "User"; 
+    const userName = user.name || "User";
     const html = verifyEmail(otp, currentYear, userName || "User");
 
     await sendEmail({
@@ -771,7 +1105,7 @@ export const sendEmailVerify = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Something went wrong while sending the OTP.',
+      message: "Something went wrong while sending the OTP.",
     });
   }
 };
@@ -784,7 +1118,7 @@ export const emailVerifyOtp = async (req, res) => {
     if (!email || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'Email and OTP are required',
+        message: "Email and OTP are required",
       });
     }
 
@@ -793,7 +1127,7 @@ export const emailVerifyOtp = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
@@ -801,7 +1135,7 @@ export const emailVerifyOtp = async (req, res) => {
     if (isNaN(numericOtp)) {
       return res.status(400).json({
         success: false,
-        message: 'OTP must be a number',
+        message: "OTP must be a number",
       });
     }
 
@@ -809,7 +1143,7 @@ export const emailVerifyOtp = async (req, res) => {
     if (user.emailOtp !== numericOtp) {
       return res.status(400).json({
         success: false,
-        message: 'Incorrect OTP',
+        message: "Incorrect OTP",
       });
     }
 
@@ -817,7 +1151,7 @@ export const emailVerifyOtp = async (req, res) => {
     if (!user.emailOtpExpiry || user.emailOtpExpiry < Date.now()) {
       return res.status(400).json({
         success: false,
-        message: 'OTP has expired',
+        message: "OTP has expired",
       });
     }
 
@@ -830,106 +1164,113 @@ export const emailVerifyOtp = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Email verified successfully',
+      message: "Email verified successfully",
     });
   } catch (error) {
-    console.error('OTP verification error:', error);
+    console.error("OTP verification error:", error);
     return res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: "Server error",
     });
   }
 };
 
 // Send OTP to Phone
-export const sendOtpToPhone = async (req, res) => {
-  const { phone } = req.body;
+// export const sendOtpToPhone = async (req, res) => {
+//   const { phone } = req.body;
 
-  if (!phone) {
-    return res.status(400).json({ success: false, message: 'Phone number is required' });
-  }
+//   if (!phone) {
+//     return res
+//       .status(400)
+//       .json({ success: false, message: "Phone number is required" });
+//   }
 
-  const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
-  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);  // 10 minutes expiry
+//   const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
+//   const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
 
-  try {
-    // Send OTP via Twilio
-    const sid = await sendOtp(phone, otp);
+//   try {
+//     // Send OTP via Twilio
+//     const sid = await sendOtp(phone, otp);
 
-    // Update or Create user with phone, OTP & expiry
-    let user = await User.findOne({ phone });
+//     // Update or Create user with phone, OTP & expiry
+//     let user = await User.findOne({ phone });
 
-    if (user) {
-      user.phoneOtp = otp;
-      user.phoneOtpExpiry = otpExpiry;
-      await user.save();
-    } else {
-      user = await User.create({
-        phone,
-        phoneOtp: otp,
-        phoneOtpExpiry: otpExpiry,
-      });
-    }
+//     if (user) {
+//       user.phoneOtp = otp;
+//       user.phoneOtpExpiry = otpExpiry;
+//       await user.save();
+//     } else {
+//       user = await User.create({
+//         phone,
+//         phoneOtp: otp,
+//         phoneOtpExpiry: otpExpiry,
+//       });
+//     }
 
-    return res.status(200).json({
-      success: true,
-      message: 'OTP sent and saved successfully',
-      sid,
-    });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to send or save OTP',
-      error: err.message,
-    });
-  }
-};
+//     return res.status(200).json({
+//       success: true,
+//       message: "OTP sent and saved successfully",
+//       sid,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to send or save OTP",
+//       error: err.message,
+//     });
+//   }
+// };
 
-// Verify Phone OTP
-export const verifyPhoneOtp = async (req, res) => {
-  const { phone, otp } = req.body;
+// // Verify Phone OTP
+// export const verifyPhoneOtp = async (req, res) => {
+//   const { phone, otp } = req.body;
 
-  if (!phone || !otp) {
-    return res.status(400).json({ success: false, message: 'Phone and OTP are required.' });
-  }
+//   if (!phone || !otp) {
+//     return res
+//       .status(400)
+//       .json({ success: false, message: "Phone and OTP are required." });
+//   }
 
-  try {
-    const user = await User.findOne({ phone });
+//   try {
+//     const user = await User.findOne({ phone });
 
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found with this phone.' });
-    }
+//     if (!user) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "User not found with this phone." });
+//     }
 
-    // check if OTP matches
-    if (user.phoneOtp !== parseInt(otp, 10)) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP.' });
-    }
+//     // check if OTP matches
+//     if (user.phoneOtp !== parseInt(otp, 10)) {
+//       return res.status(400).json({ success: false, message: "Invalid OTP." });
+//     }
 
-    // check if OTP expired
-    if (user.phoneOtpExpiry < new Date()) {
-      return res.status(400).json({ success: false, message: 'OTP has expired.' });
-    }
+//     // check if OTP expired
+//     if (user.phoneOtpExpiry < new Date()) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "OTP has expired." });
+//     }
 
-    // Success: verify phone
-    user.phoneVerified = true;
-    user.phoneOtp = null;
-    user.phoneOtpExpiry = null;
+//     // Success: verify phone
+//     user.phoneVerified = true;
+//     user.phoneOtp = null;
+//     user.phoneOtpExpiry = null;
 
-    await user.save();
+//     await user.save();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Phone number verified successfully.',
-    });
-
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to verify OTP.',
-      error: err.message,
-    });
-  }
-};
+//     return res.status(200).json({
+//       success: true,
+//       message: "Phone number verified successfully.",
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to verify OTP.",
+//       error: err.message,
+//     });
+//   }
+// };
 
 // Update User Mode (Buyer/Seller)
 export const updateUserMode = async (req, res) => {
@@ -949,7 +1290,7 @@ export const updateUserMode = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       id,
       { mode },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!user) {
@@ -979,7 +1320,9 @@ export const updateUserMode = async (req, res) => {
 
 // Get all users (Admin)
 export const getAllUsers = catchAsyncErrors(async (req, res, next) => {
-  const users = await User.find({ role: { $ne: 1 } }).select("-password").sort({ createdAt: -1 });
+  const users = await User.find({ role: { $ne: 1 } })
+    .select("-password")
+    .sort({ createdAt: -1 });
 
   if (!users || users.length === 0) {
     return next(new Errorhandler("No users found", 404));
@@ -997,30 +1340,29 @@ export const deleteUser = catchAsyncErrors(async (req, res, next) => {
   try {
     const deleteUser = await User.findByIdAndDelete(req.params.id);
     console.log("Delete User:", deleteUser);
-  if (!deleteUser) {
-    return next(new Errorhandler("User not found", 404))
-  }
-  res.status(200).json({
-    success:true,
-    deleteUser,
-    message:"User deleted successfully"
-  })
+    if (!deleteUser) {
+      return next(new Errorhandler("User not found", 404));
+    }
+    res.status(200).json({
+      success: true,
+      deleteUser,
+      message: "User deleted successfully",
+    });
   } catch (error) {
-    return next(new Errorhandler(error.message, 500))
+    return next(new Errorhandler(error.message, 500));
   }
 });
 
-
-// export 
+// export
 // Upload Profile Image
 export const uploadProfileImage = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
@@ -1028,17 +1370,17 @@ export const uploadProfileImage = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "Please upload an image"
+        message: "Please upload an image",
       });
     }
 
     // Upload image to Cloudinary
     const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: 'profile-images',
+      folder: "profile-images",
       transformation: [
         { width: 500, height: 500, crop: "limit" },
-        { quality: "auto:good" }
-      ]
+        { quality: "auto:good" },
+      ],
     });
 
     // Delete old image from Cloudinary if exists
@@ -1049,7 +1391,7 @@ export const uploadProfileImage = async (req, res) => {
     // Update user with new image
     user.profileImage = {
       url: result.secure_url,
-      public_id: result.public_id
+      public_id: result.public_id,
     };
 
     await user.save();
@@ -1061,14 +1403,13 @@ export const uploadProfileImage = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        profileImage: user.profileImage
-      }
+        profileImage: user.profileImage,
+      },
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message || "Image upload failed"
+      message: error.message || "Image upload failed",
     });
   }
 };
@@ -1077,11 +1418,11 @@ export const uploadProfileImage = async (req, res) => {
 export const deleteProfileImage = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
@@ -1089,7 +1430,7 @@ export const deleteProfileImage = async (req, res) => {
     if (!user.profileImage || !user.profileImage.public_id) {
       return res.status(400).json({
         success: false,
-        message: "No profile image found"
+        message: "No profile image found",
       });
     }
 
@@ -1107,17 +1448,14 @@ export const deleteProfileImage = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        profileImage: null
-      }
+        profileImage: null,
+      },
     });
-
   } catch (error) {
-    console.error('Delete profile image error:', error);
+    console.error("Delete profile image error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Image deletion failed"
+      message: error.message || "Image deletion failed",
     });
   }
 };
-
-

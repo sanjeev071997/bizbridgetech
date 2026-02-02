@@ -4,6 +4,7 @@ import catchAsyncErrors from '../middlewares/catchAsyncErrors.js';
 import PaymentOption from '../models/paymentOption.js';
 import Product from "../models/sellerProductModel.js"
 
+
 // Create new buyer category with payment options api controller
 // export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
 //   const { name, discount, color, paymentOptions } = req.body;
@@ -26,7 +27,44 @@ import Product from "../models/sellerProductModel.js"
 //       color: color || "purple",
 //     });
 
-//     // 3. Process payment options
+//     // Add this buyer category to ALL existing products
+//     // Get all products of this seller (current user)
+//     const sellerProducts = await Product.find({ user: req.user._id });
+    
+//     if (sellerProducts.length > 0) {
+//       const bulkOperations = [];
+      
+//       for (const product of sellerProducts) {
+//         const mrp = parseFloat(product.mrp) || 0;
+//         const calculatedPrice = mrp - (mrp * (discount || 0)) / 100;
+        
+//         bulkOperations.push({
+//           updateOne: {
+//             filter: { 
+//               _id: product._id,
+//               "productVisibility.buyerCategory": { $ne: category._id }
+//             },
+//             update: {
+//               $push: {
+//                 productVisibility: {
+//                   buyerCategory: category._id,
+//                   visible: true, // Default: visible
+//                   price: calculatedPrice,
+//                   isPriceManuallySet: false,
+//                   lastPriceUpdate: new Date()
+//                 }
+//               }
+//             }
+//           }
+//         });
+//       }
+      
+//       if (bulkOperations.length > 0) {
+//         await Product.bulkWrite(bulkOperations);
+//         console.log(`Added buyer category ${category.name} to ${bulkOperations.length} products`);
+//       }
+//     }
+//     // 3. Process payment options (your existing code...)
 //     const cashOptions = paymentOptions.filter(opt => opt.type === "Cash");
 //     const creditOptions = paymentOptions.filter(opt => opt.type === "Credit");
     
@@ -83,7 +121,7 @@ import Product from "../models/sellerProductModel.js"
 //         creditPeriodDays: creditOptions[0].creditPeriod,
 //         interestRatePerYear: creditOptions[0].interestRate,
 //          interestStartAfterDays: creditOptions[0].creditPeriod,
-//         creditLimit:creditOptions[0].creditLimit,
+//         creditLimit: creditOptions[0].creditLimit,
 //       };
 //     }
 
@@ -104,7 +142,7 @@ import Product from "../models/sellerProductModel.js"
 //     return next(new Errorhandler(error.message || "Failed to create buyer category", 500));
 //   }
 // });
-// Create new buyer category with payment options api controller
+
 export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
   const { name, discount, color, paymentOptions } = req.body;
 
@@ -114,11 +152,28 @@ export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
       return next(new Errorhandler("Buyer category name is required", 400));
     }
 
-    if (!paymentOptions || !Array.isArray(paymentOptions) || paymentOptions.length === 0) {
-      return next(new Errorhandler("At least one payment option is required", 400));
+    // Check if buyer category with same name already exists for this user
+    const existingCategory = await BuyerCategory.findOne({
+      user: req.user._id,
+      name: name.trim()
+    });
+
+    if (existingCategory) {
+      return next(new Errorhandler(`Buyer category with name "${name.trim()}" already exists`, 400));
     }
 
-    // 2. Create buyer category first
+    // 2. Process payment options - Set defaults if not provided
+    let processedPaymentOptions = paymentOptions;
+
+    // If paymentOptions is not provided or empty array, set default to Cash with 0% discount
+    if (!paymentOptions || !Array.isArray(paymentOptions) || paymentOptions.length === 0) {
+      processedPaymentOptions = [{
+        type: "Cash",
+        cashDiscount: 0
+      }];
+    }
+
+    // 3. Create buyer category first
     const category = await BuyerCategory.create({
       user: req.user._id,
       name: name.trim(),
@@ -126,8 +181,7 @@ export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
       color: color || "purple",
     });
 
-    // ✅ **NEW CODE START: Add this buyer category to ALL existing products**
-    // Get all products of this seller (current user)
+    // Add this buyer category to ALL existing products
     const sellerProducts = await Product.find({ user: req.user._id });
     
     if (sellerProducts.length > 0) {
@@ -147,7 +201,7 @@ export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
               $push: {
                 productVisibility: {
                   buyerCategory: category._id,
-                  visible: true, // Default: visible
+                  visible: true,
                   price: calculatedPrice,
                   isPriceManuallySet: false,
                   lastPriceUpdate: new Date()
@@ -163,36 +217,54 @@ export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
         console.log(`Added buyer category ${category.name} to ${bulkOperations.length} products`);
       }
     }
-    // ✅ **NEW CODE END**
 
-    // 3. Process payment options (your existing code...)
-    const cashOptions = paymentOptions.filter(opt => opt.type === "Cash");
-    const creditOptions = paymentOptions.filter(opt => opt.type === "Credit");
+    // 4. Process payment options
+    const cashOptions = processedPaymentOptions.filter(opt => opt.type === "Cash");
+    const creditOptions = processedPaymentOptions.filter(opt => opt.type === "Credit");
     
-    // Validate payment options
+    // Validate and set default values for cash options
     if (cashOptions.length > 0) {
       for (const cashOption of cashOptions) {
-        if (!cashOption.cashDiscount || cashOption.cashDiscount < 0 || cashOption.cashDiscount > 100) {
+        // If cashDiscount is not provided, set default to 0
+        if (cashOption.cashDiscount === undefined || cashOption.cashDiscount === null) {
+          cashOption.cashDiscount = 0;
+        }
+        
+        const cashDiscount = parseFloat(cashOption.cashDiscount);
+        if (isNaN(cashDiscount) || cashDiscount < 0 || cashDiscount > 100) {
           return next(new Errorhandler("Cash discount must be between 0 and 100%", 400));
         }
       }
     }
 
+    // Validate and set default values for credit options
     if (creditOptions.length > 0) {
       for (const creditOption of creditOptions) {
-        if (!creditOption.creditPeriod || creditOption.creditPeriod < 1) {
-          return next(new Errorhandler("Credit period must be at least 1 day", 400));
+        // Set defaults for required fields
+        if (!creditOption.creditPeriod) {
+          creditOption.creditPeriod = 0; // Default 1 day
         }
-        if (!creditOption.interestRate || creditOption.interestRate < 0) {
+        if (!creditOption.interestRate) {
+          creditOption.interestRate = 12; // Default 12%
+        }
+        if (!creditOption.creditLimit) {
+          creditOption.creditLimit = 10000000; // Default credit limit
+        }
+        
+        // Validate after setting defaults
+        if (creditOption.creditPeriod < 0) {
+          return next(new Errorhandler("Credit period must be at least 0 day", 400));
+        }
+        if (creditOption.interestRate < 0) {
           return next(new Errorhandler("Interest rate must be a positive number", 400));
         }
-        if (!creditOption.creditLimit || creditOption.creditLimit < 0) {
+        if (creditOption.creditLimit < 0) {
           return next(new Errorhandler("Credit limit must be a positive number", 400));
         }
       }
     }
 
-    // 4. Determine payment type
+    // 5. Determine payment type
     let paymentType = "";
     if (cashOptions.length > 0 && creditOptions.length > 0) {
       paymentType = "Both";
@@ -202,31 +274,31 @@ export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
       paymentType = "Credit";
     }
 
-    // 5. Prepare data for PaymentOption
+    // 6. Prepare data for PaymentOption
     const paymentOptionData = {
       paymentType,
       buyerCategory: category._id,
       user: req.user._id,
     };
 
-    // Add cash payment data if exists (take the first one if multiple)
+    // Add cash payment data if exists
     if (cashOptions.length > 0) {
       paymentOptionData.cashPayment = {
-        discountPercent: cashOptions[0].cashDiscount
+        discountPercent: parseFloat(cashOptions[0].cashDiscount) || 0
       };
     }
 
-    // Add credit payment data if exists (take the first one if multiple)
+    // Add credit payment data if exists
     if (creditOptions.length > 0) {
       paymentOptionData.creditPayment = {
         creditPeriodDays: creditOptions[0].creditPeriod,
         interestRatePerYear: creditOptions[0].interestRate,
-         interestStartAfterDays: creditOptions[0].creditPeriod,
+        interestStartAfterDays: creditOptions[0].creditPeriod,
         creditLimit: creditOptions[0].creditLimit,
       };
     }
 
-    // 6. Create payment option
+    // 7. Create payment option
     const paymentOption = await PaymentOption.create(paymentOptionData);
 
     res.status(201).json({
@@ -243,150 +315,6 @@ export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler(error.message || "Failed to create buyer category", 500));
   }
 });
-
-// export const createBuyerCategory = catchAsyncErrors(async (req, res, next) => {
-//   const { name, discount, color, paymentOptions } = req.body;
-
-//   try {
-//     /* ───────────────────────── 1. VALIDATION ───────────────────────── */
-
-//     if (!name || !name.trim()) {
-//       return next(new Errorhandler("Buyer category name is required", 400));
-//     }
-
-//     if (!paymentOptions || !Array.isArray(paymentOptions) || paymentOptions.length === 0) {
-//       return next(new Errorhandler("At least one payment option is required", 400));
-//     }
-
-//     /* ──────────────────────── 2. CREATE CATEGORY ─────────────────────── */
-
-//     const category = await BuyerCategory.create({
-//       user: req.user._id,
-//       name: name.trim(),
-//       discount: discount || 0,
-//       color: color || "purple",
-//     });
-
-//     /* ───────────── 3. ADD CATEGORY TO ALL PRODUCTS (NO DUPLICATE) ───────────── */
-
-//     const sellerProducts = await Product.find({ user: req.user._id });
-
-//     if (sellerProducts.length > 0) {
-//       const bulkOperations = [];
-
-//       // snapshot object (exact format frontend needs)
-//       const buyerCategorySnapshot = {
-//         _id: category._id,
-//         name: category.name,
-//         discount: String(category.discount),
-//       };
-
-//       for (const product of sellerProducts) {
-//         const mrp = Number(product.mrp) || 0;
-//         const calculatedPrice =
-//           mrp - (mrp * (category.discount || 0)) / 100;
-
-//         bulkOperations.push({
-//           updateOne: {
-//             filter: {
-//               _id: product._id,
-//               "productVisibility.buyerCategory._id": { $ne: category._id }, // ✅ prevent duplicate
-//             },
-//             update: {
-//               $push: {
-//                 productVisibility: {
-//                   buyerCategory: buyerCategorySnapshot,
-//                   visible: true,
-//                   price: Math.round(calculatedPrice),
-//                   isPriceManuallySet: false,
-//                   lastPriceUpdate: new Date(),
-//                 },
-//               },
-//             },
-//           },
-//         });
-//       }
-
-//       if (bulkOperations.length > 0) {
-//         await Product.bulkWrite(bulkOperations);
-//       }
-//     }
-
-//     /* ──────────────────────── 4. PAYMENT OPTIONS ─────────────────────── */
-
-//     const cashOptions = paymentOptions.filter(opt => opt.type === "Cash");
-//     const creditOptions = paymentOptions.filter(opt => opt.type === "Credit");
-
-//     // Cash validation
-//     for (const cash of cashOptions) {
-//       if (cash.cashDiscount < 0 || cash.cashDiscount > 100) {
-//         return next(new Errorhandler("Cash discount must be between 0 and 100%", 400));
-//       }
-//     }
-
-//     // Credit validation
-//     for (const credit of creditOptions) {
-//       if (!credit.creditPeriod || credit.creditPeriod < 1) {
-//         return next(new Errorhandler("Credit period must be at least 1 day", 400));
-//       }
-//       if (credit.interestRate < 0) {
-//         return next(new Errorhandler("Interest rate must be positive", 400));
-//       }
-//       if (credit.creditLimit < 0) {
-//         return next(new Errorhandler("Credit limit must be positive", 400));
-//       }
-//     }
-
-//     /* ──────────────────────── 5. PAYMENT TYPE ─────────────────────── */
-
-//     let paymentType = "";
-//     if (cashOptions.length && creditOptions.length) paymentType = "Both";
-//     else if (cashOptions.length) paymentType = "Cash";
-//     else if (creditOptions.length) paymentType = "Credit";
-
-//     /* ──────────────────────── 6. CREATE PAYMENT OPTION ─────────────────────── */
-
-//     const paymentOptionData = {
-//       user: req.user._id,
-//       buyerCategory: category._id,
-//       paymentType,
-//     };
-
-//     if (cashOptions.length) {
-//       paymentOptionData.cashPayment = {
-//         discountPercent: cashOptions[0].cashDiscount,
-//       };
-//     }
-
-//     if (creditOptions.length) {
-//       paymentOptionData.creditPayment = {
-//         creditPeriodDays: creditOptions[0].creditPeriod,
-//         interestRatePerYear: creditOptions[0].interestRate,
-//         interestStartAfterDays: creditOptions[0].creditPeriod,
-//         creditLimit: creditOptions[0].creditLimit,
-//       };
-//     }
-
-//     const paymentOption = await PaymentOption.create(paymentOptionData);
-
-//     /* ───────────────────────── RESPONSE ───────────────────────── */
-
-//     res.status(201).json({
-//       success: true,
-//       message: "Buyer category created successfully",
-//       data: {
-//         category,
-//         paymentOption,
-//       },
-//     });
-
-//   } catch (error) {
-//     console.error("Create Buyer Category Error:", error);
-//     return next(
-//       new Errorhandler(error.message || "Failed to create buyer category", 500)
-//     );
-//   }
-// });
 
 
 // Get all categories for the logged-in user
@@ -432,6 +360,130 @@ export const getBuyerCategoryById = catchAsyncErrors(async (req, res, next) => {
 });
 
 // Update buyer category with payment options api controller
+// export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
+//   const { name, discount, color, paymentOptions } = req.body;
+//   const { id } = req.params;
+
+//   try {
+//     // 1. Validate required fields
+//     if (!name || !name.trim()) {
+//       return next(new Errorhandler("Buyer category name is required", 400));
+//     }
+
+//     if (!paymentOptions || !Array.isArray(paymentOptions) || paymentOptions.length === 0) {
+//       return next(new Errorhandler("At least one payment option is required", 400));
+//     }
+
+//     // 2. Find and update buyer category
+//     const category = await BuyerCategory.findOneAndUpdate(
+//       { _id: id, user: req.user._id },
+//       { 
+//         name: name.trim(),
+//         discount: discount || 0,
+//         color: color || "purple",
+//       },
+//       { new: true, runValidators: true }
+//     );
+
+//     if (!category) {
+//       return next(new Errorhandler('Buyer category not found', 404));
+//     }
+
+//     // 3. Process payment options
+//     const cashOptions = paymentOptions.filter(opt => opt.type === "Cash");
+//     const creditOptions = paymentOptions.filter(opt => opt.type === "Credit");
+    
+//     // Validate payment options
+//     if (cashOptions.length > 0) {
+//       for (const cashOption of cashOptions) {
+//         if (!cashOption.cashDiscount || cashOption.cashDiscount < 0 || cashOption.cashDiscount > 100) {
+//           return next(new Errorhandler("Cash discount must be between 0 and 100%", 400));
+//         }
+//       }
+//     }
+
+//     if (creditOptions.length > 0) {
+//       for (const creditOption of creditOptions) {
+//         if (!creditOption.creditPeriod || creditOption.creditPeriod < 1) {
+//           return next(new Errorhandler("Credit period must be at least 1 day", 400));
+//         }
+//         if (!creditOption.interestRate || creditOption.interestRate < 0) {
+//           return next(new Errorhandler("Interest rate must be a positive number", 400));
+//         }
+//         if (!creditOption.creditLimit || creditOption.creditLimit < 0) {
+//           return next(new Errorhandler("Credit limit must be a positive number", 400));
+//         }
+//       }
+//     }
+
+//     // 4. Determine payment type
+//     let paymentType = "";
+//     if (cashOptions.length > 0 && creditOptions.length > 0) {
+//       paymentType = "Both";
+//     } else if (cashOptions.length > 0) {
+//       paymentType = "Cash";
+//     } else if (creditOptions.length > 0) {
+//       paymentType = "Credit";
+//     }
+
+//     // 5. Prepare data for PaymentOption update
+//     const paymentOptionUpdateData = {
+//       paymentType,
+//       user: req.user._id,
+//     };
+
+//     // Add cash payment data if exists
+//     if (cashOptions.length > 0) {
+//       paymentOptionUpdateData.cashPayment = {
+//         discountPercent: cashOptions[0].cashDiscount
+//       };
+//     } else {
+//       paymentOptionUpdateData.cashPayment = null;
+//     }
+
+//     // Add credit payment data if exists
+//     if (creditOptions.length > 0) {
+//       paymentOptionUpdateData.creditPayment = {
+//         creditPeriodDays: creditOptions[0].creditPeriod,
+//         interestRatePerYear: creditOptions[0].interestRate,
+//         creditLimit: creditOptions[0].creditLimit,
+//         interestStartAfterDays: creditOptions[0].creditPeriod
+//       };
+//     } else {
+//       paymentOptionUpdateData.creditPayment = null;
+//     }
+
+//     // 6. Find existing payment option or create new one
+//     let paymentOption = await PaymentOption.findOne({ buyerCategory: category._id });
+
+//     if (paymentOption) {
+//       // Update existing payment option
+//       paymentOption = await PaymentOption.findByIdAndUpdate(
+//         paymentOption._id,
+//         paymentOptionUpdateData,
+//         { new: true, runValidators: true }
+//       );
+//     } else {
+//       // Create new payment option
+//       paymentOptionUpdateData.buyerCategory = category._id;
+//       paymentOption = await PaymentOption.create(paymentOptionUpdateData);
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         category,
+//         paymentOption
+//       },
+//       message: "Buyer category updated with payment options successfully"
+//     });
+
+//   } catch (error) {
+//     console.error("Error updating buyer category:", error);
+//     return next(new Errorhandler(error.message || "Failed to update buyer category", 500));
+//   }
+// });
+
 export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
   const { name, discount, color, paymentOptions } = req.body;
   const { id } = req.params;
@@ -442,11 +494,29 @@ export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
       return next(new Errorhandler("Buyer category name is required", 400));
     }
 
-    if (!paymentOptions || !Array.isArray(paymentOptions) || paymentOptions.length === 0) {
-      return next(new Errorhandler("At least one payment option is required", 400));
+    // 2. Check for duplicate name (excluding current category)
+    const duplicateCategory = await BuyerCategory.findOne({
+      user: req.user._id,
+      name: name.trim(),
+      _id: { $ne: id }
+    });
+
+    if (duplicateCategory) {
+      return next(new Errorhandler(`Buyer category with name "${name.trim()}" already exists`, 400));
     }
 
-    // 2. Find and update buyer category
+    // 3. Process payment options - Set defaults if not provided
+    let processedPaymentOptions = paymentOptions;
+
+    // If paymentOptions is not provided or empty array, set default to Cash with 0% discount
+    if (!paymentOptions || !Array.isArray(paymentOptions) || paymentOptions.length === 0) {
+      processedPaymentOptions = [{
+        type: "Cash",
+        cashDiscount: 0
+      }];
+    }
+
+    // 4. Find and update buyer category
     const category = await BuyerCategory.findOneAndUpdate(
       { _id: id, user: req.user._id },
       { 
@@ -461,34 +531,53 @@ export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
       return next(new Errorhandler('Buyer category not found', 404));
     }
 
-    // 3. Process payment options
-    const cashOptions = paymentOptions.filter(opt => opt.type === "Cash");
-    const creditOptions = paymentOptions.filter(opt => opt.type === "Credit");
+    // 5. Process payment options
+    const cashOptions = processedPaymentOptions.filter(opt => opt.type === "Cash");
+    const creditOptions = processedPaymentOptions.filter(opt => opt.type === "Credit");
     
-    // Validate payment options
+    // Validate and set default values for cash options
     if (cashOptions.length > 0) {
       for (const cashOption of cashOptions) {
-        if (!cashOption.cashDiscount || cashOption.cashDiscount < 0 || cashOption.cashDiscount > 100) {
+        // If cashDiscount is not provided, set default to 0
+        if (cashOption.cashDiscount === undefined || cashOption.cashDiscount === null) {
+          cashOption.cashDiscount = 0;
+        }
+        
+        const cashDiscount = parseFloat(cashOption.cashDiscount);
+        if (isNaN(cashDiscount) || cashDiscount < 0 || cashDiscount > 100) {
           return next(new Errorhandler("Cash discount must be between 0 and 100%", 400));
         }
       }
     }
 
+    // Validate and set default values for credit options
     if (creditOptions.length > 0) {
       for (const creditOption of creditOptions) {
-        if (!creditOption.creditPeriod || creditOption.creditPeriod < 1) {
-          return next(new Errorhandler("Credit period must be at least 1 day", 400));
+        // Set defaults for required fields
+        if (!creditOption.creditPeriod) {
+          creditOption.creditPeriod = 0; // Default 1 day
         }
-        if (!creditOption.interestRate || creditOption.interestRate < 0) {
+        if (!creditOption.interestRate) {
+          creditOption.interestRate = 12; // Default 12%
+        }
+        if (!creditOption.creditLimit) {
+          creditOption.creditLimit = 10000000; // Default credit limit
+        }
+        
+        // Validate after setting defaults
+        if (creditOption.creditPeriod < 0) {
+          return next(new Errorhandler("Credit period must be at least 0 day", 400));
+        }
+        if (creditOption.interestRate < 0) {
           return next(new Errorhandler("Interest rate must be a positive number", 400));
         }
-        if (!creditOption.creditLimit || creditOption.creditLimit < 0) {
+        if (creditOption.creditLimit < 0) {
           return next(new Errorhandler("Credit limit must be a positive number", 400));
         }
       }
     }
 
-    // 4. Determine payment type
+    // 6. Determine payment type
     let paymentType = "";
     if (cashOptions.length > 0 && creditOptions.length > 0) {
       paymentType = "Both";
@@ -498,7 +587,7 @@ export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
       paymentType = "Credit";
     }
 
-    // 5. Prepare data for PaymentOption update
+    // 7. Prepare data for PaymentOption update
     const paymentOptionUpdateData = {
       paymentType,
       user: req.user._id,
@@ -507,7 +596,7 @@ export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
     // Add cash payment data if exists
     if (cashOptions.length > 0) {
       paymentOptionUpdateData.cashPayment = {
-        discountPercent: cashOptions[0].cashDiscount
+        discountPercent: parseFloat(cashOptions[0].cashDiscount) || 0
       };
     } else {
       paymentOptionUpdateData.cashPayment = null;
@@ -525,7 +614,7 @@ export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
       paymentOptionUpdateData.creditPayment = null;
     }
 
-    // 6. Find existing payment option or create new one
+    // 8. Find existing payment option or create new one
     let paymentOption = await PaymentOption.findOne({ buyerCategory: category._id });
 
     if (paymentOption) {
@@ -541,6 +630,45 @@ export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
       paymentOption = await PaymentOption.create(paymentOptionUpdateData);
     }
 
+    // 9. Update prices in product visibility if discount changed
+    const sellerProducts = await Product.find({ user: req.user._id });
+    
+    if (sellerProducts.length > 0) {
+      const bulkOperations = [];
+      
+      for (const product of sellerProducts) {
+        const productVisibility = product.productVisibility || [];
+        const buyerCategoryIndex = productVisibility.findIndex(
+          item => item.buyerCategory && item.buyerCategory.toString() === category._id.toString()
+        );
+        
+        if (buyerCategoryIndex !== -1 && !productVisibility[buyerCategoryIndex].isPriceManuallySet) {
+          const mrp = parseFloat(product.mrp) || 0;
+          const calculatedPrice = mrp - (mrp * (discount || 0)) / 100;
+          
+          bulkOperations.push({
+            updateOne: {
+              filter: { 
+                _id: product._id,
+                "productVisibility.buyerCategory": category._id
+              },
+              update: {
+                $set: {
+                  [`productVisibility.${buyerCategoryIndex}.price`]: calculatedPrice,
+                  [`productVisibility.${buyerCategoryIndex}.lastPriceUpdate`]: new Date()
+                }
+              }
+            }
+          });
+        }
+      }
+      
+      if (bulkOperations.length > 0) {
+        await Product.bulkWrite(bulkOperations);
+        console.log(`Updated prices for buyer category ${category.name} in ${bulkOperations.length} products`);
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: {
@@ -551,7 +679,6 @@ export const updateBuyerCategory = catchAsyncErrors(async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error("Error updating buyer category:", error);
     return next(new Errorhandler(error.message || "Failed to update buyer category", 500));
   }
 });

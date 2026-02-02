@@ -13,6 +13,7 @@ import {
   toggleProductsVisibilityByBuyerCategory,
   // getProductsByCategoryId,
   // getProductById,
+  applyGlobalDiscount,
 } from "../controllers/sellerProductController.js";
 import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
 
@@ -40,6 +41,7 @@ router.post("/get/products-by-connection", isAuthenticatedUser, getProductsByCon
 
 router.post("/hide-products-by-buyer-category", isAuthenticatedUser, toggleProductsVisibilityByBuyerCategory);
 
+router.post("/apply-global-discount", isAuthenticatedUser, applyGlobalDiscount)
 // Admin routes
 router.get("/", isAuthenticatedUser, isAdmin, getAllProducts);  // admin can see all products
 
