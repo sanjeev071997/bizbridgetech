@@ -190,6 +190,9 @@ import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 export const createBuyerSellerConnection = catchAsyncErrors(
   async (req, res, next) => {
     try {
+      //   const { buyerEmail, buyerPhone, buyerCategory,   } = req.body;
+      // const seller = req.user._id
+
       const { buyerEmail, buyerPhone, buyerCategory, seller: sellerFromBody,  } = req.body;
       const seller = req.user._id || sellerFromBody;
 
