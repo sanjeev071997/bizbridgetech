@@ -187,56 +187,174 @@ import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 //   }
 // );
 
+// ye mera shi code hai 
+// export const createBuyerSellerConnection = catchAsyncErrors(
+//   async (req, res, next) => {
+//     try {
+//       //   const { buyerEmail, buyerPhone, buyerCategory,   } = req.body;
+//       // const seller = req.user._id
+
+//       const { buyerEmail, buyerPhone, buyerCategory, seller: sellerFromBody,  } = req.body;
+//       const seller =  sellerFromBody || req.user._id;
+ 
+//       console.log(seller, "connection seller id")
+//       if (!buyerEmail && !buyerPhone) {
+//         return res
+//           .status(400)
+//           .json({ success: false, message: "Either Email or Phone is required" });
+//       }
+
+//       if (!buyerCategory) {
+//         return res
+//           .status(400)
+//           .json({ success: false, message: "Buyer Category is required" });
+//       }
+
+//       const buyer = await User.findOne({
+//         $or: [
+//           buyerEmail ? { email: buyerEmail } : null,
+//           buyerPhone ? { phone: buyerPhone } : null,
+//         ].filter(Boolean),
+//       });
+
+//       if (!buyer) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "No user found with the given email or phone",
+//         });
+//       }
+
+//       let existingConnection = await BuyerSellerConnection.findOne({
+//         seller,
+//         buyer: buyer._id,
+//       }).exec();
+
+//       let connection;
+//       let message;
+
+//       // Case 1: Already Accepted → replace old Accepted with new Pending
+//       if (existingConnection && existingConnection.status === "Accepted") {
+//         await BuyerSellerConnection.deleteOne({ _id: existingConnection._id });
+
+//         connection = await BuyerSellerConnection.create({
+//           seller,
+//           buyer: buyer._id,
+//           buyerEmail: buyerEmail || null,
+//           buyerPhone: buyerPhone || null,
+//           buyerCategory,
+//           status: "Pending",
+//         });
+
+//         message = "Previous accepted connection replaced with new pending request";
+//       }
+//       // Case 2: Pending exists → update category only
+//       else if (existingConnection && existingConnection.status === "Pending") {
+//         existingConnection.buyerCategory = buyerCategory;
+//         await existingConnection.save();
+//         connection = existingConnection;
+//         message = "Pending request updated with new category";
+//       }
+//       // Case 3: No existing connection → create new
+//       else {
+//         connection = await BuyerSellerConnection.create({
+//           seller,
+//           buyer: buyer._id,
+//           buyerEmail: buyerEmail || null,
+//           buyerPhone: buyerPhone || null,
+//           buyerCategory,
+//           status: "Pending",
+//         });
+//         message = "Connection created successfully";
+//       }
+
+//       // Emit to Socket.IO in all cases
+//       const connectedSockets = req.io.sockets.sockets.size;
+//       if (connectedSockets > 0) {
+//         req.io.emit("newConnection", connection);
+//         console.log(`Event sent to ${connectedSockets} clients`);
+//       } else {
+//         console.warn("No clients connected to receive the event");
+//       }
+
+//       res.status(201).json({
+//         success: true,
+//         message,
+//         data: connection,
+//       });
+//     } catch (error) {
+//       return next(new Errorhandler(error.message, 500));
+//     }
+//   }
+// );
+// QR and Normal Request 
 export const createBuyerSellerConnection = catchAsyncErrors(
   async (req, res, next) => {
     try {
-      //   const { buyerEmail, buyerPhone, buyerCategory,   } = req.body;
-      // const seller = req.user._id
-
-      const { buyerEmail, buyerPhone, buyerCategory, seller: sellerFromBody,  } = req.body;
-      const seller = req.user._id || sellerFromBody;
-
-      if (!buyerEmail && !buyerPhone) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Either Email or Phone is required" });
-      }
+      const {
+        buyerEmail,
+        buyerPhone,
+        buyerCategory,
+        seller: sellerFromBody,
+      } = req.body;
 
       if (!buyerCategory) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Buyer Category is required" });
-      }
-
-      const buyer = await User.findOne({
-        $or: [
-          buyerEmail ? { email: buyerEmail } : null,
-          buyerPhone ? { phone: buyerPhone } : null,
-        ].filter(Boolean),
-      });
-
-      if (!buyer) {
         return res.status(400).json({
           success: false,
-          message: "No user found with the given email or phone",
+          message: "Buyer Category is required",
+        });
+      }
+
+      // Logged-in user
+      const loggedInUserId = req.user._id;
+
+      /**
+       * 🔥 CORE FIX
+       * QR flow  → seller comes from body, buyer = logged in user
+       * Normal   → seller = logged in user, buyer via email/phone
+       */
+      const isQRFlow = !!sellerFromBody;
+
+      const seller = isQRFlow ? sellerFromBody : loggedInUserId;
+      const buyerId = isQRFlow
+        ? loggedInUserId
+        : (
+            await User.findOne({
+              $or: [
+                buyerEmail ? { email: buyerEmail } : null,
+                buyerPhone ? { phone: buyerPhone } : null,
+              ].filter(Boolean),
+            })
+          )?._id;
+
+      if (!buyerId) {
+        return res.status(400).json({
+          success: false,
+          message: "Buyer not found",
+        });
+      }
+
+      // Prevent self connection
+      if (String(seller) === String(buyerId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Seller and Buyer cannot be the same user",
         });
       }
 
       let existingConnection = await BuyerSellerConnection.findOne({
         seller,
-        buyer: buyer._id,
-      }).exec();
+        buyer: buyerId,
+      });
 
       let connection;
       let message;
 
-      // Case 1: Already Accepted → replace old Accepted with new Pending
       if (existingConnection && existingConnection.status === "Accepted") {
         await BuyerSellerConnection.deleteOne({ _id: existingConnection._id });
 
         connection = await BuyerSellerConnection.create({
           seller,
-          buyer: buyer._id,
+          buyer: buyerId,
           buyerEmail: buyerEmail || null,
           buyerPhone: buyerPhone || null,
           buyerCategory,
@@ -244,19 +362,15 @@ export const createBuyerSellerConnection = catchAsyncErrors(
         });
 
         message = "Previous accepted connection replaced with new pending request";
-      }
-      // Case 2: Pending exists → update category only
-      else if (existingConnection && existingConnection.status === "Pending") {
+      } else if (existingConnection && existingConnection.status === "Pending") {
         existingConnection.buyerCategory = buyerCategory;
         await existingConnection.save();
         connection = existingConnection;
         message = "Pending request updated with new category";
-      }
-      // Case 3: No existing connection → create new
-      else {
+      } else {
         connection = await BuyerSellerConnection.create({
           seller,
-          buyer: buyer._id,
+          buyer: buyerId,
           buyerEmail: buyerEmail || null,
           buyerPhone: buyerPhone || null,
           buyerCategory,
@@ -265,13 +379,9 @@ export const createBuyerSellerConnection = catchAsyncErrors(
         message = "Connection created successfully";
       }
 
-      // Emit to Socket.IO in all cases
-      const connectedSockets = req.io.sockets.sockets.size;
-      if (connectedSockets > 0) {
+      // Socket emit
+      if (req.io?.sockets?.sockets?.size > 0) {
         req.io.emit("newConnection", connection);
-        console.log(`Event sent to ${connectedSockets} clients`);
-      } else {
-        console.warn("No clients connected to receive the event");
       }
 
       res.status(201).json({
