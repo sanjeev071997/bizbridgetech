@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 dotenv.config();
+import User from "../models/userModel.js";
 
 mongoose.connect(process.env.MONGO_URL);
 
@@ -9,6 +10,8 @@ const connection = mongoose.connection;
 connection.on("connected", () => {
   console.log("Mongo Db Connection Successful");
 });
+await User.syncIndexes();
+    console.log("User indexes synced");
 
 connection.on("error", (err) => {
   console.log("Mongo Db Connection Failed");

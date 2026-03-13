@@ -10,7 +10,7 @@ const contactSchema = new mongoose.Schema(
 
     email: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
       lowercase: true,
     },
@@ -23,13 +23,27 @@ const contactSchema = new mongoose.Schema(
 
     message: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
+    },
+
+    business: {
+      type: String,
+      trim: true,
+    },
+    city: {
+      type: String,
+      trim: true,
+    },
+    planId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Plan",
+      required: false,
     },
   },
   {
-    timestamps: true, 
-  }
+    timestamps: true,
+  },
 );
 
 const contact = mongoose.model("contact", contactSchema);

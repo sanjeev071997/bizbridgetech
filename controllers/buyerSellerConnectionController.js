@@ -1,5 +1,8 @@
+import mongoose from "mongoose";
 import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 import User from "../models/userModel.js";
+import Plan from "../models/planModel.js";
+import Bill from "../models/billModel.js"
 import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 
@@ -7,58 +10,48 @@ import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 // export const createBuyerSellerConnection = catchAsyncErrors(
 //   async (req, res, next) => {
 //     try {
-//       const { buyerEmail, buyerPhone, buyerCategory } = req.body;
-//       const seller = req.user._id; // Logged in user is seller
+//       const { buyerPhone, buyerCategory, seller: sellerFromBody } = req.body;
 
-//      // Validation: at least one field required
-//       if (!buyerEmail && !buyerPhone) {
-//         return res
-//           .status(400)
-//           .json({ success: false, message: "Either Email or Phone is required" });
-//       }
-
-//     if (!buyerCategory) {
-//         return res
-//           .status(400)
-//           .json({ success: false, message: "Buyer Category is required" });
-//       }
-
-//       // Find buyer by email or phone (whichever exists)
-//       const buyer = await User.findOne({
-//         $or: [
-//           buyerEmail ? { email: buyerEmail } : null,
-//           buyerPhone ? { phone: buyerPhone } : null
-//         ].filter(Boolean), // remove null conditions
-//       });
-
-//          // Check if found user has at least one of email or phone
-//       if (!buyer) {
+//       if (!buyerPhone || !buyerCategory) {
 //         return res.status(400).json({
 //           success: false,
-//           message: "No user found with the given email or phone",
+//           message: "Buyer phone and category are required",
+//         });
+//       }
+
+//       const loggedInUserId = req.user._id;
+
+//       const isQRFlow = !!sellerFromBody;
+//       const seller = isQRFlow ? sellerFromBody : loggedInUserId;
+
+//       // Check if buyer exists
+//       const existingBuyer = await User.findOne({ phone: buyerPhone });
+
+//       const buyerId = existingBuyer ? existingBuyer._id : null;
+
+//       // Prevent self connection
+//       if (buyerId && String(seller) === String(buyerId)) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Seller and Buyer cannot be same user",
 //         });
 //       }
 
 //       const connection = await BuyerSellerConnection.create({
 //         seller,
-//         buyer: buyer?._id || null, // Save buyer id if found
-//         buyerEmail: buyerEmail || null,
-//         buyerPhone: buyerPhone || null,
+//         buyer: buyerId, // null if not registered
+//         buyerPhone,
 //         buyerCategory,
+//         status: "Accepted", // direct accepted
 //       });
 
-//         // Emit to Socket.IO
-//       const connectedSockets = req.io.sockets.sockets.size;
-//       if (connectedSockets > 0) {
+//       if (req.io?.sockets?.sockets?.size > 0) {
 //         req.io.emit("newConnection", connection);
-//         console.log(`Event sent to ${connectedSockets} clients`);
-//       } else {
-//         console.warn("No clients connected to receive the event");
 //       }
 
 //       res.status(201).json({
 //         success: true,
-//         message: "Connection created successfully",
+//         message: "Connection saved successfully",
 //         data: connection,
 //       });
 //     } catch (error) {
@@ -67,357 +60,110 @@ import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 //   }
 // );
 
-
-// export const createBuyerSellerConnection = catchAsyncErrors(
-//   async (req, res, next) => {
-//     try {
-//       const { buyerEmail, buyerPhone, buyerCategory } = req.body;
-//       const seller = req.user._id; // Logged in user is seller
-
-//       // Validation: at least one field required
-//       if (!buyerEmail && !buyerPhone) {
-//         return res
-//           .status(400)
-//           .json({ success: false, message: "Either Email or Phone is required" });
-//       }
-
-//       if (!buyerCategory) {
-//         return res
-//           .status(400)
-//           .json({ success: false, message: "Buyer Category is required" });
-//       }
-
-//       // Find buyer
-//       const buyer = await User.findOne({
-//         $or: [
-//           buyerEmail ? { email: buyerEmail } : null,
-//           buyerPhone ? { phone: buyerPhone } : null,
-//         ].filter(Boolean),
-//       });
-
-//       if (!buyer) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "No user found with the given email or phone",
-//         });
-//       }
-
-//       // Check if a connection already exists for this seller-buyer
-//    // Find existing connection as Mongoose document
-// let existingConnection = await BuyerSellerConnection.findOne({
-//   seller,
-//   buyer: buyer._id,
-// }).exec(); // <-- ensure Mongoose doc
-
-// // Case 1: Already Accepted → replace old Accepted with new one
-// if (existingConnection && existingConnection.status === "Accepted") {
-//   // Remove old Accepted
-//   await BuyerSellerConnection.deleteOne({ _id: existingConnection._id });
-
-//   // Create new Pending connection
-//   const newConnection = await BuyerSellerConnection.create({
-//     seller,
-//     buyer: buyer._id,
-//     buyerEmail: buyerEmail || null,
-//     buyerPhone: buyerPhone || null,
-//     buyerCategory,
-//     status: "Pending",
-//   });
-
-//   return res.status(201).json({
-//     success: true,
-//     message:
-//       "Previous accepted connection replaced with new pending request",
-//     data: newConnection,
-//   });
-// }
-
-// // Case 2: Pending exists → update category only
-// if (existingConnection && existingConnection.status === "Pending") {
-//   existingConnection.buyerCategory = buyerCategory;
-//   await existingConnection.save(); // ✅ this works now
-
-//   return res.status(200).json({
-//     success: true,
-//     message: "Pending request updated with new category",
-//     data: existingConnection,
-//   });
-// }
-
-
-//       // Case 2: Pending exists → update category only
-//       if (existingConnection && existingConnection.status === "Pending") {
-//         existingConnection.buyerCategory = buyerCategory;
-//         await existingConnection.save();
-
-//         return res.status(200).json({
-//           success: true,
-//           message: "Pending request updated with new category",
-//           data: existingConnection,
-//         });
-//       }
-
-//       // Case 3: No existing connection → create new
-//       const connection = await BuyerSellerConnection.create({
-//         seller,
-//         buyer: buyer._id,
-//         buyerEmail: buyerEmail || null,
-//         buyerPhone: buyerPhone || null,
-//         buyerCategory,
-//         status: "Pending", // new connection always starts as Pending
-//       });
-
-//       // Emit to Socket.IO
-//       const connectedSockets = req.io.sockets.sockets.size;
-//       if (connectedSockets > 0) {
-//         req.io.emit("newConnection", connection);
-//         console.log(`Event sent to ${connectedSockets} clients`);
-//       } else {
-//         console.warn("No clients connected to receive the event");
-//       }
-
-//       res.status(201).json({
-//         success: true,
-//         message: "Connection created successfully",
-//         data: connection,
-//       });
-//     } catch (error) {
-//       return next(new Errorhandler(error.message, 500));
-//     }
-//   }
-// );
-
-// ye mera shi code hai 
-// export const createBuyerSellerConnection = catchAsyncErrors(
-//   async (req, res, next) => {
-//     try {
-//       //   const { buyerEmail, buyerPhone, buyerCategory,   } = req.body;
-//       // const seller = req.user._id
-
-//       const { buyerEmail, buyerPhone, buyerCategory, seller: sellerFromBody,  } = req.body;
-//       const seller =  sellerFromBody || req.user._id;
- 
-//       console.log(seller, "connection seller id")
-//       if (!buyerEmail && !buyerPhone) {
-//         return res
-//           .status(400)
-//           .json({ success: false, message: "Either Email or Phone is required" });
-//       }
-
-//       if (!buyerCategory) {
-//         return res
-//           .status(400)
-//           .json({ success: false, message: "Buyer Category is required" });
-//       }
-
-//       const buyer = await User.findOne({
-//         $or: [
-//           buyerEmail ? { email: buyerEmail } : null,
-//           buyerPhone ? { phone: buyerPhone } : null,
-//         ].filter(Boolean),
-//       });
-
-//       if (!buyer) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "No user found with the given email or phone",
-//         });
-//       }
-
-//       let existingConnection = await BuyerSellerConnection.findOne({
-//         seller,
-//         buyer: buyer._id,
-//       }).exec();
-
-//       let connection;
-//       let message;
-
-//       // Case 1: Already Accepted → replace old Accepted with new Pending
-//       if (existingConnection && existingConnection.status === "Accepted") {
-//         await BuyerSellerConnection.deleteOne({ _id: existingConnection._id });
-
-//         connection = await BuyerSellerConnection.create({
-//           seller,
-//           buyer: buyer._id,
-//           buyerEmail: buyerEmail || null,
-//           buyerPhone: buyerPhone || null,
-//           buyerCategory,
-//           status: "Pending",
-//         });
-
-//         message = "Previous accepted connection replaced with new pending request";
-//       }
-//       // Case 2: Pending exists → update category only
-//       else if (existingConnection && existingConnection.status === "Pending") {
-//         existingConnection.buyerCategory = buyerCategory;
-//         await existingConnection.save();
-//         connection = existingConnection;
-//         message = "Pending request updated with new category";
-//       }
-//       // Case 3: No existing connection → create new
-//       else {
-//         connection = await BuyerSellerConnection.create({
-//           seller,
-//           buyer: buyer._id,
-//           buyerEmail: buyerEmail || null,
-//           buyerPhone: buyerPhone || null,
-//           buyerCategory,
-//           status: "Pending",
-//         });
-//         message = "Connection created successfully";
-//       }
-
-//       // Emit to Socket.IO in all cases
-//       const connectedSockets = req.io.sockets.sockets.size;
-//       if (connectedSockets > 0) {
-//         req.io.emit("newConnection", connection);
-//         console.log(`Event sent to ${connectedSockets} clients`);
-//       } else {
-//         console.warn("No clients connected to receive the event");
-//       }
-
-//       res.status(201).json({
-//         success: true,
-//         message,
-//         data: connection,
-//       });
-//     } catch (error) {
-//       return next(new Errorhandler(error.message, 500));
-//     }
-//   }
-// );
-// QR and Normal Request 
 export const createBuyerSellerConnection = catchAsyncErrors(
   async (req, res, next) => {
     try {
-      const {
-        buyerEmail,
-        buyerPhone,
-        buyerCategory,
-        seller: sellerFromBody,
-      } = req.body;
+      const { buyerPhone, buyerCategory, seller: sellerFromBody } = req.body;
 
-      if (!buyerCategory) {
+      if (!buyerPhone || !buyerCategory) {
         return res.status(400).json({
           success: false,
-          message: "Buyer Category is required",
+          message: "Buyer phone and category are required",
         });
       }
 
-      // Logged-in user
       const loggedInUserId = req.user._id;
+      const seller = sellerFromBody ? sellerFromBody : loggedInUserId;
 
-      /**
-       * 🔥 CORE FIX
-       * QR flow  → seller comes from body, buyer = logged in user
-       * Normal   → seller = logged in user, buyer via email/phone
-       */
-      const isQRFlow = !!sellerFromBody;
+      // 🔹 Step 1: Check if buyer exists in User collection
+      let buyer = await User.findOne({ phone: buyerPhone });
 
-      const seller = isQRFlow ? sellerFromBody : loggedInUserId;
-      const buyerId = isQRFlow
-        ? loggedInUserId
-        : (
-            await User.findOne({
-              $or: [
-                buyerEmail ? { email: buyerEmail } : null,
-                buyerPhone ? { phone: buyerPhone } : null,
-              ].filter(Boolean),
-            })
-          )?._id;
-
-      if (!buyerId) {
-        return res.status(400).json({
-          success: false,
-          message: "Buyer not found",
+      // 🔹 Step 2: If not exist → create buyer
+      if (!buyer) {
+        buyer = await User.create({
+          phone: buyerPhone,
+          mode: "buyer",
         });
       }
 
-      // Prevent self connection
+      const buyerId = buyer._id;
+
+      // 🔹 Prevent self connection
       if (String(seller) === String(buyerId)) {
         return res.status(400).json({
           success: false,
-          message: "Seller and Buyer cannot be the same user",
+          message: "Seller and Buyer cannot be same user",
         });
       }
 
-      let existingConnection = await BuyerSellerConnection.findOne({
+      // 🔹 Step 3: Check if connection already exists
+      const existingConnection = await BuyerSellerConnection.findOne({
         seller,
         buyer: buyerId,
       });
 
-      let connection;
-      let message;
-
-      if (existingConnection && existingConnection.status === "Accepted") {
-        await BuyerSellerConnection.deleteOne({ _id: existingConnection._id });
-
-        connection = await BuyerSellerConnection.create({
-          seller,
-          buyer: buyerId,
-          buyerEmail: buyerEmail || null,
-          buyerPhone: buyerPhone || null,
-          buyerCategory,
-          status: "Pending",
+      if (existingConnection) {
+        return res.status(200).json({
+          success: true,
+          message: "Connection already exists",
+          data: existingConnection,
         });
-
-        message = "Previous accepted connection replaced with new pending request";
-      } else if (existingConnection && existingConnection.status === "Pending") {
-        existingConnection.buyerCategory = buyerCategory;
-        await existingConnection.save();
-        connection = existingConnection;
-        message = "Pending request updated with new category";
-      } else {
-        connection = await BuyerSellerConnection.create({
-          seller,
-          buyer: buyerId,
-          buyerEmail: buyerEmail || null,
-          buyerPhone: buyerPhone || null,
-          buyerCategory,
-          status: "Pending",
-        });
-        message = "Connection created successfully";
       }
 
-      // Socket emit
+      // 🔹 Step 4: Create connection
+      const connection = await BuyerSellerConnection.create({
+        seller,
+        buyer: buyerId,
+        buyerPhone,
+        buyerCategory,
+        status: "Accepted",
+      });
+
       if (req.io?.sockets?.sockets?.size > 0) {
         req.io.emit("newConnection", connection);
       }
 
       res.status(201).json({
         success: true,
-        message,
+        message: "Connection saved successfully",
         data: connection,
       });
+
     } catch (error) {
       return next(new Errorhandler(error.message, 500));
     }
   }
 );
-
-
 // Get Buyer-Seller Connections for logged-in buyer
 // export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
 //   try {
 //     const userId = req.user._id;
 //     const mode = req.user.mode; // "buyer" or "seller"
 
+//     // 🔹 Pagination params
+//     let page = parseInt(req.query.page) || 1; // default page 1
+//     let limit = parseInt(req.query.limit) || 10; // default 10 per page
+//     const skip = (page - 1) * limit;
+
 //     let connectionFilter = {};
 
 //     // MODE BASED FILTER
 //     if (mode === "buyer") {
-//       // Buyer mode → Only received requests (seller sent)
 //       connectionFilter = { buyer: userId };
 //     } else if (mode === "seller") {
-//       // Seller mode → Only requests sent by seller
 //       connectionFilter = { seller: userId };
 //     }
 
+//     // Total count for pagination info
+//     const totalConnections = await BuyerSellerConnection.countDocuments(connectionFilter);
+
 //     const connections = await BuyerSellerConnection.find(connectionFilter)
-//       .populate("buyer", "name email phone businessAddress businessName")
-//       .populate("seller", "name email phone businessAddress businessName")
+//       .populate("buyer", "name email phone businessAddress businessName lastSeen profileImage")
+//       .populate("seller", "name email phone businessAddress businessName lastSeen profileImage")
 //       .populate("buyerCategory", "name _id discount")
-//       .sort({ createdAt: -1 });
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limit);
 
 //     const formattedConnections = connections.map((conn) => {
 //       const isBuyer = conn.buyer?._id?.toString() === userId.toString();
@@ -428,14 +174,19 @@ export const createBuyerSellerConnection = catchAsyncErrors(
 //         status: conn.status,
 //         buyerCategory: conn.buyerCategory || null,
 //         userRole: isBuyer ? "buyer" : "seller",
-//         otherUser: otherUser ? {
-//           _id: otherUser._id,
-//           name: otherUser.name,
-//           email: otherUser.email,
-//           phone: otherUser.phone,
-//           businessAddress: otherUser.businessAddress || null,
-//           businessName: otherUser.businessName || null,
-//         } : null,
+//         lastSeen: otherUser.lastSeen,
+//         otherUser: otherUser
+//           ? {
+//               _id: otherUser._id,
+//               name: otherUser.name,
+//               email: otherUser.email,
+//               phone: otherUser.phone,
+//               businessAddress: otherUser.businessAddress || null,
+//               businessName: otherUser.businessName || null,
+//               lastSeen: otherUser.lastSeen,
+//               profileImage: otherUser.profileImage?.url
+//             }
+//           : null,
 //         createdAt: conn.createdAt,
 //         updatedAt: conn.updatedAt,
 //       };
@@ -443,9 +194,12 @@ export const createBuyerSellerConnection = catchAsyncErrors(
 
 //     res.status(200).json({
 //       success: true,
+//       page,
+//       limit,
+//       totalConnections,
+//       totalPages: Math.ceil(totalConnections / limit),
 //       data: formattedConnections,
 //     });
-
 //   } catch (error) {
 //     return next(new Errorhandler(error.message, 500));
 //   }
@@ -456,25 +210,24 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
     const userId = req.user._id;
     const mode = req.user.mode; // "buyer" or "seller"
 
-    // 🔹 Pagination params
-    let page = parseInt(req.query.page) || 1; // default page 1
-    let limit = parseInt(req.query.limit) || 10; // default 10 per page
+    let page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
     let connectionFilter = {};
 
-    // MODE BASED FILTER
+    // 🔹 Mode based filtering
     if (mode === "buyer") {
       connectionFilter = { buyer: userId };
-    } else if (mode === "seller") {
+    } 
+    else if (mode === "seller") {
       connectionFilter = { seller: userId };
     }
 
-    // Total count for pagination info
     const totalConnections = await BuyerSellerConnection.countDocuments(connectionFilter);
 
     const connections = await BuyerSellerConnection.find(connectionFilter)
-      .populate("buyer", "name email phone businessAddress businessName lastSeen profileImage")
+      .populate("buyer", "name email phone phoneVerified businessAddress businessName lastSeen profileImage")
       .populate("seller", "name email phone businessAddress businessName lastSeen profileImage")
       .populate("buyerCategory", "name _id discount")
       .sort({ createdAt: -1 })
@@ -482,27 +235,64 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
       .limit(limit);
 
     const formattedConnections = connections.map((conn) => {
+
       const isBuyer = conn.buyer?._id?.toString() === userId.toString();
-      const otherUser = isBuyer ? conn.seller : conn.buyer;
+
+      let otherUser = null;
+
+      if (mode === "seller") {
+        // Seller view
+        if (conn.buyer) {
+          // Registered buyer
+          otherUser = {
+            _id: conn.buyer._id,
+            name: conn.buyer.name,
+            email: conn.buyer.email,
+            phone: conn.buyer.phone,
+            phoneVerified: conn.buyer.phoneVerified,
+            businessAddress: conn.buyer.businessAddress || null,
+            businessName: conn.buyer.businessName || null,
+            lastSeen: conn.buyer.lastSeen,
+            profileImage: conn.buyer.profileImage?.url || null,
+            isRegistered: true,
+          };
+        } else {
+          // Unregistered buyer
+          otherUser = {
+            _id: null,
+            name: null,
+            email: null,
+            phone: conn.buyerPhone,
+            phoneVerified:conn.phoneVerified,
+            businessAddress: null,
+            businessName: null,
+            lastSeen: null,
+            profileImage: null,
+            isRegistered: false,
+          };
+        }
+      } else {
+        // Buyer view (always seller will exist)
+        otherUser = conn.seller
+          ? {
+              _id: conn.seller._id,
+              name: conn.seller.name,
+              email: conn.seller.email,
+              phone: conn.seller.phone,
+              businessAddress: conn.seller.businessAddress || null,
+              businessName: conn.seller.businessName || null,
+              lastSeen: conn.seller.lastSeen,
+              profileImage: conn.seller.profileImage?.url || null,
+            }
+          : null;
+      }
 
       return {
         _id: conn._id,
         status: conn.status,
         buyerCategory: conn.buyerCategory || null,
-        userRole: isBuyer ? "buyer" : "seller",
-        lastSeen: otherUser.lastSeen,
-        otherUser: otherUser
-          ? {
-              _id: otherUser._id,
-              name: otherUser.name,
-              email: otherUser.email,
-              phone: otherUser.phone,
-              businessAddress: otherUser.businessAddress || null,
-              businessName: otherUser.businessName || null,
-              lastSeen: otherUser.lastSeen,
-              profileImage: otherUser.profileImage?.url
-            }
-          : null,
+        userRole: mode,
+        otherUser,
         createdAt: conn.createdAt,
         updatedAt: conn.updatedAt,
       };
@@ -516,6 +306,7 @@ export const getBuyerConnections = catchAsyncErrors(async (req, res, next) => {
       totalPages: Math.ceil(totalConnections / limit),
       data: formattedConnections,
     });
+
   } catch (error) {
     return next(new Errorhandler(error.message, 500));
   }
@@ -603,103 +394,7 @@ export const updateConnectionStatus = catchAsyncErrors(
   }
 );
 
-// Get All Buyer-Seller Connections (Admin Only)
-// export const getAllBuyerSellerConnections = catchAsyncErrors(
-//   async (req, res, next) => {
-//     try {
-//       const connections = await BuyerSellerConnection.find()
-//         .populate("seller", "name email")
-//         .populate("buyer", "name email")
-//         .populate("buyerCategory", "name");
-
-//       return res.status(200).json({
-//         success: true,
-//         message: "All connections retrieved",
-//         data: connections,
-//       });
-//     } catch (error) {
-//       return next(new Errorhandler(error.message, 500));
-//     }
-//   }
-// );
-
 // Assigned Category Buyer Seller
-// export const assignedCategoryBuyerSeller = catchAsyncErrors(
-//   async (req, res, next) => {
-//     try {
-//       const { buyerEmail, buyerPhone, buyerCategory } = req.body;
-//       const seller = req.user._id;
-
-//       if (!buyerEmail && !buyerPhone) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "Either Email or Phone is required",
-//         });
-//       }
-
-//       if (!buyerCategory) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "Buyer Category is required",
-//         });
-//       }
-
-//       // Find buyer
-//       const buyer = await User.findOne({
-//         $or: [
-//           buyerEmail ? { email: buyerEmail } : null,
-//           buyerPhone ? { phone: buyerPhone } : null,
-//         ].filter(Boolean),
-//       });
-
-//       if (!buyer) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "No user found with given email or phone",
-//         });
-//       }
-
-//       // Check existing connection
-//       let connection = await BuyerSellerConnection.findOne({
-//         seller,
-//         buyer: buyer._id,
-//       });
-
-//       // If exists → UPDATE
-//       if (connection) {
-//         connection.buyerCategory = buyerCategory;
-//         connection.buyerEmail = buyerEmail || null;
-//         connection.buyerPhone = buyerPhone || null;
-//         connection.status = "Accepted"; 
-//         await connection.save();
-//       }
-//       else {
-//         connection = await BuyerSellerConnection.create({
-//           seller,
-//           buyer: buyer._id,
-//           buyerEmail: buyerEmail || null,
-//           buyerPhone: buyerPhone || null,
-//           buyerCategory,
-//           status: "Accepted",
-//         });
-//       }
-
-//       // Emit socket event
-//       if (req.io?.sockets?.sockets?.size > 0) {
-//         req.io.emit("buyerSellerConnectionUpdated", connection);
-//       }
-
-//       return res.status(201).json({
-//         success: true,
-//         message: "Buyer–Seller assigned category saved successfully",
-//         data: connection,
-//       });
-//     } catch (error) {
-//       return next(new Errorhandler(error.message, 500));
-//     }
-//   }
-// );
-
 export const assignedCategoryBuyerSeller = catchAsyncErrors(
   async (req, res, next) => {
     try {
@@ -780,86 +475,6 @@ export const assignedCategoryBuyerSeller = catchAsyncErrors(
 );
 
 // View All Members 
-// export const viewMembers = catchAsyncErrors(async (req, res, next) => {
-//   try {
-//     const { buyerCategory, seller } = req.body;
-
-//     if (!buyerCategory) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Buyer Category is required",
-//       });
-//     }
-
-//     if (!seller) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Seller is required",
-//       });
-//     }
-
-//     const allViewMembers = await BuyerSellerConnection.find({
-//       buyerCategory: buyerCategory,
-//       seller: seller,
-//       status: "Accepted", // optional (agar sirf accepted buyers chahiye)
-//     })
-//       .populate("buyer", "name email phone") // optional
-//       .sort({ createdAt: -1 });
-
-//     return res.status(200).json({
-//       success: true,
-//       count: allViewMembers.length,
-//       data: allViewMembers,
-//     });
-//   } catch (error) {
-//     return next(new Errorhandler(error.message, 500));
-//   }
-// });
-
-// export const viewMembers = catchAsyncErrors(async (req, res, next) => {
-//   try {
-//     const { buyerCategory, seller } = req.body;
-
-//     if (!buyerCategory) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Buyer Category is required",
-//       });
-//     }
-
-//     if (!seller) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Seller is required",
-//       });
-//     }
-
-//     const filter = {
-//       buyerCategory,
-//       seller,
-//       status: "Accepted", // optional
-//     };
-
-//     // 🔥 Parallel queries (fast)
-//     const [members, totalCount] = await Promise.all([
-//       BuyerSellerConnection.find(filter)
-//         .populate("buyer", "name email phone")
-//         .sort({ createdAt: -1 }),
-
-//       BuyerSellerConnection.countDocuments(filter),
-//     ]);
-
-//     return res.status(200).json({
-//       success: true,
-//       count: totalCount,
-//       data: members,
-//     });
-//   } catch (error) {
-//     return next(new Errorhandler(error.message, 500));
-//   }
-// });
-
-
 export const viewMembers = catchAsyncErrors(async (req, res, next) => {
   try {
     const { buyerCategory, seller, page = 1, limit = 10 } = req.body;
@@ -921,3 +536,51 @@ export const viewMembers = catchAsyncErrors(async (req, res, next) => {
     return next(new Errorhandler(error.message, 500));
   }
 });
+
+// New Apis for Sellers List for a Buyer
+// Get all accepted sellers of a buyer
+export const sellersList = catchAsyncErrors(async (req, res, next) => {
+  const buyer = req.user._id;
+  if (!buyer) {
+    return next(new Errorhandler("Buyer ID is required", 400));
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(buyer)) {
+    return next(new Errorhandler("Invalid Buyer ID", 400));
+  }
+
+  // Pagination params
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  // Total count (for frontend pagination)
+  const totalSellers = await BuyerSellerConnection.countDocuments({
+    buyer,
+    status: "Accepted",
+  });
+
+  // Find paginated data
+  const connections = await BuyerSellerConnection.find({
+    buyer,
+    status: "Accepted",
+  })
+    .populate(
+      "seller",
+      "name email phone businessName profileImage.url bankDetails businessAddress"
+    )
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 }); // latest first
+
+  res.status(200).json({
+    success: true,
+    currentPage: page,
+    totalPages: Math.ceil(totalSellers / limit),
+    totalSellers,
+    count: connections.length,
+    data: connections,
+  });
+});
+
+

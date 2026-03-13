@@ -22,7 +22,7 @@ export const createSupport = catchAsyncErrors(async (req, res, next) => {
 // Get all support tickets
 export const getAllSupport = catchAsyncErrors(async (req, res, next) => {
   try {
-    const supports = await Support.find().sort({ createdAt: -1 });
+    const supports = await Support.find().sort({ createdAt: -1 }).populate("user", "name phone")
     res.status(200).json({
       success: true,
       data: supports,
@@ -49,3 +49,26 @@ export const getSupportByUserId = catchAsyncErrors(async (req, res, next) => {
     next(new Errorhandler("Failed to fetch support tickets for user", 500));
   }
 });
+
+// Delete support
+export const deleteSupport = catchAsyncErrors(async (req, res, next) => {
+  try {
+    const { id } = req.body;
+
+    const support = await Support.findByIdAndDelete(id);
+
+    if (!support) {
+      return next(new Errorhandler("Support ticket not found", 404));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Support ticket deleted successfully",
+      data: support,
+    });
+
+  } catch (error) {
+    next(new Errorhandler("Failed to delete support ticket", 500));
+  }
+});
+

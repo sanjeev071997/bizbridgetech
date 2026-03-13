@@ -3,18 +3,18 @@ import Errorhandler from "../utils/Errorhandler.js";
 import catchAsyncErrors from "../middlewares/catchAsyncErrors.js";
 
 // Submit Contact Form (Public)
-export const createContact = catchAsyncErrors (async (req, res) => {
+export const createContact = catchAsyncErrors (async (req, res, next) => {
   try {
-    const { name, email, phone, message } = req.body;
+    const { name, email, phone, message, planId, business, city } = req.body;
 
-    if (!name || !email || !phone || !message) {
+    if (!name || !phone) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
       });
     }
 
-    const contact = await Contact.create({ name, email, phone, message });
+    const contact = await Contact.create({ name, email, phone, message, planId, business, city });
 
     return res.status(201).json({
       success: true,
@@ -27,7 +27,7 @@ export const createContact = catchAsyncErrors (async (req, res) => {
 });
 
 // Get All Contacts (Admin Only)
-export const getAllContacts = catchAsyncErrors (async (req, res) => {
+export const getAllContacts = catchAsyncErrors (async (req, res, next) => {
   try {
     const contacts = await Contact.find().sort({ createdAt: -1 });
 
@@ -42,7 +42,7 @@ export const getAllContacts = catchAsyncErrors (async (req, res) => {
 });
 
 // Delete Contact by ID (Admin Only)
-export const deleteContact = catchAsyncErrors(async (req, res) => {
+export const deleteContact = catchAsyncErrors(async (req, res, next) => {
   try {
     const { id } = req.params;
 

@@ -23,10 +23,10 @@ import {
   // verifyPhoneOtp,
   uploadProfileImage,
   deleteProfileImage,
-  sendOtp,
-verifyOtp,
+  loginSendOtp,
+  loginVerifyOtp,
 } from "../controllers/authController.js";
-import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
+import { isAuthenticatedUser, isAdmin, } from "../middlewares/authMiddleware.js";
 import {
   registerValidation,
   loginValidation,
@@ -34,6 +34,7 @@ import {
   profileUpdatePasswordValidation,
   resetPasswordValidation,
 } from "../helpers/authHelper.js";
+// import { otpRateLimiter } from "../middlewares/rateLimiter.js";
 
 const router = express.Router();
 
@@ -62,6 +63,9 @@ const upload = multer({
 
 router.post("/register", registerValidation, register);
 router.post("/login", loginValidation, login);
+// router.post("/login-send-otp", otpRateLimiter, loginSendOtp);
+router.post("/login-send-otp", loginSendOtp);
+router.post("/login-verify-otp", loginVerifyOtp);
 router.post("/google-register", googleWithRegister);
 router.post("/google-login", googleWithlogin);
 router.post("/refresh", refreshAccessToken);
@@ -98,7 +102,5 @@ router.put(
 // Delete profile image
 router.delete("/profile/delete-image", isAuthenticatedUser, deleteProfileImage);
 
-router.post("/send-otp", sendOtp);
-router.post("/verify-otp", verifyOtp);
 
 export default router;

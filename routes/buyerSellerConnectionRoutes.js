@@ -1,5 +1,5 @@
 import express from "express";
-import { createBuyerSellerConnection, getBuyerConnections, updateConnectionStatus, assignedCategoryBuyerSeller, viewMembers } from "../controllers/buyerSellerConnectionController.js";
+import { createBuyerSellerConnection, getBuyerConnections, updateConnectionStatus, assignedCategoryBuyerSeller, viewMembers, sellersList,  } from "../controllers/buyerSellerConnectionController.js";
 import { isAuthenticatedUser, isAdmin} from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
@@ -18,6 +18,11 @@ router.post("/assign/category", isAuthenticatedUser, assignedCategoryBuyerSeller
 
 // Get Buyer Category All Users -> (Seller Only)
 router.post('/view-members', isAuthenticatedUser, viewMembers);
+
+
+// Get Sellers List for a Buyer New Apis -> (Buyer Only)
+router.get("/sellers-list", isAuthenticatedUser, sellersList)
+
 
 
 export default router;

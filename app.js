@@ -1,3 +1,6 @@
+// Set timezone to IST at the very beginning
+process.env.TZ = 'Asia/Kolkata';
+
 import express from "express";
 import dotenv from "dotenv";
 import http from "http";
@@ -26,7 +29,10 @@ import companyFeedRoutes from "./routes/companyfeedsRoutes.js";
 import invoiceRoutes from "./routes/invoiceRoutes.js";
 import brandsRoutes from "./routes/brandsRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import planRoutes from "./routes/planRoutes.js";
+import billRoutes from "./routes/billRoute.js"
 import { startInterestCron } from "./utils/invoiceInterestCron.js";
+import { startBillingCron } from "./utils/billingCron.js";
 // import swaggerUi from "swagger-ui-express";
 import fs from "fs";
 import { initSocket } from "./socket/socket.js";
@@ -104,6 +110,8 @@ app.use("/api/v1/company/feed", companyFeedRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/brands", brandsRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes); // dashboard routes
+app.use("/api/v1/plans", planRoutes);
+app.use("/api/v1/billing", billRoutes);
 
 // app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
@@ -122,7 +130,7 @@ app.use(errorMiddleware);
 
 // socket connection
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+  // console.log("User connected:", socket.id);
 
   // join room based on connectionId
   socket.on("joinRoom", (connectionId) => {
@@ -145,6 +153,7 @@ io.on("connection", (socket) => {
 });
 
 startInterestCron(); // monthly interest
+startBillingCron();
 
 // Start server with Socket.IO attached
 server.listen(port, () => {

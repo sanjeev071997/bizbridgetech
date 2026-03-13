@@ -1022,228 +1022,7 @@ export const getProductByUserId = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-
-// New Apis IN APIS ME AGR MRP CHANGE HO RHI HAI TO CUSTOM PRICE bhi change hoge
-// Function to update a product - ALL PRICES UPDATE WITH MRP CHANGE
-// export const updateProduct = catchAsyncErrors(async (req, res, next) => {
-//   const { id } = req.params;
-//   const {
-//     image,
-//     name,
-//     category,
-//     mrp,
-//     unit,
-//     description,
-//     specifications,
-//   } = req.body;
-
-//   try {
-//     const product = await Product.findById(id).populate(
-//       "productVisibility.buyerCategory",
-//       "name discount"
-//     );
-//     if (!product) {
-//       return next(new Errorhandler("Product not found", 404));
-//     }
-
-//     // Permission check
-//     if (
-//       product.user.toString() !== req.user._id.toString() &&
-//       req.user.role !== 1
-//     ) {
-//       return next(
-//         new Errorhandler("You are not authorized to update this product", 403)
-//       );
-//     }
-
-//     // Handle image update
-//     let imageUrl = product.image;
-//     let cloudinaryId = product.cloudinaryId;
-//     if (image && image.startsWith("data:image")) {
-//       if (product.cloudinaryId) {
-//         await cloudinary.uploader.destroy(product.cloudinaryId);
-//       }
-//       const result = await uploadBase64Image(image);
-//       imageUrl = result.image;
-//       cloudinaryId = result.cloudinaryId;
-//     } else if (image && image !== product.image) {
-//       if (product.cloudinaryId) {
-//         await cloudinary.uploader.destroy(product.cloudinaryId);
-//       }
-//       const result = await cloudinary.uploader.upload(image, {
-//         folder: "SallerProducts",
-//       });
-//       imageUrl = result.secure_url;
-//       cloudinaryId = result.public_id;
-//     }
-
-//     // Update base product fields
-//     const oldMrp = product.mrp;
-//     const newMrp = mrp || product.mrp;
-
-//     product.name = name || product.name;
-//     product.unit = unit || product.unit;
-//     product.image = imageUrl;
-//     product.cloudinaryId = cloudinaryId;
-//     product.mrp = newMrp;
-//     product.category = category || product.category;
-//     product.description = description || product.description;
-//     product.specifications = specifications || product.specifications;
-
-//     // ✅ IMPORTANT: MRP change होने पर सभी buyer categories की price update करें
-//     if (newMrp !== oldMrp) {
-//       console.log(`MRP changed from ${oldMrp} to ${newMrp}. Updating all buyer category prices...`);
-
-//       for (let visibility of product.productVisibility) {
-//         if (visibility.buyerCategory && visibility.buyerCategory.discount != null) {
-//           const discount = parseFloat(visibility.buyerCategory.discount) || 0;
-
-//           // Calculate new price based on new MRP and discount
-//           const newPrice = newMrp - (newMrp * discount) / 100;
-
-//           // Update the price
-//           visibility.price = newPrice;
-
-//           // Mark as NOT manually set (since it's auto-calculated from MRP change)
-//           visibility.isPriceManuallySet = false;
-
-//           console.log(`Updated price for buyer category ${visibility.buyerCategory.name}: ${newPrice}`);
-//         }
-//       }
-//     }
-
-//     const updatedProduct = await product.save();
-
-//     await updatedProduct.populate(
-//       "productVisibility.buyerCategory",
-//       "name discount"
-//     );
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Product updated successfully",
-//       updatedProduct,
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     return next(new Errorhandler("Error updating product", 500));
-//   }
-// });
-
-// // Update product discount & visible - WITH PRICE UPDATE SUPPORT
-// export const updateProductCategoryAndVisibility = catchAsyncErrors(
-//   async (req, res, next) => {
-//     const { buyerCategory, visible, productId, price: userPrice } = req.body;
-
-//     console.log("Price Change API Called:", {
-//       buyerCategory,
-//       productId,
-//       userPrice,
-//       visible
-//     });
-
-//     try {
-//       // Validate productId
-//       if (!mongoose.Types.ObjectId.isValid(productId)) {
-//         return next(new Errorhandler("Invalid product ID", 400));
-//       }
-
-//       // Fetch product
-//       const product = await Product.findById(productId);
-//       if (!product) {
-//         return next(new Errorhandler("Product not found", 404));
-//       }
-
-//       // Validate buyerCategory
-//       if (!mongoose.Types.ObjectId.isValid(buyerCategory)) {
-//         return next(new Errorhandler("Invalid buyerCategory ID", 400));
-//       }
-
-//       // Fetch buyerCategory data
-//       const buyerCatData = await BuyerCategory.findById(buyerCategory).select(
-//         "discount"
-//       );
-//       if (!buyerCatData) {
-//         return next(new Errorhandler("BuyerCategory not found", 404));
-//       }
-
-//       // Initialize productVisibility if missing
-//       if (!product.productVisibility) product.productVisibility = [];
-
-//       // Remove invalid entries (buyerCategory: null)
-//       product.productVisibility = product.productVisibility.filter(
-//         (v) => v.buyerCategory
-//       );
-
-//       // Check if visibility for this buyerCategory already exists
-//       const existingVisibility = product.productVisibility.find(
-//         (v) => v.buyerCategory.toString() === buyerCategory.toString()
-//       );
-
-//       if (existingVisibility) {
-//         // Update visibility status
-//         existingVisibility.visible = visible !== undefined ? visible : existingVisibility.visible;
-
-//         // Update price if user provided
-//         if (userPrice !== undefined && userPrice !== null && userPrice !== "") {
-//           const newPrice = parseFloat(userPrice);
-//           if (!isNaN(newPrice) && newPrice > 0) {
-//             existingVisibility.price = newPrice;
-//             existingVisibility.isPriceManuallySet = true;  // Mark as manually set
-//             existingVisibility.lastPriceUpdate = new Date();
-//             console.log("Manually updated price to:", newPrice);
-//           }
-//         } else {
-//           // If user didn't provide price but we need to update based on discount
-//           const discount = parseFloat(buyerCatData.discount) || 0;
-//           const calculatedPrice = product.mrp - (product.mrp * discount) / 100;
-//           existingVisibility.price = calculatedPrice;
-//           existingVisibility.isPriceManuallySet = false; // Auto-calculated
-//           console.log("Auto-calculated price:", calculatedPrice, "based on discount:", discount);
-//         }
-//       } else {
-//         // For new visibility entry
-//         let finalPrice = product.mrp; // Default to MRP
-
-//         // If user has provided a price, use that
-//         if (userPrice !== undefined && userPrice !== null && userPrice !== "") {
-//           const newPrice = parseFloat(userPrice);
-//           if (!isNaN(newPrice) && newPrice > 0) {
-//             finalPrice = newPrice;
-//           }
-//         }
-//         // Otherwise calculate based on discount for new entries
-//         else if (buyerCatData.discount && buyerCatData.discount > 0) {
-//           finalPrice = product.mrp - (product.mrp * buyerCatData.discount) / 100;
-//         }
-
-//         console.log("Setting new price:", finalPrice);
-
-//         product.productVisibility.push({
-//           buyerCategory,
-//           visible: visible !== undefined ? visible : true,
-//           price: finalPrice,
-//           isPriceManuallySet: (userPrice !== undefined && userPrice !== null && userPrice !== ""), // Mark if manually set
-//           lastPriceUpdate: new Date()
-//         });
-//       }
-
-//       // Save product
-//       await product.save();
-//       console.log("Product saved successfully with updated price");
-
-//       res.status(200).json({
-//         success: true,
-//         message: "Product updated successfully",
-//         product,
-//       });
-//     } catch (error) {
-//       console.error("Error updating product:", error);
-//       return next(new Errorhandler("Error updating product", 500));
-//     }
-//   }
-// );
-
+// Function to apply global discount to products based on buyerCategory and productCategory
 export const applyGlobalDiscount = catchAsyncErrors(async (req, res, next) => {
   try {
     const { buyerCategoryId, productCategoryId, discount } = req.body;
@@ -1333,4 +1112,107 @@ export const applyGlobalDiscount = catchAsyncErrors(async (req, res, next) => {
   } catch (error) {
     return next(new Errorhandler(error.message, 500));
   }
+});
+
+// Get Seller Products with visibility for a specific buyerCategory (Used in connection details page for seller to see products visible to that buyerCategory)
+// export const sellerProducts = catchAsyncErrors(async (req, res, next) => {
+//   const {seller, buyerCategory} = req.body;
+
+//   try {
+//     const products = await Product.find({ user: seller })
+//       .populate("category", "name gst")
+//       .populate("user", "name phone businessName")
+//       .populate({
+//         path: "productVisibility",
+//         match: { buyerCategory: buyerCategory,  },
+//         select: "buyerCategory price visible isPriceManuallySet lastPriceUpdate"
+//       })
+ 
+//       .sort({ createdAt: -1 });
+ 
+//     if (!products || products.length === 0) {
+//       return next(new Errorhandler("Product not found", 404));
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       products,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return next(new Errorhandler("Error fetching products", 500));
+//   }
+// });
+
+// GEt add 
+export const sellerProducts = catchAsyncErrors(async (req, res, next) => {
+  const { seller, buyerCategory } = req.body;
+
+  if (!seller || !buyerCategory) {
+    return next(new Errorhandler("Seller and Buyer Category are required", 400));
+  }
+
+  console.log(seller, buyerCategory)
+  // Pagination params
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  // Total count for pagination
+  const totalProducts = await Product.countDocuments({
+    user: seller,
+    productVisibility: {
+      $elemMatch: {
+        buyerCategory: buyerCategory,
+        visible: true,
+      },
+    },
+  });
+
+  // Fetch paginated products
+  const products = await Product.find({
+    user: seller,
+    productVisibility: {
+      $elemMatch: {
+        buyerCategory: buyerCategory,
+        visible: true,
+      },
+    },
+  })
+    .populate("category", "name gst")
+    .populate("user", "name phone businessName")
+    .select({
+      name: 1,
+      image: 1,
+      mrp: 1,
+      unit: 1,
+      description: 1,
+      specifications: 1,
+      category: 1,
+      user: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      productVisibility: {
+        $elemMatch: {
+          buyerCategory: buyerCategory,
+          visible: true,
+        },
+      },
+    })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  if (!products.length) {
+    return next(new Errorhandler("No visible products found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    currentPage: page,
+    totalPages: Math.ceil(totalProducts / limit),
+    totalProducts,
+    count: products.length,
+    products,
+  });
 });

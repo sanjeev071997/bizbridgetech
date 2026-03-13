@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
 import BuyerCategory from "../models/buyerCategoriesModel.js";
 import PaymentOption from "../models/paymentOption.js";
+import BuyerSellerConnection from "../models/buyerSellerConnectionModels.js";
 import Otp from "../models/OTPModel.js";
 import sendToken from "../utils/jwtToken.js";
 import Errorhandler from "../utils/Errorhandler.js";
@@ -12,15 +13,12 @@ import ForgotPasswordEmail from "../utils/forgotPasswordEmail.js";
 import sendEmail from "../utils/sendEmail.js";
 import verifyEmail from "../utils/verifyEmail.js";
 // import { sendOtp } from "../utils/sendOtp.js";
-
 import { generateOtp } from "../utils/generateOtp.js";
-import { twilioClient } from "../utils/twilio.js";
-
 import { normalizeEmail } from "../utils/emailNormalizer.js";
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 import cloudinary from "../utils/cloudinary.js";
 import axios from "axios";
-
+import { sendOtpViaFast2SMS } from "../utils/fast2smsService.js";
 
 const normalizePhone = (phone) => {
   if (!phone) return null;
@@ -34,58 +32,192 @@ const normalizePhone = (phone) => {
   return phone;
 };
 
-// MSG91 SMS OTP send
-const sendSmsOtpMSG91 = async (phone, otp) => {
-  const url = "https://api.msg91.com/api/v5/otp";
+// // Send OTP API
+// export const sendOtp = async (req, res) => {
+//   try {
+//     let { phone, email } = req.body;
+//     phone = normalizePhone(phone);
 
-  const payload = {
-    template_id: "", // default template use kar rahe ho to empty string
-    mobile: phone.replace("+", ""), // MSG91 me + nahi chahiye
-    authkey:"490727A6yLn4bI0Q697a2326P1",
-    //  process.env.MSG91_AUTH_KEY,
-    otp: otp,
-    message: `Your OTP is ${otp}. It will expire in 5 minutes.`,
-    sender: "490727Tv9gu990i6979fe84P1",
-    // process.env.MSG91_SENDER || "BIZOTP", // sender ID
-    expiry: Number(process.env.OTP_EXPIRE_MINUTES) || 10, // minutes
-  };
+//     if (!phone) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Valid phone number required",
+//       });
+//     }
 
-  await axios.post(url, payload, {
-    headers: { "Content-Type": "application/json" },
-  });
-};
+//     const otp = generateOtp();
+//     const expiresAt = new Date(
+//       Date.now() + Number(process.env.FAST2SMS_OTP_EXPIRE_MINUTES || 10) * 60 * 1000
+//     );
 
-// Send OTP API
-export const sendOtp = async (req, res) => {
+//     // Delete old OTP
+//     await Otp.deleteMany({ phone });
+
+//     await Otp.create({ phone, email, otp, expiresAt });
+
+//     // Send OTP via Fast2SMS
+//     // await sendSmsOtpFast2SMS(phone, otp);
+
+//     res.status(200).json({
+//       success: true,
+//       message: "OTP sent successfully via SMS",
+//       otp: otp,
+//     });
+//   } catch (error) {
+//     console.error("OTP Send Error:", error.response?.data || error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to send OTP",
+//     });
+//   }
+// };
+
+// export const loginSendOtp = async (req, res) => {
+//   try {
+//     let { phone, email } = req.body;
+//     console.log(phone, "phone")
+//     // phone = normalizePhone(phone);
+
+//     console.log(phone, "normalized phone");
+
+//     if (!phone) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Valid phone number required",
+//       });
+//     }
+
+//     // 🔥 Check if user exists
+//     const user = await User.findOne({ phone });
+
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not registered with this phone number",
+//       });
+//     }
+
+//     const otp = generateOtp();
+//     const expiresAt = new Date(
+//       Date.now() +
+//         Number(process.env.FAST2SMS_OTP_EXPIRE_MINUTES || 10) *
+//           60 *
+//           1000
+//     );
+
+//     await Otp.deleteMany({ phone });
+//     await Otp.create({ phone, email, otp, expiresAt });
+
+//     res.status(200).json({
+//       success: true,
+//       message: "OTP sent successfully",
+//       otp: otp, // remove in production
+//     });
+
+//   } catch (error) {
+//     console.error("OTP Send Error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to send OTP",
+//     });
+//   }
+// };
+
+// login otp
+export const loginSendOtp = async (req, res) => {
   try {
     let { phone, email } = req.body;
-    phone = normalizePhone(phone);
 
-    if (!phone)
+    if (!phone) {
       return res.status(400).json({
         success: false,
         message: "Valid phone number required",
       });
+    }
+    // Optional: Validate phone number format (Indian numbers)
+    const phoneRegex = /^[6-9]\d{9}$/; // 10-digit Indian mobile number
+    const cleanPhone = phone.replace(/\D/g, ""); // Remove non-digits
+
+    if (!phoneRegex.test(cleanPhone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid 10-digit Indian mobile number",
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ phone: cleanPhone });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not registered with this phone number",
+      });
+    }
 
     const otp = generateOtp();
     const expiresAt = new Date(
-      Date.now() + Number(process.env.OTP_EXPIRE_MINUTES) * 60 * 1000
+      Date.now() +
+        Number(process.env.FAST2SMS_OTP_EXPIRE_MINUTES || 10) * 60 * 1000,
     );
 
-    // Delete old OTPs
-    await Otp.deleteMany({ phone });
+    // Delete any existing OTP for this phone
+    await Otp.deleteMany({ phone: cleanPhone });
 
-    await Otp.create({ phone, email, otp, expiresAt });
+    // Send OTP via Fast2SMS
+    // const smsResult = await sendOtpViaFast2SMS(cleanPhone, otp);
 
-    // Send OTP via MSG91
-    await sendSmsOtpMSG91(phone, otp);
+    // if (!smsResult.success) {
+    //   // Optionally, you might want to return error to client
+    //   return res.status(500).json({
+    //     success: false,
+    //     message: "Failed to send OTP via SMS. Please try again.",
+    //     error:
+    //       process.env.NODE_ENV === "development" ? smsResult.error : undefined,
+    //   });
+    // }
 
-    res.status(200).json({
-      success: true,
-      message: "OTP sent successfully via SMS",
+    let smsResult = { success: true };
+
+// ✅ Only send SMS in production
+if (process.env.NODE_ENV === "production") {
+  smsResult = await sendOtpViaFast2SMS(cleanPhone, otp);
+
+  if (!smsResult.success) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send OTP via SMS. Please try again.",
     });
+  }
+} else {
+  console.log("🧪 DEV MODE: OTP NOT SENT VIA SMS");
+  console.log("OTP =", otp);
+}
+
+    // Save OTP to database
+    await Otp.create({
+      phone: cleanPhone,
+      email,
+      otp,
+      expiresAt,
+      verified: false,
+    });
+
+    // In production, don't send OTP in response
+    const response = {
+      success: true,
+      message: "OTP sent successfully to your mobile number",
+    };
+
+    // Only include OTP in development environment
+    if (process.env.NODE_ENV === "development") {
+      response.otp = otp;
+      response.debug = smsResult.data;
+    }
+
+    res.status(200).json(response);
   } catch (error) {
-    console.error("OTP Send Error:", error.response?.data || error);
+    console.error("OTP Send Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to send OTP",
@@ -94,38 +226,55 @@ export const sendOtp = async (req, res) => {
 };
 
 // Verify OTP API
-export const verifyOtp = async (req, res) => {
+export const loginVerifyOtp = async (req, res) => {
   try {
     let { phone, otp } = req.body;
-    phone = normalizePhone(phone);
+    // phone = normalizePhone(phone);
 
-    if (!phone || !otp)
+    if (!phone || !otp) {
       return res.status(400).json({
         success: false,
         message: "Phone & OTP required",
       });
+    }
 
     const otpRecord = await Otp.findOne({ phone, otp });
 
-    if (!otpRecord)
+    if (!otpRecord) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP",
       });
+    }
 
-    if (otpRecord.expiresAt < new Date())
+    if (otpRecord.expiresAt < new Date()) {
       return res.status(400).json({
         success: false,
         message: "OTP expired",
       });
+    }
 
+    // Mark OTP verified
     otpRecord.verified = true;
     await otpRecord.save();
 
-    res.status(200).json({
-      success: true,
-      message: "OTP verified successfully",
+    // 🔥 Find user by last 10 digits
+    const last10Digits = phone.slice(-10);
+
+    let user = await User.findOne({
+      phone: { $regex: last10Digits + "$" },
     });
+
+    if (user) {
+      user.phoneVerified = true;
+      await user.save();
+    } else {
+      console.log("User not found for phone:", phone);
+    }
+
+    await Otp.deleteMany({ phone });
+
+    sendToken(user, 200, res);
   } catch (error) {
     console.error("OTP Verify Error:", error);
     res.status(500).json({
@@ -134,54 +283,6 @@ export const verifyOtp = async (req, res) => {
     });
   }
 };
-// User Register
-// export const register = catchAsyncErrors(async (req, res, next) => {
-//   const { email: rawEmail, phone } = req.body;
-//   const email = normalizeEmail(rawEmail);
-
-//   // OTP check → verified?
-//   const otpRecord = await Otp.findOne({ phone, verified: true });
-//   if (!otpRecord)
-//     return next(new Errorhandler("Please verify your phone number first", 400));
-
-//   // Email exists check
-//   const userExist = await User.findOne({ email });
-//   if (userExist) return next(new Errorhandler("Email already registered", 400));
-
-//   // Phone exists check
-//   const userPhoneExist = await User.findOne({ phone });
-//   if (userPhoneExist)
-//     return next(new Errorhandler("Phone already registered", 400));
-
-//   try {
-//     const user = await User.create({ ...req.body, email, phoneVerified: true });
-
-//     // Create Buyer Categories
-//     await BuyerCategory.create([
-//       { user: user._id, name: "Kiosk", discount: 0, color: "blue" },
-//       { user: user._id, name: "Standard", discount: 0, color: "green" },
-//     ]);
-
-//     const buyerCategories = await BuyerCategory.find({ user: user._id });
-//     for (const category of buyerCategories) {
-//       await PaymentOption.create({
-//         paymentType: "Cash",
-//         buyerCategory: category._id,
-//         user: user._id,
-//         cashPayment: { discountPercent: 0 },
-//       });
-//     }
-
-//     // ✅ Delete OTP after successful registration
-//     await Otp.deleteMany({ phone });
-
-//     sendToken(user, 200, res);
-//   } catch (error) {
-//     return next(
-//       new Errorhandler("Failed to create account. Please try again.", 500),
-//     );
-//   }
-// });
 
 // User Registration
 export const register = catchAsyncErrors(async (req, res, next) => {
@@ -209,15 +310,31 @@ export const register = catchAsyncErrors(async (req, res, next) => {
     const user = await User.create({
       ...req.body,
       email,
+      mode: "seller",
     });
 
+    // ✅ LINK EXISTING CONNECTIONS BASED ON PHONE
+    if (user.phone) {
+      const connections = await BuyerSellerConnection.find({
+        buyerPhone: user.phone,
+        buyer: null,
+      });
+
+      if (connections.length > 0) {
+        await BuyerSellerConnection.updateMany(
+          { buyerPhone: user.phone, buyer: null },
+          { $set: { buyer: user._id } },
+        );
+      }
+    }
+
     // Create Kiosk buyer category
-    await BuyerCategory.create({
-      user: user._id,
-      name: "Kiosk",
-      discount: 0,
-      color: "blue",
-    });
+    // await BuyerCategory.create({
+    //   user: user._id,
+    //   name: "Kiosk",
+    //   discount: 0,
+    //   color: "blue",
+    // });
 
     // Create Standard buyer category
     await BuyerCategory.create({
@@ -320,11 +437,26 @@ export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
   // phone required bypass
   await user.save({ validateBeforeSave: false });
 
-  await BuyerCategory.create({
-    user: user._id,
-    name: "Kiosk",
-    discount: 0,
-  });
+  // ✅ LINK EXISTING CONNECTIONS BASED ON PHONE
+  if (user.phone) {
+    const connections = await BuyerSellerConnection.find({
+      buyerPhone: user.phone,
+      buyer: null,
+    });
+
+    if (connections.length > 0) {
+      await BuyerSellerConnection.updateMany(
+        { buyerPhone: user.phone, buyer: null },
+        { $set: { buyer: user._id } },
+      );
+    }
+  }
+
+  // await BuyerCategory.create({
+  //   user: user._id,
+  //   name: "Kiosk",
+  //   discount: 0,
+  // });
   // Create Standard buyer category
   await BuyerCategory.create({
     user: user._id,
@@ -349,62 +481,6 @@ export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
 
   sendToken(user, 200, res);
 });
-
-// Google with Register OPT Verfiy 
-// export const googleWithRegister = catchAsyncErrors(async (req, res, next) => {
-//   const { tokenId, phone } = req.body;
-
-//   if (!phone) return next(new Errorhandler("Phone required", 400));
-
-//   const ticket = await client.verifyIdToken({
-//     idToken: tokenId, // directly verify
-//     audience: process.env.GOOGLE_CLIENT_ID,
-//   });
-
-//   const { email: rawEmail, name } = ticket.getPayload();
-//   const email = normalizeEmail(rawEmail);
-
-//   const userExist = await User.findOne({ email });
-//   if (userExist)
-//     return next(new Errorhandler("This Gmail is already registered", 400));
-
-//   // OTP check → verified?
-//   const otpRecord = await Otp.findOne({ phone, verified: true });
-//   if (!otpRecord)
-//     return next(new Errorhandler("Please verify your phone number first", 400));
-
-//   const randomPassword = crypto.randomBytes(20).toString("hex");
-
-//   const user = new User({
-//     name,
-//     email,
-//     phone,
-//     password: randomPassword,
-//     emailVerified: true,
-//     phoneVerified: true,
-//   });
-
-//   await user.save({ validateBeforeSave: false });
-
-//   // Categories + PaymentOption same as before
-//   const categories = [
-//     { name: "Kiosk", discount: 0 },
-//     { name: "Standard", discount: 0, color: "green" },
-//   ];
-
-//   for (const cat of categories) {
-//     const category = await BuyerCategory.create({ user: user._id, ...cat });
-//     await PaymentOption.create({
-//       paymentType: "Cash",
-//       buyerCategory: category._id,
-//       user: user._id,
-//       cashPayment: { discountPercent: 0 },
-//     });
-//   }
-//   // ✅ Delete OTP after successful registration
-//   await Otp.deleteMany({ phone });
-//   sendToken(user, 200, res);
-// });
 
 // Google with Login
 export const googleWithlogin = catchAsyncErrors(async (req, res, next) => {
@@ -908,7 +984,21 @@ export const profileUpdate = catchAsyncErrors(async (req, res, next) => {
       runValidators: true,
     },
   );
+  console.log("user phone", user.phone);
+  // ✅ LINK EXISTING CONNECTIONS BASED ON PHONE
+  if (user.phone) {
+    const connections = await BuyerSellerConnection.find({
+      buyerPhone: user.phone,
+      buyer: null,
+    });
 
+    if (connections.length > 0) {
+      await BuyerSellerConnection.updateMany(
+        { buyerPhone: user.phone, buyer: null },
+        { $set: { buyer: user._id } },
+      );
+    }
+  }
   res.status(200).json({
     success: true,
     user,

@@ -14,6 +14,7 @@ import {
   // getProductsByCategoryId,
   // getProductById,
   applyGlobalDiscount,
+  sellerProducts,
 } from "../controllers/sellerProductController.js";
 import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
 
@@ -45,10 +46,12 @@ router.post("/apply-global-discount", isAuthenticatedUser, applyGlobalDiscount)
 // Admin routes
 router.get("/", isAuthenticatedUser, isAdmin, getAllProducts);  // admin can see all products
 
-
 // router.get("/:category", isAuthenticatedUser, getProductsByCategoryId);
 
 // router.get("/get/product/:id", isAuthenticatedUser, getProductById);
 
+
+// Get Sellers Products for a Buyer New Apis -> (Buyer Only)
+router.post("/all", isAuthenticatedUser, sellerProducts);
 
 export default router;

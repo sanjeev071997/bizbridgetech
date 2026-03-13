@@ -1,5 +1,5 @@
 import express from "express";
-import { createSupport, getAllSupport, getSupportByUserId } from "../controllers/supportController.js";
+import { createSupport, getAllSupport, getSupportByUserId, deleteSupport } from "../controllers/supportController.js";
 
 import { isAuthenticatedUser, isAdmin } from "../middlewares/authMiddleware.js";
 
@@ -14,5 +14,8 @@ router.get("/", isAuthenticatedUser, getAllSupport);
 
 // Get support tickets by user ID
 router.get("/user", isAuthenticatedUser, getSupportByUserId);
+
+router.delete("/delete", isAuthenticatedUser, isAdmin, deleteSupport);
+
 
 export default router;

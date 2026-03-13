@@ -105,87 +105,106 @@ const getNextMonthEndDate = (date) => {
 };
 
 // Get Invoice + latest balance
-export const recordPayment = async (req, res, next) => {
-  const { id } = req.params;
-  let { amount, paidAt, note } = req.body;
+export const recordPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { amount, paidAt, note } = req.body;
 
-  // Convert & validate amount
-  amount = Number(amount);
+    amount = Number(amount);
 
-  if (!amount || amount <= 0) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Amount must be > 0" });
-  }
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be greater than 0",
+      });
+    }
 
-  const invoice = await Invoice.findById(id);
-  if (!invoice) {
-    return res
-      .status(404)
-      .json({ success: false, message: "Invoice not found" });
-  }
+    const invoice = await Invoice.findById(id);
 
-  // IMPORTANT CHECK
-  const hasPendingApproval = invoice.bankStatement.some(
-    (entry) => entry.paymentStatus === "Pending"
-  );
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found",
+      });
+    }
 
-  if (hasPendingApproval) {
-    return res.status(400).json({
-      success: false,
+    // ❌ Block if pending approval exists
+    const hasPending = invoice.bankStatement.some(
+      (entry) => entry.paymentStatus === "Pending"
+    );
+
+    if (hasPending) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Previous payment is pending seller approval.",
+      });
+    }
+
+    // Safe last balance
+    const lastBalance =
+      invoice.bankStatement.length > 0
+        ? Number(invoice.bankStatement.at(-1).balance)
+        : Number(invoice.amount);
+
+    if (amount > lastBalance) {
+      return res.status(400).json({
+        success: false,
+        message: `Payment cannot exceed remaining balance (${lastBalance})`,
+      });
+    }
+
+    // Safe Date
+    let paymentDate = paidAt ? new Date(paidAt) : new Date();
+    if (isNaN(paymentDate.getTime())) {
+      paymentDate = new Date();
+    }
+
+    const paidAmount =
+      Math.round((amount + Number.EPSILON) * 100) / 100;
+
+    const newBalance =
+      Math.round(
+        (lastBalance - paidAmount + Number.EPSILON) * 100
+      ) / 100;
+
+    invoice.bankStatement.push({
+      date: paymentDate,
+      description: note || "Payment received",
+      debit: 0,
+      credit: paidAmount,
+      balance: newBalance,
+      paymentStatus: "Pending",
+    });
+
+    // Update invoice status
+    if (newBalance <= 0) {
+      invoice.status = "Paid";
+      invoice.paidAt = paymentDate;
+    } else if (
+      invoice.dueDate &&
+      new Date() > new Date(invoice.dueDate)
+    ) {
+      invoice.status = "Overdue";
+    } else {
+      invoice.status = "Pending";
+    }
+
+    await invoice.save();
+
+    res.status(200).json({
+      success: true,
       message:
-        "Previous payment is pending seller approval. You cannot add a new payment.",
+        "Payment recorded successfully and waiting for seller approval",
+      data: invoice,
     });
-  }
-
-  // Last balance
-  const lastBalance = invoice.bankStatement.at(-1)?.balance ?? invoice.amount;
-
-  // Amount should not exceed pending balance
-  if (amount > lastBalance) {
-    return res.status(400).json({
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
       success: false,
-      message: `Payment amount cannot exceed pending balance (${lastBalance})`,
+      message: "Internal server error",
     });
   }
-
-  // paidAt fallback → current date
-  let tDate = paidAt ? new Date(paidAt) : new Date();
-  if (isNaN(tDate.getTime())) {
-    tDate = new Date();
-  }
-
-  // Round values to 2 decimals
-  const paidAmount = Math.round((amount + Number.EPSILON) * 100) / 100;
-  const newBalance =
-    Math.round((lastBalance - paidAmount + Number.EPSILON) * 100) / 100;
-
-  invoice.bankStatement.push({
-    date: tDate,
-    description: note || "Payment received",
-    debit: 0,
-    credit: paidAmount,
-    balance: newBalance,
-    paymentStatus: "Pending", // seller approval required
-  });
-
-  // Update invoice status
-  if (newBalance <= 0) {
-    invoice.status = "Paid";
-    invoice.paidAt = tDate;
-  } else if (invoice.dueDate && new Date() > invoice.dueDate) {
-    invoice.status = "Overdue";
-  } else {
-    invoice.status = "Pending";
-  }
-
-  await invoice.save();
-
-  res.json({
-    success: true,
-    message: "Payment recorded successfully and waiting for seller approval",
-    data: invoice,
-  });
 };
 
 // Get Invoice
@@ -269,194 +288,6 @@ export const getInvoiceStatement = async (req, res) => {
       message: "Internal server error",
     });
   }
-};
-
-// BALANCE HELPER (Interest entries bittu balance nodalu)
-// const getBalanceOnDate = (invoice, date) => {
-//   const targetDate = startOfDay(new Date(date));
-//   let balance = invoice.amount;
-
-//   const sortedStatements = [...invoice.bankStatement]
-//     .filter((entry) => !entry.description.toLowerCase().includes("interest"))
-//     .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-//   for (const entry of sortedStatements) {
-//     if (startOfDay(new Date(entry.date)) <= targetDate) {
-//       balance = entry.balance;
-//     } else {
-//       break;
-//     }
-//   }
-//   return balance;
-// };
-
-// DAILY INTEREST HELPER (Leap Year Optimized)
-// const calculateDailyInterestForPeriod = (invoice, startDate, endDate) => {
-//   const ratePerYear = (invoice.interestRatePerYear || 0) / 100;
-
-//   const payments = [...invoice.bankStatement]
-//     .filter((txn) => !txn.description.toLowerCase().includes("interest"))
-//     .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-//   let totalInterest = 0;
-//   let periodStart = startOfDay(new Date(startDate));
-//   const finalEnd = startOfDay(new Date(endDate));
-//   let currentBalance = getBalanceOnDate(invoice, startDate);
-
-//   for (const txn of payments) {
-//     const txnDate = startOfDay(new Date(txn.date));
-
-//     if (txnDate > periodStart && txnDate <= finalEnd) {
-//       const days = differenceInCalendarDays(txnDate, periodStart);
-//       if (days > 0) {
-//         // Dynamic daily rate based on year (365 or 366)
-//         const dailyRate = ratePerYear / getDaysInYear(periodStart);
-//         totalInterest += currentBalance * dailyRate * days;
-//       }
-//       currentBalance = txn.balance;
-//       periodStart = txnDate;
-//     }
-//   }
-
-//   // Last payment ninda end date varege
-//   const remainingDays = differenceInCalendarDays(finalEnd, periodStart) + 1;
-//   if (remainingDays > 0) {
-//     const dailyRate = ratePerYear / getDaysInYear(periodStart);
-//     totalInterest += currentBalance * dailyRate * remainingDays;
-//   }
-
-//   return +totalInterest.toFixed(2);
-// };
-
-// APPLY MONTHLY INTEREST
-// export const applyMonthlyInterestIfNeeded = async (
-//   invoice,
-//   runAt = new Date()
-// ) => {
-//   if (invoice.status === "Paid") return;
-
-//   const today = startOfDay(runAt);
-//   if (!isLastDayOfMonth(today)) return;
-//   if (!invoice.dueDate || !invoice.interestRatePerYear) return;
-
-//   const dueDate = startOfDay(new Date(invoice.dueDate));
-//   if (today < dueDate) return;
-
-//   const monthName = today.toLocaleString("default", {
-//     month: "long",
-//     year: "numeric",
-//   });
-//   const interestDesc = `Monthly interest for ${monthName}`;
-
-//   const alreadyApplied = invoice.bankStatement.some(
-//     (txn) => txn.description === interestDesc
-//   );
-//   if (alreadyApplied) return;
-
-//   const interest = calculateDailyInterestForPeriod(invoice, dueDate, today);
-//   if (interest <= 0) return;
-
-//   const lastBalance = invoice.bankStatement.at(-1)?.balance ?? invoice.amount;
-//   const newBalance = +(lastBalance + interest).toFixed(2);
-
-//   invoice.bankStatement.push({
-//     date: endOfDay(today),
-//     description: interestDesc,
-//     debit: interest,
-//     credit: 0,
-//     balance: newBalance,
-//     paymentStatus: "Approved",
-//   });
-
-//   invoice.status = "Overdue";
-//   invoice.lastMonthEndInterestApplied = endOfDay(today);
-//   invoice.markModified("bankStatement");
-//   await invoice.save();
-// };
-
-// CALCULATE INTEREST TILL DATE (API Response)
-export const calculateInterestTillDate = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { tillDate } = req.body;
-
-    const invoice = await Invoice.findById(id);
-    if (!invoice)
-      return res
-        .status(404)
-        .json({ success: false, message: "Invoice not found" });
-
-    const endDate = startOfDay(tillDate ? new Date(tillDate) : new Date());
-    const dueDate = startOfDay(new Date(invoice.dueDate));
-
-    if (endDate < dueDate) {
-      return res.json({
-        success: true,
-        data: { totalInterest: 0, currentOutstanding: invoice.amount },
-      });
-    }
-
-    const totalInterest = calculateDailyInterestForPeriod(
-      invoice,
-      dueDate,
-      endDate
-    );
-    const currentBalance =
-      invoice.bankStatement.at(-1)?.balance ?? invoice.amount;
-
-    res.json({
-      success: true,
-      data: {
-        totalInterest,
-        currentOutstanding: +(currentBalance + totalInterest).toFixed(2),
-        daysInYearUsed: getDaysInYear(endDate), // Debugging gagi
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-// Cron runner: apply monthly interest to all eligible invoices
-// export const runMonthlyInterestForAll = async (runAt = new Date()) => {
-//   // Only run on month-end dates
-//   if (!isLastDayOfMonth(runAt)) {
-//     console.log(`Not a month-end date: ${runAt.toISOString()}`);
-//     return;
-//   }
-
-//   // Find invoices that:
-//   // 1. Are not paid
-//   // 2. Have dueDate passed
-//   // 3. Either have nextInterestApplicationDate = today OR no interest applied yet
-//   const today = startOfDay(runAt);
-
-//   const invoices = await Invoice.find({
-//     status: { $ne: "Paid" },
-//     dueDate: { $lte: today },
-//     $or: [
-//       { nextInterestApplicationDate: { $lte: today } },
-//       { nextInterestApplicationDate: null, lastMonthEndInterestApplied: null },
-//     ],
-//   });
-
-//   console.log(
-//     `Running monthly interest for ${
-//       invoices.length
-//     } invoices on ${runAt.toISOString()}`
-//   );
-
-//   for (const inv of invoices) {
-//     await applyMonthlyInterestIfNeeded(inv, runAt);
-//   }
-
-//   console.log(`Monthly interest application completed`);
-// };
-
-// Manual trigger API
-export const runInterestCronNow = async (req, res) => {
-  await runMonthlyInterestForAll(new Date());
-  res.json({ success: true, message: "Monthly interest run executed" });
 };
 
 // Get invoice by order, seller, or buyer
@@ -698,121 +529,105 @@ export const getBuyerAllInvoices = async (req, res) => {
   }
 };
 
-// // Update credit entry (only by buyer)
-// export const updateCredit = async (req, res) => {
-//   try {
-//     if (req.user.mode !== "buyer") {
-//       return res
-//         .status(403)
-//         .json({ success: false, message: "Only buyers can update credit" });
-//     }
-
-//     const { id } = req.params; // bankStatement _id
-//     const { credit } = req.body;
-
-//     if (!mongoose.Types.ObjectId.isValid(id)) {
-//       return res.status(400).json({ success: false, message: "Invalid ID" });
-//     }
-
-//     const invoice = await Invoice.findOne({ "bankStatement._id": id });
-//     if (!invoice) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Entry not found" });
-//     }
-
-//     const entry = invoice.bankStatement.id(id);
-//     if (credit === undefined) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "Credit value required" });
-//     }
-
-//     entry.credit = credit;
-//     await invoice.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Credit updated successfully",
-//       data: entry,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     return res
-//       .status(500)
-//       .json({ success: false, message: "Internal server error" });
-//   }
-// };
-
 // Update credit entry (only by buyer)
 export const updateCredit = async (req, res) => {
   try {
     if (req.user.mode !== "buyer") {
-      return res
-        .status(403)
-        .json({ success: false, message: "Only buyers can update credit" });
+      return res.status(403).json({
+        success: false,
+        message: "Only buyers can update credit",
+      });
     }
 
-    const { id } = req.params; // bankStatement _id
-    const { credit } = req.body;
+    const { id } = req.params;
+    let { credit } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "Invalid ID" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ID",
+      });
+    }
+
+    credit = Number(credit);
+
+    if (credit === undefined || isNaN(credit) || credit < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid credit value required",
+      });
     }
 
     const invoice = await Invoice.findOne({ "bankStatement._id": id });
+
     if (!invoice) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Entry not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Entry not found",
+      });
     }
 
     const entry = invoice.bankStatement.id(id);
-    if (credit === undefined) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Credit value required" });
+
+    if (!entry) {
+      return res.status(404).json({
+        success: false,
+        message: "Bank entry not found",
+      });
     }
 
-    // Update the credit value
+    // Update credit safely
     entry.credit = credit;
-    
-    // Recalculate running balance for all entries
-    let runningBalance = 0;
-    
-    // Sort entries by date (oldest first)
-    const sortedEntries = [...invoice.bankStatement].sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
-    );
-    
-    // Calculate new balances
-    for (let i = 0; i < sortedEntries.length; i++) {
-      const currentEntry = sortedEntries[i];
-      if (i === 0) {
-        // First entry: starting balance based on debit/credit
-        runningBalance = currentEntry.debit - currentEntry.credit;
-      } else {
-        // Subsequent entries: add/subtract from previous balance
-        runningBalance = runningBalance + currentEntry.debit - currentEntry.credit;
-      }
-      
-      // Update the balance for this entry
-      currentEntry.balance = runningBalance;
+    entry.debit = 0;
+
+    // 🔥 Recalculate Running Balance Properly
+    let runningBalance = Number(invoice.amount) || 0;
+
+    const sortedEntries = invoice.bankStatement
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.date || 0).getTime() -
+          new Date(b.date || 0).getTime()
+      );
+
+    for (let item of sortedEntries) {
+      const debit = Number(item.debit) || 0;
+      const creditVal = Number(item.credit) || 0;
+
+      runningBalance =
+        runningBalance + debit - creditVal;
+
+      item.balance =
+        Math.round((runningBalance + Number.EPSILON) * 100) / 100;
     }
-    
-    // Save the invoice
+
+    // Update invoice status
+    if (runningBalance <= 0) {
+      invoice.status = "Paid";
+      invoice.paidAt = new Date();
+    } else if (
+      invoice.dueDate &&
+      new Date() > new Date(invoice.dueDate)
+    ) {
+      invoice.status = "Overdue";
+    } else {
+      invoice.status = "Pending";
+    }
+
     await invoice.save();
 
     return res.status(200).json({
       success: true,
-      message: "Credit updated successfully",
+      message: "Credit updated and balance recalculated successfully",
       data: entry,
     });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Internal server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
 
@@ -919,90 +734,6 @@ export const deleteBankStatementEntry = async (req, res) => {
   }
 };
 
-// Get invoice by seller id and buyer id with (pagination)
-// export const getInvoiceBySellerBuyer = async (req, res) => {
-//   try {
-//     const {
-//       seller,
-//       buyer,
-//       page = 1,
-//       limit = 10,
-//     } = req.body;
-
-//     // Validation
-//     if (!seller && !buyer) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "seller or buyer is required",
-//       });
-//     }
-
-//     const query = {};
-//     if (seller) query.seller = seller;
-//     if (buyer) query.buyer = buyer;
-
-//     const skip = (Number(page) - 1) * Number(limit);
-
-//     // Get invoices
-//     const invoices = await Invoice.find(query)
-//       .populate("order")
-//       .populate("buyer")
-//       .populate("seller")
-//       .sort({ createdAt: -1 })
-//       .skip(skip)
-//       .limit(Number(limit));
-
-//     const totalInvoices = await Invoice.countDocuments(query);
-
-//     if (!invoices.length) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "No invoices found",
-//       });
-//     }
-
-//     // Attach latest approved balance per invoice
-//     const invoiceData = invoices.map((invoice) => {
-//       const approvedStatements =
-//         invoice.bankStatement?.filter(
-//           (entry) => entry.paymentStatus === "Approved"
-//         ) || [];
-
-//       const latestBalance =
-//         approvedStatements.length > 0
-//           ? approvedStatements.at(-1).balance
-//           : 0;
-
-//       return {
-//         ...invoice.toObject(),
-//         latestBalance,
-//         nextInterestApplicationDate:
-//           invoice.nextInterestApplicationDate ||
-//           getNextMonthEndDate(invoice.dueDate),
-//       };
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Invoices fetched successfully",
-//       pagination: {
-//         total: totalInvoices,
-//         page: Number(page),
-//         limit: Number(limit),
-//         totalPages: Math.ceil(totalInvoices / limit),
-//       },
-//       data: invoiceData,
-//     });
-//   } catch (error) {
-//     console.error("getInvoiceBySellerBuyer error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error",
-//       error: error.message,
-//     });
-//   }
-// };
-
 export const getInvoiceBySellerBuyer = async (req, res) => {
   try {
     const {
@@ -1087,7 +818,74 @@ export const getInvoiceBySellerBuyer = async (req, res) => {
 };
 
 // My Fix corn job 
-// APPLY MONTHLY INTEREST - FIXED VERSION
+export const calculateInterestTillDate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tillDate } = req.body;
+
+    const invoice = await Invoice.findById(id);
+    if (!invoice)
+      return res
+        .status(404)
+        .json({ success: false, message: "Invoice not found" });
+
+    const endDate = startOfDay(tillDate ? new Date(tillDate) : new Date());
+    const dueDate = startOfDay(new Date(invoice.dueDate));
+
+    if (endDate < dueDate) {
+      return res.json({
+        success: true,
+        data: { totalInterest: 0, currentOutstanding: invoice.amount },
+      });
+    }
+
+    const totalInterest = calculateDailyInterestForPeriod(
+      invoice,
+      dueDate,
+      endDate
+    );
+    const currentBalance =
+      invoice.bankStatement.at(-1)?.balance ?? invoice.amount;
+    res.json({
+      success: true,
+      data: {
+        totalInterest,
+        currentOutstanding: +(currentBalance + totalInterest).toFixed(2),
+        daysInYearUsed: getDaysInYear(endDate), // Debugging gagi
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Manual trigger API
+export const runInterestCronNow = async (req, res) => {
+  await runMonthlyInterestForAll(new Date());
+  res.json({ success: true, message: "Monthly interest run executed" });
+};
+
+// BALANCE HELPER - किसी specific date पर balance निकालो
+const getBalanceOnDate = (invoice, date) => {
+  const targetDate = startOfDay(new Date(date));
+  
+  // सारे approved transactions जो targetDate से पहले या उस दिन हुए
+  const relevantTransactions = [...invoice.bankStatement]
+    .filter((txn) => 
+      txn.paymentStatus === "Approved" && 
+      startOfDay(new Date(txn.date)) <= targetDate
+    )
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (relevantTransactions.length === 0) {
+    return invoice.amount;
+  }
+
+  // Last transaction का balance लो
+  return relevantTransactions.at(-1).balance;
+};
+
+// APPLY MONTHLY INTEREST 
 export const applyMonthlyInterestIfNeeded = async (
   invoice,
   runAt = new Date()
@@ -1095,226 +893,398 @@ export const applyMonthlyInterestIfNeeded = async (
   if (invoice.status === "Paid") return;
 
   const today = startOfDay(runAt);
-  if (!isLastDayOfMonth(today)) return;
-  if (!invoice.dueDate || !invoice.interestRatePerYear) return;
+  
+  // IMPORTANT: Check if today is last day of month (using IST)
+  if (!isLastDayOfMonth(today)) {
+    console.log(` Not last day of month: ${today.toLocaleDateString()}`);
+    return;
+  }
+  
+  if (!invoice.dueDate || !invoice.interestRatePerYear) {
+    console.log(` No dueDate or interestRate: ${invoice._id}`);
+    return;
+  }
 
   const dueDate = startOfDay(new Date(invoice.dueDate));
-  if (today < dueDate) return;
+  
+  // Only apply interest if due date has passed
+  // if (today < dueDate) {
+  //   console.log(`   ⏭️ Due date not passed: ${dueDate.toLocaleDateString()}`);
+  //   return;
+  // }
 
   const monthName = today.toLocaleString("default", {
     month: "long",
     year: "numeric",
   });
-  const interestDesc = `Monthly interest for ${monthName}`;
-
+  
+  // Check for multiple possible description formats
+  const possibleDescriptions = [
+    `Monthly interest for ${monthName}`,
+    `Monthly interest`,
+    `Interest for ${monthName}`,
+    `Month-end interest`
+  ];
+  
   const alreadyApplied = invoice.bankStatement.some(
-    (txn) => txn.description === interestDesc
+    (txn) => possibleDescriptions.some(desc => txn.description.includes(desc))
   );
-  if (alreadyApplied) return;
+  
+  if (alreadyApplied) {
+    console.log(`   ⏭️ Interest already applied for ${monthName}`);
+    return;
+  }
 
-  const interest = calculateDailyInterestForPeriod(invoice, dueDate, today);
-  if (interest <= 0) return;
-
-  // Get last APPROVED balance (not pending payments)
+  // Get last APPROVED balance (excluding pending payments but INCLUDING interest entries)
   const approvedStatements = invoice.bankStatement.filter(
     (entry) => entry.paymentStatus === "Approved"
   );
+  
   const lastBalance = approvedStatements.length > 0 
     ? approvedStatements.at(-1).balance 
     : invoice.amount;
   
+  // Calculate interest from due date to today
+  const interest = calculateDailyInterestForPeriod(invoice, dueDate, today);
+  
+  if (interest <= 0) {
+    console.log(`   ℹ️ No interest to apply (interest <= 0)`);
+    return;
+  }
+
   const newBalance = +(lastBalance + interest).toFixed(2);
 
-  // FIX: Interest entries should be AUTO-APPROVED
+  // Add interest entry with APPROVED status
   invoice.bankStatement.push({
     date: endOfDay(today),
-    description: interestDesc,
+    description: `Monthly interest for ${monthName}`,
     debit: interest,
     credit: 0,
     balance: newBalance,
-    paymentStatus: "Approved", // AUTO-APPROVED (not Pending)
+    paymentStatus: "Approved", // Auto-approved
   });
 
   invoice.status = "Overdue";
   invoice.lastMonthEndInterestApplied = endOfDay(today);
-  invoice.nextInterestApplicationDate = getNextMonthEndDate(endOfDay(today));
+  
+  // Calculate next month's end date
+  const nextMonth = new Date(today);
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  invoice.nextInterestApplicationDate = getMonthEndDate(nextMonth);
+  
   invoice.markModified("bankStatement");
   await invoice.save();
   
-  console.log(`✅ Interest applied for invoice ${invoice._id}: ₹${interest}`);
+  // console.log(`✅ Interest applied for invoice ${invoice._id}: ₹${interest}`);
 };
 
-// BALANCE HELPER (Interest entries bittu balance nodalu)
-const getBalanceOnDate = (invoice, date) => {
-  const targetDate = startOfDay(new Date(date));
-  let balance = invoice.amount;
-
-  // Filter only APPROVED entries (excluding pending payments AND interest)
-  const sortedStatements = [...invoice.bankStatement]
-    .filter((entry) => entry.paymentStatus === "Approved" && 
-                      !entry.description.toLowerCase().includes("interest"))
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  for (const entry of sortedStatements) {
-    if (startOfDay(new Date(entry.date)) <= targetDate) {
-      balance = entry.balance;
-    } else {
-      break;
-    }
-  }
-  return balance;
-};
-
-// DAILY INTEREST HELPER (Leap Year Optimized)
+// DAILY INTEREST HELPER
 const calculateDailyInterestForPeriod = (invoice, startDate, endDate) => {
   const ratePerYear = (invoice.interestRatePerYear || 0) / 100;
 
-  // Filter only APPROVED payments (not pending)
-  const payments = [...invoice.bankStatement]
-    .filter((txn) => txn.paymentStatus === "Approved" && 
-                     !txn.description.toLowerCase().includes("interest"))
+  // Get ALL approved transactions in chronological order
+  const approvedTransactions = [...invoice.bankStatement]
+    .filter((txn) => txn.paymentStatus === "Approved")
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   let totalInterest = 0;
   let periodStart = startOfDay(new Date(startDate));
   const finalEnd = startOfDay(new Date(endDate));
+  
+  // console.log(`   📅 Period: ${periodStart.toLocaleDateString()} to ${finalEnd.toLocaleDateString()}`);
+  
+  // Get initial balance at startDate
   let currentBalance = getBalanceOnDate(invoice, startDate);
-
-  for (const txn of payments) {
+  // console.log(`   💰 Initial Balance on ${periodStart.toLocaleDateString()}: ₹${currentBalance}`);
+  
+  // Get all transactions that fall within this period
+  const relevantTransactions = approvedTransactions.filter(txn => {
     const txnDate = startOfDay(new Date(txn.date));
-
-    if (txnDate > periodStart && txnDate <= finalEnd) {
-      const days = differenceInCalendarDays(txnDate, periodStart);
-      if (days > 0) {
-        const dailyRate = ratePerYear / getDaysInYear(periodStart);
-        totalInterest += currentBalance * dailyRate * days;
-      }
-      currentBalance = txn.balance;
-      periodStart = txnDate;
+    return txnDate > periodStart && txnDate <= finalEnd;
+  });
+  
+  console.log(`   📊 Found ${relevantTransactions.length} transactions in this period`);
+  
+  // Case 1: कोई transaction नहीं है period में
+  if (relevantTransactions.length === 0) {
+    const days = differenceInCalendarDays(finalEnd, periodStart);
+    // अगर same day है तो 1 day
+    const actualDays = days === 0 ? 1 : days;
+    
+    const dailyRate = ratePerYear / getDaysInYear(periodStart);
+    const periodInterest = currentBalance * dailyRate * actualDays;
+    totalInterest += periodInterest;
+    
+    console.log(`   📊 No transactions: ${currentBalance} × ${ratePerYear*100}% × ${actualDays}/365 = ₹${periodInterest.toFixed(2)}`);
+    
+    return +totalInterest.toFixed(2);
+  }
+  
+  // Case 2: Transactions हैं - हर transaction के बीच का interest calculate करो
+  let lastProcessedDate = periodStart;
+  
+  for (const txn of relevantTransactions) {
+    const txnDate = startOfDay(new Date(txn.date));
+    
+    // पिछले date से इस transaction date तक का interest
+    const days = differenceInCalendarDays(txnDate, lastProcessedDate);
+    if (days > 0) {
+      const dailyRate = ratePerYear / getDaysInYear(lastProcessedDate);
+      const periodInterest = currentBalance * dailyRate * days;
+      totalInterest += periodInterest;
+      
+      console.log(`   📊 ${lastProcessedDate.toLocaleDateString()} to ${txnDate.toLocaleDateString()}:`);
+      console.log(`      Balance: ₹${currentBalance} × ${ratePerYear*100}% × ${days} days = ₹${periodInterest.toFixed(2)}`);
+    }
+    
+    // Transaction के बाद balance update करो
+    currentBalance = txn.balance;
+    lastProcessedDate = txnDate;
+    
+    console.log(`   💰 After transaction on ${txnDate.toLocaleDateString()}: New Balance = ₹${currentBalance}`);
+  }
+  
+  // Last transaction से endDate तक का interest
+  if (lastProcessedDate < finalEnd) {
+    const days = differenceInCalendarDays(finalEnd, lastProcessedDate);
+    const actualDays = days === 0 ? 1 : days;
+    
+    if (actualDays > 0) {
+      const dailyRate = ratePerYear / getDaysInYear(lastProcessedDate);
+      const remainingInterest = currentBalance * dailyRate * actualDays;
+      totalInterest += remainingInterest;
+      
+      console.log(`   📊 ${lastProcessedDate.toLocaleDateString()} to ${finalEnd.toLocaleDateString()}:`);
+      console.log(`      Balance: ₹${currentBalance} × ${ratePerYear*100}% × ${actualDays} days = ₹${remainingInterest.toFixed(2)}`);
     }
   }
 
-  const remainingDays = differenceInCalendarDays(finalEnd, periodStart);
-  if (remainingDays > 0) {
-    const dailyRate = ratePerYear / getDaysInYear(periodStart);
-    totalInterest += currentBalance * dailyRate * remainingDays;
-  }
-
+  console.log(`   💰 TOTAL INTEREST for period: ₹${totalInterest.toFixed(2)}`);
+  
   return +totalInterest.toFixed(2);
 };
 
-// export const runMonthlyInterestForAll = async (runAt = new Date()) => {
-//   // Only run on month-end dates
-//   if (!isLastDayOfMonth(runAt)) {
-//     console.log(`Not a month-end date: ${runAt.toISOString()}`);
-//     return;
-//   }
-
-//   const today = startOfDay(runAt);
-  
-//   // Find invoices that:
-//   // 1. Are not paid
-//   // 2. Have dueDate passed
-//   // 3. Have interest rate > 0
-//   // 4. Haven't already had interest applied for this month
-//   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  
-//   const invoices = await Invoice.find({
-//     status: { $ne: "Paid" },
-//     dueDate: { $lte: today },
-//     interestRatePerYear: { $gt: 0 },
-//     $or: [
-//       { lastMonthEndInterestApplied: { $lt: startOfMonth } },
-//       { lastMonthEndInterestApplied: null }
-//     ]
-//   });
-
-//   console.log(
-//     `Running monthly interest for ${
-//       invoices.length
-//     } invoices on ${runAt.toISOString()}`
-//   );
-
-//   for (const inv of invoices) {
-//     try {
-//       await applyMonthlyInterestIfNeeded(inv, runAt);
-//     } catch (error) {
-//       console.error(`Failed to apply interest for invoice ${inv._id}: ${error.message}`);
-//     }
-//   }
-
-//   console.log(`Monthly interest application completed`);
-// };
-
-
-// invoiceController.js में
-
 export const runMonthlyInterestForAll = async (runAt = new Date()) => {
-  console.log('🔔 runMonthlyInterestForAll called with date:', runAt);
-  console.log('Input date ISO:', runAt.toISOString());
+  console.log('\n🔔 ========== MONTHLY INTEREST RUN STARTED ==========');
+  console.log('📅 Input date (UTC):', runAt.toISOString());
+  console.log('📅 Input date (Local):', runAt.toString());
   
-  // दिए गए date को IST में convert करें
+  // Convert to IST
   const istDate = new Date(
     runAt.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
   );
+  console.log('📅 IST date:', istDate.toString());
+  console.log('📅 IST date components:', {
+    year: istDate.getFullYear(),
+    month: istDate.getMonth() + 1,
+    date: istDate.getDate(),
+    hours: istDate.getHours(),
+    minutes: istDate.getMinutes()
+  });
+
+  // निकालो कि किस महीने के लिए interest लगाना है
+  let targetMonth;
+  let isFirstDayOfMonth = istDate.getDate() === 1;
   
-  console.log('After IST conversion:', istDate.toString());
-  
-  // IST के हिसाब से check करें
-  const lastDayOfMonth = new Date(
-    istDate.getFullYear(),
-    istDate.getMonth() + 1,
-    0
-  ).getDate();
-  
-  const isLastDay = istDate.getDate() === lastDayOfMonth;
-  
-  if (!isLastDay) {
-    console.log(`❌ Not a month-end date in IST: ${istDate.toLocaleDateString()}`);
-    console.log(`Today: ${istDate.getDate()}, Last day: ${lastDayOfMonth}`);
-    return;
+  if (isFirstDayOfMonth) {
+    // अगर 1 तारीख है, तो पिछले महीने का interest लगाओ
+    targetMonth = new Date(istDate);
+    targetMonth.setMonth(targetMonth.getMonth() - 1);
+    console.log(`📅 1st of month detected - applying interest for PREVIOUS month: ${targetMonth.toLocaleDateString()}`);
+  } else {
+    // नहीं तो इसी महीने का
+    targetMonth = new Date(istDate);
+    console.log(`📅 Applying interest for CURRENT month: ${targetMonth.toLocaleDateString()}`);
   }
 
-  console.log(`✅ Date is month-end in IST: ${istDate.toLocaleDateString()}`);
+  // Target month के आखिरी दिन की date बनाओ
+  const targetMonthEnd = new Date(
+    targetMonth.getFullYear(),
+    targetMonth.getMonth() + 1,
+    0,
+    23,
+    59,
+    59
+  );
   
-  // Start of day in IST
-  const todayIST = startOfDay(istDate);
+  console.log(`🎯 Target month end date for interest calculation: ${targetMonthEnd.toLocaleDateString()}`);
+  console.log(`🎯 Target month end ISO: ${targetMonthEnd.toISOString()}`);
   
-  console.log(`🔍 Looking for invoices with dueDate <= ${todayIST.toISOString()}`);
+  // सारे unpaid invoices ढूंढो (interest rate > 0 वाले)
+  console.log('\n🔍 Fetching all unpaid invoices with interest rate > 0...');
   
-  // Find invoices
   const invoices = await Invoice.find({
     status: { $ne: "Paid" },
-    dueDate: { $lte: todayIST },
     interestRatePerYear: { $gt: 0 }
   });
 
-  console.log(`📊 Found ${invoices.length} invoices for interest calculation`);
+  console.log(`📊 Found ${invoices.length} total unpaid invoices`);
+  
+  // हर invoice की डिटेल दिखाओ
+  console.log('\n📋 ELIGIBLE INVOICES LIST:');
+  invoices.forEach((inv, index) => {
+    console.log(`\n${index + 1}. Invoice ID: ${inv._id}`);
+    console.log(`   Amount: ₹${inv.amount}`);
+    console.log(`   Due Date: ${inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : 'Not set'}`);
+    console.log(`   Interest Rate: ${inv.interestRatePerYear}%`);
+    console.log(`   Status: ${inv.status}`);
+    
+    // Current balance निकालो
+    const approvedStatements = inv.bankStatement.filter(e => e.paymentStatus === "Approved");
+    const currentBalance = approvedStatements.length > 0 ? approvedStatements.at(-1).balance : inv.amount;
+    console.log(`   Current Balance: ₹${currentBalance}`);
+    
+    // Last 3 bank statements दिखाओ
+    console.log(`   Recent Transactions:`);
+    const lastEntries = inv.bankStatement.slice(-3);
+    lastEntries.forEach(entry => {
+      console.log(`     - ${new Date(entry.date).toLocaleDateString()}: ${entry.description} | ₹${entry.debit > 0 ? 'Debit: ' + entry.debit : 'Credit: ' + entry.credit} | Balance: ₹${entry.balance} | Status: ${entry.paymentStatus}`);
+    });
+  });
+
+  console.log('\n🔄 PROCESSING EACH INVOICE FOR INTEREST:');
+  
+  let appliedCount = 0;
+  let skippedCount = 0;
+  let dueDateNotPassedCount = 0;
+  let alreadyAppliedCount = 0;
+  let noDueDateCount = 0;  // <-- यह वेरिएबल डिफाइन करना था
   
   for (const inv of invoices) {
     try {
-      console.log(`\n🔄 Processing invoice: ${inv._id}`);
-      console.log(`   Due date: ${inv.dueDate}`);
-      console.log(`   Current balance: ${inv.bankStatement.at(-1)?.balance || inv.amount}`);
+      console.log(`\n🔍 INVOICE: ${inv._id}`);
+      console.log(`   ========================================`);
       
-      // Check if interest already applied for this month
-      const monthStart = new Date(istDate.getFullYear(), istDate.getMonth(), 1);
-      const lastApplied = inv.lastMonthEndInterestApplied;
-      
-      if (lastApplied && lastApplied >= monthStart) {
-        console.log(`   ⏭️ Interest already applied this month on: ${lastApplied}`);
+      // Skip if no due date
+      if (!inv.dueDate) {
+        console.log(`   ❌ SKIPPED: No due date set`);
+        noDueDateCount++;
+        skippedCount++;
         continue;
       }
       
-      await applyMonthlyInterestIfNeeded(inv, istDate);
-      console.log(`   ✅ Interest applied successfully`);
+      const dueDate = startOfDay(new Date(inv.dueDate));
+      const targetDate = startOfDay(targetMonthEnd);
+      
+      console.log(`   📅 Due Date: ${dueDate.toLocaleDateString()}`);
+      console.log(`   📅 Target Date: ${targetDate.toLocaleDateString()}`);
+      
+      // Check if due date has passed target month end
+      if (dueDate > targetDate) {
+        console.log(`   ⏭️ SKIPPED: Due date (${dueDate.toLocaleDateString()}) is after target month end (${targetDate.toLocaleDateString()})`);
+        dueDateNotPassedCount++;
+        skippedCount++;
+        continue;
+      }
+      
+      // Check if interest already applied for this month
+      const monthYear = targetMonth.toLocaleString("default", {
+        month: "long",
+        year: "numeric",
+      });
+      
+      console.log(`   🔍 Checking if interest already applied for: ${monthYear}`);
+      
+      const alreadyApplied = inv.bankStatement.some(
+        (txn) => txn.description && txn.description.includes(monthYear)
+      );
+      
+      if (alreadyApplied) {
+        console.log(`   ⏭️ SKIPPED: Interest already applied for ${monthYear}`);
+        alreadyAppliedCount++;
+        skippedCount++;
+        
+        // Show the interest entry that was already applied
+        const interestEntry = inv.bankStatement.find(txn => txn.description && txn.description.includes(monthYear));
+        if (interestEntry) {
+          console.log(`   📝 Existing interest entry: ₹${interestEntry.debit} applied on ${new Date(interestEntry.date).toLocaleDateString()}`);
+        }
+        continue;
+      }
+      
+      // Get current balance
+      const approvedStatements = inv.bankStatement.filter(e => e.paymentStatus === "Approved");
+      const currentBalance = approvedStatements.length > 0 ? approvedStatements.at(-1).balance : inv.amount;
+      console.log(`   💰 Current Balance: ₹${currentBalance}`);
+      
+      // Calculate interest
+      console.log(`   🧮 Calculating interest from ${dueDate.toLocaleDateString()} to ${targetDate.toLocaleDateString()}...`);
+      
+      const interest = calculateDailyInterestForPeriod(inv, dueDate, targetDate);
+      
+      console.log(`   📊 Calculated Interest: ₹${interest}`);
+      
+      if (interest <= 0.01) {
+        console.log(`   ℹ️ SKIPPED: No interest to calculate (interest <= 0.01)`);
+        skippedCount++;
+        continue;
+      }
+      
+      // Apply interest
+      const newBalance = +(currentBalance + interest).toFixed(2);
+      console.log(`   💰 New Balance after interest: ₹${newBalance}`);
+      
+      const interestEntry = {
+        date: endOfDay(targetMonthEnd),
+        description: `Monthly interest for ${monthYear}`,
+        debit: interest,
+        credit: 0,
+        balance: newBalance,
+        paymentStatus: "Approved",
+      };
+      
+      inv.bankStatement.push(interestEntry);
+      inv.status = "Overdue";
+      inv.lastMonthEndInterestApplied = endOfDay(targetMonthEnd);
+      
+      // Calculate next month's end date
+      const nextMonth = new Date(targetMonthEnd);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      inv.nextInterestApplicationDate = getMonthEndDate(nextMonth);
+      
+      inv.markModified("bankStatement");
+      await inv.save();
+      
+      console.log(`   ✅ SUCCESS: Interest applied: ₹${interest}`);
+      console.log(`   📝 New bank statement entry added:`);
+      console.log(`      - Date: ${interestEntry.date.toLocaleDateString()}`);
+      console.log(`      - Description: ${interestEntry.description}`);
+      console.log(`      - Debit: ₹${interestEntry.debit}`);
+      console.log(`      - New Balance: ₹${interestEntry.balance}`);
+      
+      appliedCount++;
       
     } catch (error) {
-      console.error(`   ❌ Failed for invoice ${inv._id}: ${error.message}`);
+      console.error(`   ❌ ERROR for invoice ${inv._id}:`, error.message);
+      console.error(error.stack);
+      skippedCount++;
     }
   }
 
-  console.log(`🎯 Monthly interest application completed for ${invoices.length} invoices`);
+  console.log('\n📊 ========== FINAL SUMMARY ==========');
+  console.log(`✅ Interest Applied: ${appliedCount} invoices`);
+  console.log(`⏭️ Skipped (No due date): ${noDueDateCount}`);
+  console.log(`⏭️ Skipped (Due date not passed): ${dueDateNotPassedCount}`);
+  console.log(`⏭️ Skipped (Already applied): ${alreadyAppliedCount}`);
+  console.log(`⏭️ Skipped (Other reasons): ${skippedCount - noDueDateCount - dueDateNotPassedCount - alreadyAppliedCount}`);
+  console.log(`📊 Total Processed: ${invoices.length} invoices`);
+  console.log('=========================================\n');
+  
+  // अगर कोई invoice eligible थी तो उनकी लिस्ट दिखाओ
+  if (appliedCount > 0) {
+    console.log('✅ INVOICES THAT RECEIVED INTEREST:');
+    const updatedInvoices = await Invoice.find({
+      _id: { $in: invoices.slice(0, appliedCount).map(inv => inv._id) }
+    });
+    updatedInvoices.forEach(inv => {
+      const lastEntry = inv.bankStatement.at(-1);
+      if (lastEntry && lastEntry.description.includes('Monthly interest')) {
+        console.log(`   - ${inv._id}: ₹${lastEntry.debit} interest applied, New balance: ₹${lastEntry.balance}`);
+      }
+    });
+  }
+  
+  return { appliedCount, skippedCount, dueDateNotPassedCount, alreadyAppliedCount, noDueDateCount };
 };
 
 // invoiceController.js में
@@ -1371,3 +1341,5 @@ export const testMonthEndInterest = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+

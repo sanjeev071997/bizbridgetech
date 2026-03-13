@@ -4,14 +4,21 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import dotenv from "dotenv";
 dotenv.config();
-import {normalizeEmail} from "../utils/emailNormalizer.js";
+import { normalizeEmail } from "../utils/emailNormalizer.js";
 
-// utils/emailNormalizer.js 
+// utils/emailNormalizer.js
 const userSchema = new mongoose.Schema(
   {
+    // name: {
+    //   type: String,
+    //   required: true,
+    // },
+
     name: {
       type: String,
-      required: true,
+      required: function () {
+        return this.mode === "seller";
+      },
     },
 
     // email: {
@@ -20,23 +27,37 @@ const userSchema = new mongoose.Schema(
     //   required: true,
     //   trim: true,
     //   lowercase: true,
+    //   set: function (value) {
+    //     return normalizeEmail(value);
+    //   },
     // },
 
     email: {
-  type: String,
-  unique: true,
-  required: true,
-  trim: true,
-  lowercase: true,
-  set: function(value) {
-    return normalizeEmail(value);
-  }
-},
+      type: String,
+      unique: true,
+      trim: true,
+      lowercase: true,
+      sparse: true,
+      required: function () {
+        return this.mode === "seller";
+      },
+      set: function (value) {
+        return value ? normalizeEmail(value) : value;
+      },
+    },
+
+    // password: {
+    //   type: String,
+    //   select: false,
+    //   required: true,
+    // },
 
     password: {
       type: String,
       select: false,
-      required: true,
+      required: function () {
+        return this.mode === "seller";
+      },
     },
 
     phone: {
@@ -93,6 +114,14 @@ const userSchema = new mongoose.Schema(
       enum: ["seller", "buyer"],
       required: true,
       default: "buyer",
+    },
+
+    planId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Plan",
+      required: function () {
+        return this.mode === "seller";
+      },
     },
 
     resetPasswordOtp: {
@@ -161,46 +190,69 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
-  //   currentMode: {
-  //   type: String,
-  //   enum: ["seller", "buyer"],
-  //   default: "buyer",
-  // },
-
     resetPasswordToken: String,
     resetPasswordExpire: Date,
 
     profileImage: {
-    url: String,
-    public_id: String
+      url: String,
+      public_id: String,
+    },
   },
-  },
-
 
   {
     timestamps: true,
-  }
+  },
 );
 
 // Before saving, hash the password if it's not already hashed
+// userSchema.pre("save", async function (next) {
+//   if (!this.isModified("password")) {
+//     // still update bankDetails.updatedAt when bankDetails changed
+//     if (this.isModified("bankDetails")) {
+//       this.bankDetails.updatedAt = Date.now();
+//     }
+//     return next();
+//   }
+//   // Check if the password is already hashed using the bcrypt format
+//   if (!isPasswordAlreadyHashed(this.password)) {
+//     this.password = await bcrypt.hash(this.password, 10);
+//   } else {
+//     console.log("Password is already hashed. Skipping hashing.");
+//   }
+//   // update bankDetails.updatedAt if modified
+//   if (this.isModified("bankDetails")) {
+//     this.bankDetails.updatedAt = Date.now();
+//   }
+//   next();
+// });
+
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) {
-    // still update bankDetails.updatedAt when bankDetails changed
+  //  Buyer ke case me password hota hi nahi
+  if (!this.password) {
     if (this.isModified("bankDetails")) {
       this.bankDetails.updatedAt = Date.now();
     }
     return next();
   }
-  // Check if the password is already hashed using the bcrypt format
+
+  //  Password hai but change nahi hua
+  if (!this.isModified("password")) {
+    if (this.isModified("bankDetails")) {
+      this.bankDetails.updatedAt = Date.now();
+    }
+    return next();
+  }
+
+  //  Password already hashed hai to skip
   if (!isPasswordAlreadyHashed(this.password)) {
     this.password = await bcrypt.hash(this.password, 10);
-  } else {
-    console.log("Password is already hashed. Skipping hashing.");
   }
-  // update bankDetails.updatedAt if modified
+
+  //  bankDetails timestamp update
   if (this.isModified("bankDetails")) {
     this.bankDetails.updatedAt = Date.now();
   }
+
   next();
 });
 
