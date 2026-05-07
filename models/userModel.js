@@ -116,13 +116,13 @@ const userSchema = new mongoose.Schema(
       default: "buyer",
     },
 
-    planId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Plan",
-      required: function () {
-        return this.mode === "seller";
-      },
-    },
+    // planId: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Plan",
+    //   required: function () {
+    //     return this.mode === "seller";
+    //   },
+    // },
 
     resetPasswordOtp: {
       type: String,
