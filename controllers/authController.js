@@ -207,6 +207,7 @@ if (process.env.NODE_ENV === "production") {
     const response = {
       success: true,
       message: "OTP sent successfully to your mobile number",
+      otp
     };
 
     // Only include OTP in development environment
